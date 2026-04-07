@@ -7,9 +7,13 @@ import {
   StyleSheet,
   Alert,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types';
 import { usePlan } from '../hooks/usePlan';
+import { setRuntimeApiKey } from '../services/aiService';
+
+const CUSTOM_KEY_STORAGE = '@gymapp_custom_apikey';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Home'>;
@@ -34,6 +38,10 @@ export function HomeScreen({ navigation }: Props) {
 
   useEffect(() => {
     loadStoredPlan();
+    // Load custom API key if user has set one
+    AsyncStorage.getItem(CUSTOM_KEY_STORAGE).then((key) => {
+      if (key) setRuntimeApiKey(key);
+    });
   }, []);
 
   const handleClearPlan = () => {
@@ -76,14 +84,36 @@ export function HomeScreen({ navigation }: Props) {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Header */}
       <View style={styles.header}>
-        <View>
+        <View style={styles.headerLeft}>
           <Text style={styles.greeting}>Olá, {profile.name}! 👋</Text>
           <Text style={styles.subGreeting}>Seu plano anual está pronto</Text>
         </View>
-        <TouchableOpacity onPress={handleClearPlan} style={styles.newPlanBtn}>
-          <Text style={styles.newPlanText}>Novo Plano</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Settings')}
+            style={styles.iconBtn}
+            testID="btn-settings"
+          >
+            <Text style={styles.iconBtnText}>⚙️</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleClearPlan} style={styles.newPlanBtn}>
+            <Text style={styles.newPlanText}>Novo Plano</Text>
+          </TouchableOpacity>
+        </View>
       </View>
+
+      {/* Chat Button */}
+      <TouchableOpacity
+        style={styles.chatBtn}
+        onPress={() => navigation.navigate('Chat')}
+      >
+        <Text style={styles.chatBtnIcon}>💬</Text>
+        <View style={styles.chatBtnInfo}>
+          <Text style={styles.chatBtnTitle}>Chat com IA</Text>
+          <Text style={styles.chatBtnSub}>Tire dúvidas, ajuste o plano, peça treinos extras</Text>
+        </View>
+        <Text style={styles.arrow}>›</Text>
+      </TouchableOpacity>
 
       {/* Goal Card */}
       <View style={styles.goalCard}>
@@ -188,6 +218,19 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     paddingTop: 10,
   },
+  headerLeft: { flex: 1 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  iconBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: '#1a1a24',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#2a2a3a',
+  },
+  iconBtnText: { fontSize: 18 },
   greeting: { fontSize: 22, fontWeight: '800', color: '#fff' },
   subGreeting: { color: '#888', fontSize: 13, marginTop: 2 },
   newPlanBtn: {
@@ -265,6 +308,21 @@ const styles = StyleSheet.create({
   },
   currentBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
   arrow: { color: '#444', fontSize: 22 },
+  chatBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1a0f3a',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#6c47ff',
+    gap: 12,
+  },
+  chatBtnIcon: { fontSize: 28 },
+  chatBtnInfo: { flex: 1 },
+  chatBtnTitle: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  chatBtnSub: { color: '#a78bfa', fontSize: 12, marginTop: 2 },
   tipsCard: {
     backgroundColor: '#1a1a24',
     borderRadius: 14,

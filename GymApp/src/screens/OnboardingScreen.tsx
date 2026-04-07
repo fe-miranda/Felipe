@@ -32,12 +32,16 @@ const LEVELS: { value: FitnessLevel; label: string; desc: string }[] = [
   { value: 'advanced', label: 'Avançado', desc: 'Mais de 2 anos' },
 ];
 
+const GENDERS: { value: Gender; label: string }[] = [
+  { value: 'male', label: 'Masculino' },
+  { value: 'female', label: 'Feminino' },
+  { value: 'other', label: 'Outro' },
+];
+
 const DAYS = [2, 3, 4, 5, 6];
 
 export function OnboardingScreen({ navigation }: Props) {
   const { generate, loadStoredPlan } = usePlan();
-  const [step, setStep] = useState(0);
-  const [apiKey, setApiKey] = useState('');
   const [name, setName] = useState('');
   const [age, setAge] = useState('');
   const [weight, setWeight] = useState('');
@@ -56,23 +60,33 @@ export function OnboardingScreen({ navigation }: Props) {
   }, []);
 
   const handleGenerate = async () => {
-    if (!apiKey.trim()) {
-      Alert.alert('Atenção', 'Por favor, insira sua API Key da Anthropic.');
-      return;
-    }
-    if (!name || !age || !weight || !height) {
+    if (!name.trim() || !age || !weight || !height) {
       Alert.alert('Atenção', 'Preencha todos os campos obrigatórios.');
       return;
     }
 
-    // Set API key in environment
-    process.env.ANTHROPIC_API_KEY = apiKey.trim();
+    const parsedAge = parseInt(age, 10);
+    const parsedWeight = parseFloat(weight);
+    const parsedHeight = parseFloat(height);
+
+    if (isNaN(parsedAge) || parsedAge < 10 || parsedAge > 100) {
+      Alert.alert('Atenção', 'Insira uma idade válida (10–100).');
+      return;
+    }
+    if (isNaN(parsedWeight) || parsedWeight < 30 || parsedWeight > 300) {
+      Alert.alert('Atenção', 'Insira um peso válido em kg.');
+      return;
+    }
+    if (isNaN(parsedHeight) || parsedHeight < 100 || parsedHeight > 250) {
+      Alert.alert('Atenção', 'Insira uma altura válida em cm.');
+      return;
+    }
 
     const profile: UserProfile = {
       name: name.trim(),
-      age: parseInt(age),
-      weight: parseFloat(weight),
-      height: parseFloat(height),
+      age: parsedAge,
+      weight: parsedWeight,
+      height: parsedHeight,
       gender,
       goal,
       fitnessLevel: level,
@@ -85,17 +99,11 @@ export function OnboardingScreen({ navigation }: Props) {
       await generate(profile);
       navigation.replace('Home');
     } catch (err: any) {
-      Alert.alert('Erro', err.message || 'Erro ao gerar o plano. Verifique sua API Key.');
+      Alert.alert('Erro', err.message || 'Erro ao gerar o plano. Tente novamente.');
     } finally {
       setGenerating(false);
     }
   };
-
-  const GENDERS: { value: Gender; label: string }[] = [
-    { value: 'male', label: 'Masculino' },
-    { value: 'female', label: 'Feminino' },
-    { value: 'other', label: 'Outro' },
-  ];
 
   return (
     <KeyboardAvoidingView
@@ -110,20 +118,6 @@ export function OnboardingScreen({ navigation }: Props) {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>🔑 API Key Anthropic</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="sk-ant-..."
-            value={apiKey}
-            onChangeText={setApiKey}
-            secureTextEntry
-            placeholderTextColor="#666"
-            autoCapitalize="none"
-          />
-          <Text style={styles.hint}>Obtenha em console.anthropic.com</Text>
-        </View>
-
-        <View style={styles.card}>
           <Text style={styles.sectionTitle}>👤 Seus Dados</Text>
           <TextInput
             style={styles.input}
@@ -131,6 +125,7 @@ export function OnboardingScreen({ navigation }: Props) {
             value={name}
             onChangeText={setName}
             placeholderTextColor="#666"
+            testID="input-name"
           />
           <View style={styles.row}>
             <TextInput
@@ -140,6 +135,7 @@ export function OnboardingScreen({ navigation }: Props) {
               onChangeText={setAge}
               keyboardType="numeric"
               placeholderTextColor="#666"
+              testID="input-age"
             />
             <TextInput
               style={[styles.input, styles.halfInput]}
@@ -148,6 +144,7 @@ export function OnboardingScreen({ navigation }: Props) {
               onChangeText={setWeight}
               keyboardType="decimal-pad"
               placeholderTextColor="#666"
+              testID="input-weight"
             />
           </View>
           <TextInput
@@ -157,6 +154,7 @@ export function OnboardingScreen({ navigation }: Props) {
             onChangeText={setHeight}
             keyboardType="numeric"
             placeholderTextColor="#666"
+            testID="input-height"
           />
 
           <Text style={styles.label}>Gênero</Text>
@@ -166,6 +164,7 @@ export function OnboardingScreen({ navigation }: Props) {
                 key={g.value}
                 style={[styles.optionBtn, gender === g.value && styles.optionBtnActive]}
                 onPress={() => setGender(g.value)}
+                testID={`gender-${g.value}`}
               >
                 <Text style={[styles.optionText, gender === g.value && styles.optionTextActive]}>
                   {g.label}
@@ -183,6 +182,7 @@ export function OnboardingScreen({ navigation }: Props) {
                 key={g.value}
                 style={[styles.goalBtn, goal === g.value && styles.goalBtnActive]}
                 onPress={() => setGoal(g.value)}
+                testID={`goal-${g.value}`}
               >
                 <Text style={styles.goalIcon}>{g.icon}</Text>
                 <Text style={[styles.goalText, goal === g.value && styles.goalTextActive]}>
@@ -200,6 +200,7 @@ export function OnboardingScreen({ navigation }: Props) {
               key={l.value}
               style={[styles.levelBtn, level === l.value && styles.levelBtnActive]}
               onPress={() => setLevel(l.value)}
+              testID={`level-${l.value}`}
             >
               <View>
                 <Text style={[styles.levelLabel, level === l.value && styles.levelLabelActive]}>
@@ -220,6 +221,7 @@ export function OnboardingScreen({ navigation }: Props) {
                 key={d}
                 style={[styles.dayBtn, daysPerWeek === d && styles.dayBtnActive]}
                 onPress={() => setDaysPerWeek(d)}
+                testID={`days-${d}`}
               >
                 <Text style={[styles.dayText, daysPerWeek === d && styles.dayTextActive]}>
                   {d}x
@@ -239,6 +241,7 @@ export function OnboardingScreen({ navigation }: Props) {
             multiline
             numberOfLines={3}
             placeholderTextColor="#666"
+            testID="input-injuries"
           />
         </View>
 
@@ -246,6 +249,7 @@ export function OnboardingScreen({ navigation }: Props) {
           style={[styles.generateBtn, generating && styles.generateBtnDisabled]}
           onPress={handleGenerate}
           disabled={generating}
+          testID="btn-generate"
         >
           {generating ? (
             <Text style={styles.generateBtnText}>⏳ Gerando seu plano anual...</Text>
@@ -297,7 +301,6 @@ const styles = StyleSheet.create({
   halfInput: { flex: 1, marginRight: 8 },
   row: { flexDirection: 'row' },
   label: { color: '#aaa', fontSize: 14, marginBottom: 10, marginTop: 4 },
-  hint: { color: '#555', fontSize: 12, marginTop: -6 },
   optionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   optionBtn: {
     paddingHorizontal: 16,

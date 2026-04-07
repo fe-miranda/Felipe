@@ -7,6 +7,8 @@ import { HomeScreen } from '../screens/HomeScreen';
 import { MonthDetailScreen } from '../screens/MonthDetailScreen';
 import { WeekDetailScreen } from '../screens/WeekDetailScreen';
 import { WorkoutDetailScreen } from '../screens/WorkoutDetailScreen';
+import { ChatScreen } from '../screens/ChatScreen';
+import { SettingsScreen } from '../screens/SettingsScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -49,6 +51,16 @@ export function AppNavigator() {
           name="WorkoutDetail"
           component={WorkoutDetailScreen}
           options={{ title: 'Treino do Dia' }}
+        />
+        <Stack.Screen
+          name="Chat"
+          component={ChatScreen}
+          options={{ title: 'Chat com IA' }}
+        />
+        <Stack.Screen
+          name="Settings"
+          component={SettingsScreen}
+          options={{ title: 'Configurações' }}
         />
       </Stack.Navigator>
     </NavigationContainer>

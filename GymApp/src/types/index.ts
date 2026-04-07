@@ -72,4 +72,6 @@ export type RootStackParamList = {
   MonthDetail: { monthIndex: number };
   WeekDetail: { monthIndex: number; weekIndex: number };
   WorkoutDetail: { monthIndex: number; weekIndex: number; dayIndex: number };
+  Chat: undefined;
+  Settings: undefined;
 };

@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AnnualPlan, UserProfile } from '../types';
-import { generateAnnualPlan } from '../services/claudeApi';
+import { generateAnnualPlan } from '../services/aiService';
 
 const PLAN_KEY = '@gymapp_plan';
 const PROFILE_KEY = '@gymapp_profile';
@@ -38,28 +38,31 @@ export function usePlan() {
     }
   }, []);
 
-  const generate = useCallback(async (profile: UserProfile) => {
-    setLoading(true);
-    setError(null);
-    setProgress('');
+  const generate = useCallback(
+    async (profile: UserProfile) => {
+      setLoading(true);
+      setError(null);
+      setProgress('');
 
-    try {
-      await saveProfile(profile);
+      try {
+        await saveProfile(profile);
 
-      const newPlan = await generateAnnualPlan(profile, (chunk) => {
-        setProgress((prev) => prev + chunk);
-      });
+        const newPlan = await generateAnnualPlan(profile, (status) => {
+          setProgress(status);
+        });
 
-      await AsyncStorage.setItem(PLAN_KEY, JSON.stringify(newPlan));
-      setPlan(newPlan);
-      return newPlan;
-    } catch (err: any) {
-      setError(err.message || 'Erro ao gerar o plano. Verifique sua API key.');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, [saveProfile]);
+        await AsyncStorage.setItem(PLAN_KEY, JSON.stringify(newPlan));
+        setPlan(newPlan);
+        return newPlan;
+      } catch (err: any) {
+        setError(err.message || 'Erro ao gerar o plano.');
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [saveProfile]
+  );
 
   const clearPlan = useCallback(async () => {
     await AsyncStorage.removeItem(PLAN_KEY);
