@@ -1,10 +1,12 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   ScrollView,
   StyleSheet,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
@@ -18,7 +20,8 @@ type Props = {
 
 export function MonthDetailScreen({ navigation, route }: Props) {
   const { monthIndex } = route.params;
-  const { plan, loadStoredPlan } = usePlan();
+  const { plan, loadStoredPlan, generateMonth } = usePlan();
+  const [generatingWeeks, setGeneratingWeeks] = useState(false);
 
   useEffect(() => {
     loadStoredPlan();
@@ -27,6 +30,18 @@ export function MonthDetailScreen({ navigation, route }: Props) {
   if (!plan) return null;
 
   const month = plan.monthlyBlocks[monthIndex];
+  const hasWeeks = month.weeks && month.weeks.length > 0;
+
+  const handleGenerateWeeks = async () => {
+    setGeneratingWeeks(true);
+    try {
+      await generateMonth(monthIndex);
+    } catch (err: any) {
+      Alert.alert('Erro', err.message || 'Não foi possível gerar os treinos. Tente novamente.');
+    } finally {
+      setGeneratingWeeks(false);
+    }
+  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -53,47 +68,74 @@ export function MonthDetailScreen({ navigation, route }: Props) {
 
       {/* Weeks */}
       <Text style={styles.sectionTitle}>Semanas</Text>
-      {month.weeks.map((week, weekIdx) => (
-        <TouchableOpacity
-          key={weekIdx}
-          style={styles.weekCard}
-          onPress={() =>
-            navigation.navigate('WeekDetail', {
-              monthIndex,
-              weekIndex: weekIdx,
-            })
-          }
-        >
-          <View style={styles.weekHeader}>
-            <View style={styles.weekBadge}>
-              <Text style={styles.weekBadgeText}>{week.week}</Text>
-            </View>
-            <View style={styles.weekInfo}>
-              <Text style={styles.weekTitle}>Semana {week.week}</Text>
-              <Text style={styles.weekTheme}>{week.theme}</Text>
-            </View>
-            <Text style={styles.arrow}>›</Text>
-          </View>
 
-          <View style={styles.weekGoals}>
-            {week.weeklyGoals.slice(0, 2).map((goal, i) => (
-              <View key={i} style={styles.goalChip}>
-                <Text style={styles.goalChipText} numberOfLines={1}>
-                  {goal}
-                </Text>
+      {!hasWeeks ? (
+        <View style={styles.generateCard}>
+          <Text style={styles.generateIcon}>🏋️</Text>
+          <Text style={styles.generateTitle}>Treinos ainda não gerados</Text>
+          <Text style={styles.generateDesc}>
+            Gere os treinos detalhados deste mês com um clique. Cada mês é gerado separadamente para
+            otimizar o uso da IA.
+          </Text>
+          <TouchableOpacity
+            style={[styles.generateBtn, generatingWeeks && styles.generateBtnDisabled]}
+            onPress={handleGenerateWeeks}
+            disabled={generatingWeeks}
+            testID="btn-generate-weeks"
+          >
+            {generatingWeeks ? (
+              <>
+                <ActivityIndicator color="#fff" size="small" style={styles.spinner} />
+                <Text style={styles.generateBtnText}>Gerando treinos...</Text>
+              </>
+            ) : (
+              <Text style={styles.generateBtnText}>⚡ Gerar Treinos do Mês</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      ) : (
+        month.weeks.map((week, weekIdx) => (
+          <TouchableOpacity
+            key={weekIdx}
+            style={styles.weekCard}
+            onPress={() =>
+              navigation.navigate('WeekDetail', {
+                monthIndex,
+                weekIndex: weekIdx,
+              })
+            }
+          >
+            <View style={styles.weekHeader}>
+              <View style={styles.weekBadge}>
+                <Text style={styles.weekBadgeText}>{week.week}</Text>
               </View>
-            ))}
-          </View>
+              <View style={styles.weekInfo}>
+                <Text style={styles.weekTitle}>Semana {week.week}</Text>
+                <Text style={styles.weekTheme}>{week.theme}</Text>
+              </View>
+              <Text style={styles.arrow}>›</Text>
+            </View>
 
-          <View style={styles.daysPreview}>
-            {week.days.map((day, i) => (
-              <View key={i} style={styles.dayChip}>
-                <Text style={styles.dayChipText}>{day.dayOfWeek.slice(0, 3)}</Text>
-              </View>
-            ))}
-          </View>
-        </TouchableOpacity>
-      ))}
+            <View style={styles.weekGoals}>
+              {week.weeklyGoals.slice(0, 2).map((goal, i) => (
+                <View key={i} style={styles.goalChip}>
+                  <Text style={styles.goalChipText} numberOfLines={1}>
+                    {goal}
+                  </Text>
+                </View>
+              ))}
+            </View>
+
+            <View style={styles.daysPreview}>
+              {week.days.map((day, i) => (
+                <View key={i} style={styles.dayChip}>
+                  <Text style={styles.dayChipText}>{day.dayOfWeek.slice(0, 3)}</Text>
+                </View>
+              ))}
+            </View>
+          </TouchableOpacity>
+        ))
+      )}
     </ScrollView>
   );
 }
@@ -141,6 +183,34 @@ const styles = StyleSheet.create({
   },
   indicatorText: { color: '#bbb', flex: 1, lineHeight: 20 },
   sectionTitle: { color: '#fff', fontSize: 17, fontWeight: '700', marginBottom: 12 },
+  generateCard: {
+    backgroundColor: '#1a1a24',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#2a2a3a',
+  },
+  generateIcon: { fontSize: 48, marginBottom: 12 },
+  generateTitle: { color: '#fff', fontSize: 17, fontWeight: '700', marginBottom: 8 },
+  generateDesc: {
+    color: '#888',
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 20,
+  },
+  generateBtn: {
+    backgroundColor: '#6c47ff',
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  generateBtnDisabled: { backgroundColor: '#3d2b99', opacity: 0.7 },
+  generateBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  spinner: { marginRight: 8 },
   weekCard: {
     backgroundColor: '#1a1a24',
     borderRadius: 16,

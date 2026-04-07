@@ -1,11 +1,13 @@
 import {
   generateAnnualPlan,
+  generatePlanOverview,
+  generateMonthDetail,
   chatAboutPlan,
   setRuntimeApiKey,
   GOAL_LABELS,
   LEVEL_LABELS,
 } from '../src/services/aiService';
-import type { UserProfile, AnnualPlan } from '../src/types';
+import type { UserProfile, AnnualPlan, MonthlyBlock } from '../src/types';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -20,27 +22,36 @@ const mockProfile: UserProfile = {
   daysPerWeek: 4,
 };
 
-const mockPlanData = {
+const mockMonthBlock: Pick<MonthlyBlock, 'month' | 'monthName' | 'focus' | 'description'> = {
+  month: 1,
+  monthName: 'Janeiro',
+  focus: 'Adaptação',
+  description: 'Mês de adaptação ao treino',
+};
+
+const mockWeeks = Array.from({ length: 4 }, (_, w) => ({
+  week: w + 1,
+  theme: 'Semana de treino',
+  weeklyGoals: ['Manter consistência'],
+  days: [
+    {
+      dayOfWeek: 'Segunda',
+      focus: 'Peito',
+      duration: 60,
+      exercises: [{ name: 'Supino', sets: 3, reps: '10-12', rest: '60s' }],
+    },
+  ],
+}));
+
+const mockOverviewData = {
   overallGoal: 'Ganhar 5kg de músculo em 12 meses',
   monthlyBlocks: Array.from({ length: 12 }, (_, i) => ({
     month: i + 1,
     monthName: ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][i],
     focus: 'Base',
     description: 'Mês de adaptação',
-    weeks: Array.from({ length: 4 }, (_, w) => ({
-      week: w + 1,
-      theme: 'Semana de treino',
-      weeklyGoals: ['Manter consistência'],
-      days: [
-        {
-          dayOfWeek: 'Segunda',
-          focus: 'Peito',
-          duration: 60,
-          exercises: [{ name: 'Supino', sets: 3, reps: '10-12', rest: '60s' }],
-        },
-      ],
-    })),
     progressIndicators: ['Completar todos os treinos'],
+    weeks: [],
   })),
   nutritionTips: ['Comer proteína suficiente'],
   recoveryTips: ['Dormir 8h'],
@@ -51,10 +62,10 @@ const mockAnnualPlan: AnnualPlan = {
   createdAt: new Date().toISOString(),
   userProfile: mockProfile,
   totalMonths: 12,
-  overallGoal: mockPlanData.overallGoal,
-  monthlyBlocks: mockPlanData.monthlyBlocks,
-  nutritionTips: mockPlanData.nutritionTips,
-  recoveryTips: mockPlanData.recoveryTips,
+  overallGoal: mockOverviewData.overallGoal,
+  monthlyBlocks: mockOverviewData.monthlyBlocks,
+  nutritionTips: mockOverviewData.nutritionTips,
+  recoveryTips: mockOverviewData.recoveryTips,
 };
 
 // Groq returns OpenAI-compatible format
@@ -125,12 +136,182 @@ describe('setRuntimeApiKey', () => {
   });
 });
 
+// ─── generatePlanOverview ──────────────────────────────────────────────────
+
+describe('generatePlanOverview', () => {
+  it('returns overview with 12 empty-weeks months', async () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce(
+      groqResponse(JSON.stringify(mockOverviewData))
+    );
+
+    const overview = await generatePlanOverview(mockProfile);
+
+    expect(overview.overallGoal).toBe(mockOverviewData.overallGoal);
+    expect(overview.monthlyBlocks).toHaveLength(12);
+    expect(overview.monthlyBlocks[0].weeks).toEqual([]);
+    expect(overview.nutritionTips).toEqual(mockOverviewData.nutritionTips);
+    expect(overview.recoveryTips).toEqual(mockOverviewData.recoveryTips);
+  });
+
+  it('calls onProgress callback', async () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce(
+      groqResponse(JSON.stringify(mockOverviewData))
+    );
+
+    const onProgress = jest.fn();
+    await generatePlanOverview(mockProfile, onProgress);
+
+    expect(onProgress).toHaveBeenCalledWith('Gerando seu plano personalizado...');
+  });
+
+  it('forces weeks to empty array even if AI returns weeks', async () => {
+    const dataWithWeeks = {
+      ...mockOverviewData,
+      monthlyBlocks: mockOverviewData.monthlyBlocks.map((b) => ({ ...b, weeks: mockWeeks })),
+    };
+    (global.fetch as jest.Mock).mockResolvedValueOnce(
+      groqResponse(JSON.stringify(dataWithWeeks))
+    );
+
+    const overview = await generatePlanOverview(mockProfile);
+    // overview should strip weeks
+    overview.monthlyBlocks.forEach((b) => expect(b.weeks).toEqual([]));
+  });
+
+  it('uses empty arrays as fallback for missing tips', async () => {
+    const { nutritionTips: _, recoveryTips: __, ...overviewWithoutTips } = mockOverviewData;
+    (global.fetch as jest.Mock).mockResolvedValueOnce(
+      groqResponse(JSON.stringify(overviewWithoutTips))
+    );
+
+    const overview = await generatePlanOverview(mockProfile);
+    expect(overview.nutritionTips).toEqual([]);
+    expect(overview.recoveryTips).toEqual([]);
+  });
+
+  it('throws when response has no valid JSON block', async () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce(groqResponse('sem json aqui'));
+
+    await expect(generatePlanOverview(mockProfile)).rejects.toThrow(
+      'Não foi possível gerar o plano'
+    );
+  });
+
+  it('includes injuries in prompt when present', async () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce(
+      groqResponse(JSON.stringify(mockOverviewData))
+    );
+
+    await generatePlanOverview({ ...mockProfile, injuries: 'dor no joelho' });
+
+    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    const prompt = body.messages[0].content;
+    expect(prompt).toContain('dor no joelho');
+  });
+
+  it('uses max_tokens 2048 for overview request', async () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce(
+      groqResponse(JSON.stringify(mockOverviewData))
+    );
+
+    await generatePlanOverview(mockProfile);
+
+    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    expect(body.max_tokens).toBe(2048);
+  });
+});
+
+// ─── generateMonthDetail ──────────────────────────────────────────────────
+
+describe('generateMonthDetail', () => {
+  it('returns 4 weeks of workout data', async () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce(
+      groqResponse(JSON.stringify({ weeks: mockWeeks }))
+    );
+
+    const weeks = await generateMonthDetail(mockMonthBlock, mockProfile, 'Ganhar massa muscular');
+
+    expect(weeks).toHaveLength(4);
+    expect(weeks[0].week).toBe(1);
+    expect(weeks[0].days).toBeDefined();
+  });
+
+  it('includes month name and focus in prompt', async () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce(
+      groqResponse(JSON.stringify({ weeks: mockWeeks }))
+    );
+
+    await generateMonthDetail(mockMonthBlock, mockProfile, 'Ganhar massa muscular');
+
+    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    const prompt = body.messages[0].content;
+    expect(prompt).toContain('Janeiro');
+    expect(prompt).toContain('Adaptação');
+  });
+
+  it('includes injuries in prompt when present', async () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce(
+      groqResponse(JSON.stringify({ weeks: mockWeeks }))
+    );
+
+    await generateMonthDetail(mockMonthBlock, { ...mockProfile, injuries: 'joelho' }, 'Ganhar massa');
+
+    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    expect(body.messages[0].content).toContain('joelho');
+  });
+
+  it('uses max_tokens 3500 for month detail request', async () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce(
+      groqResponse(JSON.stringify({ weeks: mockWeeks }))
+    );
+
+    await generateMonthDetail(mockMonthBlock, mockProfile, 'Ganhar massa muscular');
+
+    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    expect(body.max_tokens).toBe(3500);
+  });
+
+  it('throws when response has no valid JSON', async () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce(groqResponse('sem json'));
+
+    await expect(
+      generateMonthDetail(mockMonthBlock, mockProfile, 'Ganhar massa')
+    ).rejects.toThrow('Não foi possível gerar os treinos do mês');
+  });
+
+  it('returns empty array when weeks key is missing', async () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce(
+      groqResponse(JSON.stringify({}))
+    );
+
+    const weeks = await generateMonthDetail(mockMonthBlock, mockProfile, 'Ganhar massa');
+    expect(weeks).toEqual([]);
+  });
+
+  it('throws on API error', async () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce(groqError(429, 'RATE_LIMIT'));
+
+    await expect(
+      generateMonthDetail(mockMonthBlock, mockProfile, 'Ganhar massa')
+    ).rejects.toThrow('RATE_LIMIT');
+  });
+
+  it('extracts JSON embedded in surrounding text', async () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce(
+      groqResponse(`Aqui estão os treinos:\n${JSON.stringify({ weeks: mockWeeks })}\nBom treino!`)
+    );
+
+    const weeks = await generateMonthDetail(mockMonthBlock, mockProfile, 'Ganhar massa');
+    expect(weeks).toHaveLength(4);
+  });
+});
+
 // ─── generateAnnualPlan ────────────────────────────────────────────────────
 
 describe('generateAnnualPlan', () => {
-  it('returns a valid AnnualPlan on success', async () => {
+  it('returns a valid AnnualPlan with empty weeks on success', async () => {
     (global.fetch as jest.Mock).mockResolvedValueOnce(
-      groqResponse(JSON.stringify(mockPlanData))
+      groqResponse(JSON.stringify(mockOverviewData))
     );
 
     const plan = await generateAnnualPlan(mockProfile);
@@ -138,16 +319,18 @@ describe('generateAnnualPlan', () => {
     expect(plan.userId).toBe('João');
     expect(plan.totalMonths).toBe(12);
     expect(plan.monthlyBlocks).toHaveLength(12);
-    expect(plan.overallGoal).toBe(mockPlanData.overallGoal);
-    expect(plan.nutritionTips).toEqual(mockPlanData.nutritionTips);
-    expect(plan.recoveryTips).toEqual(mockPlanData.recoveryTips);
+    expect(plan.overallGoal).toBe(mockOverviewData.overallGoal);
+    expect(plan.nutritionTips).toEqual(mockOverviewData.nutritionTips);
+    expect(plan.recoveryTips).toEqual(mockOverviewData.recoveryTips);
     expect(plan.userProfile).toEqual(mockProfile);
     expect(plan.createdAt).toBeTruthy();
+    // Weeks are empty — generated on-demand
+    plan.monthlyBlocks.forEach((b) => expect(b.weeks).toEqual([]));
   });
 
   it('calls Groq endpoint with correct URL and Authorization header', async () => {
     (global.fetch as jest.Mock).mockResolvedValueOnce(
-      groqResponse(JSON.stringify(mockPlanData))
+      groqResponse(JSON.stringify(mockOverviewData))
     );
 
     await generateAnnualPlan(mockProfile);
@@ -161,7 +344,7 @@ describe('generateAnnualPlan', () => {
 
   it('uses llama-3.3-70b model', async () => {
     (global.fetch as jest.Mock).mockResolvedValueOnce(
-      groqResponse(JSON.stringify(mockPlanData))
+      groqResponse(JSON.stringify(mockOverviewData))
     );
 
     await generateAnnualPlan(mockProfile);
@@ -172,7 +355,7 @@ describe('generateAnnualPlan', () => {
 
   it('calls onProgress callback during generation', async () => {
     (global.fetch as jest.Mock).mockResolvedValueOnce(
-      groqResponse(JSON.stringify(mockPlanData))
+      groqResponse(JSON.stringify(mockOverviewData))
     );
 
     const onProgress = jest.fn();
@@ -183,7 +366,7 @@ describe('generateAnnualPlan', () => {
 
   it('includes injuries in prompt when present', async () => {
     (global.fetch as jest.Mock).mockResolvedValueOnce(
-      groqResponse(JSON.stringify(mockPlanData))
+      groqResponse(JSON.stringify(mockOverviewData))
     );
 
     await generateAnnualPlan({ ...mockProfile, injuries: 'dor no joelho' });
@@ -213,22 +396,11 @@ describe('generateAnnualPlan', () => {
 
   it('extracts JSON embedded in surrounding text', async () => {
     (global.fetch as jest.Mock).mockResolvedValueOnce(
-      groqResponse(`Aqui está:\n${JSON.stringify(mockPlanData)}\nBom treino!`)
+      groqResponse(`Aqui está:\n${JSON.stringify(mockOverviewData)}\nBom treino!`)
     );
 
     const plan = await generateAnnualPlan(mockProfile);
-    expect(plan.overallGoal).toBe(mockPlanData.overallGoal);
-  });
-
-  it('uses empty arrays as fallback for missing tips', async () => {
-    const { nutritionTips: _, recoveryTips: __, ...planWithoutTips } = mockPlanData;
-    (global.fetch as jest.Mock).mockResolvedValueOnce(
-      groqResponse(JSON.stringify(planWithoutTips))
-    );
-
-    const plan = await generateAnnualPlan(mockProfile);
-    expect(plan.nutritionTips).toEqual([]);
-    expect(plan.recoveryTips).toEqual([]);
+    expect(plan.overallGoal).toBe(mockOverviewData.overallGoal);
   });
 });
 

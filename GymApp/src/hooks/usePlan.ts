@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AnnualPlan, UserProfile } from '../types';
-import { generateAnnualPlan } from '../services/aiService';
+import { generateAnnualPlan, generateMonthDetail } from '../services/aiService';
 
 const PLAN_KEY = '@gymapp_plan';
 const PROFILE_KEY = '@gymapp_profile';
@@ -64,6 +64,29 @@ export function usePlan() {
     [saveProfile]
   );
 
+  const generateMonth = useCallback(
+    async (monthIndex: number): Promise<void> => {
+      const stored = await AsyncStorage.getItem(PLAN_KEY);
+      if (!stored) throw new Error('Plano não encontrado.');
+
+      const currentPlan: AnnualPlan = JSON.parse(stored);
+      const monthBlock = currentPlan.monthlyBlocks[monthIndex];
+
+      const weeks = await generateMonthDetail(monthBlock, currentPlan.userProfile, currentPlan.overallGoal);
+
+      const updatedPlan: AnnualPlan = {
+        ...currentPlan,
+        monthlyBlocks: currentPlan.monthlyBlocks.map((b, i) =>
+          i === monthIndex ? { ...b, weeks } : b
+        ),
+      };
+
+      await AsyncStorage.setItem(PLAN_KEY, JSON.stringify(updatedPlan));
+      setPlan(updatedPlan);
+    },
+    []
+  );
+
   const clearPlan = useCallback(async () => {
     await AsyncStorage.removeItem(PLAN_KEY);
     setPlan(null);
@@ -75,6 +98,7 @@ export function usePlan() {
     progress,
     error,
     generate,
+    generateMonth,
     loadStoredPlan,
     loadProfile,
     saveProfile,

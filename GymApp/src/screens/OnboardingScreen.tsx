@@ -279,8 +279,8 @@ export function OnboardingScreen({ navigation }: Props) {
         {generating && (
           <View style={styles.loadingCard}>
             <Text style={styles.loadingText}>
-              A IA está criando seu plano personalizado de 12 meses.{'\n'}
-              Isso pode levar alguns minutos...
+              A IA está criando a estrutura do seu plano anual.{'\n'}
+              Os treinos de cada mês serão gerados ao abri-los.
             </Text>
           </View>
         )}

@@ -1,4 +1,4 @@
-import { UserProfile, AnnualPlan } from '../types';
+import { UserProfile, AnnualPlan, MonthlyBlock, WeeklyPlan } from '../types';
 
 // Groq API — free tier, no billing required (console.groq.com)
 const GROQ_MODEL = 'llama-3.3-70b-versatile';
@@ -34,7 +34,7 @@ export const LEVEL_LABELS: Record<string, string> = {
   advanced: 'Avançado',
 };
 
-async function groqPost(messages: object[]): Promise<string> {
+async function groqPost(messages: object[], maxTokens = 4096): Promise<string> {
   const response = await fetch(GROQ_URL, {
     method: 'POST',
     headers: {
@@ -44,8 +44,8 @@ async function groqPost(messages: object[]): Promise<string> {
     body: JSON.stringify({
       model: GROQ_MODEL,
       messages,
-      max_tokens: 32768,
-      temperature: 1.0,
+      max_tokens: maxTokens,
+      temperature: 0.7,
     }),
   });
 
@@ -62,95 +62,118 @@ async function groqPost(messages: object[]): Promise<string> {
   return data.choices?.[0]?.message?.content ?? '';
 }
 
-export async function generateAnnualPlan(
+// Phase 1: generate plan overview (structure only, no exercises)
+// ~1,500 tokens — well within Groq free tier 12,000 TPM
+export async function generatePlanOverview(
   profile: UserProfile,
   onProgress?: (status: string) => void
-): Promise<AnnualPlan> {
-  const prompt = `Você é um personal trainer especialista. Crie um plano de treino anual completo e personalizado em formato JSON estrito.
+): Promise<Omit<AnnualPlan, 'userId' | 'createdAt' | 'userProfile' | 'totalMonths'>> {
+  const prompt = `Você é um personal trainer especialista. Crie a estrutura de um plano anual de treinos em JSON.
 
-PERFIL DO USUÁRIO:
-- Nome: ${profile.name}
-- Idade: ${profile.age} anos
-- Peso: ${profile.weight} kg
-- Altura: ${profile.height} cm
-- Gênero: ${profile.gender}
-- Nível: ${LEVEL_LABELS[profile.fitnessLevel]}
-- Objetivo: ${GOAL_LABELS[profile.goal]}
-- Dias por semana disponíveis: ${profile.daysPerWeek}
-${profile.injuries ? `- Lesões/Limitações: ${profile.injuries}` : ''}
+PERFIL:
+- Nome: ${profile.name}, Idade: ${profile.age}, Peso: ${profile.weight}kg, Altura: ${profile.height}cm
+- Gênero: ${profile.gender}, Nível: ${LEVEL_LABELS[profile.fitnessLevel]}
+- Objetivo: ${GOAL_LABELS[profile.goal]}, Dias/semana: ${profile.daysPerWeek}
+${profile.injuries ? `- Lesões: ${profile.injuries}` : ''}
 
-Retorne APENAS um JSON válido com a seguinte estrutura exata (sem texto extra, sem markdown, sem \`\`\`):
+Retorne SOMENTE este JSON (sem texto extra):
 {
-  "overallGoal": "descrição do objetivo geral em 1 frase",
+  "overallGoal": "objetivo em 1 frase",
   "monthlyBlocks": [
     {
       "month": 1,
       "monthName": "Janeiro",
-      "focus": "Adaptação/Base",
-      "description": "Descrição do foco do mês",
-      "weeks": [
-        {
-          "week": 1,
-          "theme": "Semana de Adaptação",
-          "weeklyGoals": ["meta 1", "meta 2"],
-          "days": [
-            {
-              "dayOfWeek": "Segunda",
-              "focus": "Peito e Tríceps",
-              "duration": 60,
-              "exercises": [
-                {
-                  "name": "Supino Reto",
-                  "sets": 3,
-                  "reps": "10-12",
-                  "rest": "60s",
-                  "notes": "Dica opcional"
-                }
-              ],
-              "notes": "Observação do dia"
-            }
-          ]
-        }
-      ],
-      "progressIndicators": ["indicador 1", "indicador 2"]
+      "focus": "Adaptação",
+      "description": "descrição curta do mês",
+      "progressIndicators": ["meta 1", "meta 2"],
+      "weeks": []
     }
   ],
   "nutritionTips": ["dica 1", "dica 2", "dica 3"],
-  "recoveryTips": ["dica 1", "dica 2", "dica 3"]
+  "recoveryTips": ["dica 1", "dica 2"]
 }
 
-REGRAS IMPORTANTES:
-- Crie exatamente 12 meses de treino
-- Cada mês tem 4 semanas
-- Cada semana tem apenas ${profile.daysPerWeek} dias de treino (não mais)
-- Progrida gradualmente: meses 1-3 base, 4-6 desenvolvimento, 7-9 intensificação, 10-12 pico/manutenção
-- Adapte todos os exercícios ao nível ${LEVEL_LABELS[profile.fitnessLevel]}
-- Foque no objetivo: ${GOAL_LABELS[profile.goal]}
-- Inclua descanso adequado entre grupos musculares
-- Retorne SOMENTE o JSON, sem nenhum texto antes ou depois`;
+Crie exatamente 12 meses. Progressão: meses 1-3 base, 4-6 desenvolvimento, 7-9 intensificação, 10-12 pico.`;
 
   onProgress?.('Gerando seu plano personalizado...');
 
-  const fullResponse = await groqPost([
-    { role: 'user', content: prompt },
-  ]);
+  const fullResponse = await groqPost([{ role: 'user', content: prompt }], 2048);
 
   const jsonMatch = fullResponse.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
     throw new Error('Não foi possível gerar o plano. Tente novamente.');
   }
 
-  const planData = JSON.parse(jsonMatch[0]);
+  const data = JSON.parse(jsonMatch[0]);
+  return {
+    overallGoal: data.overallGoal,
+    monthlyBlocks: (data.monthlyBlocks as MonthlyBlock[]).map((b) => ({ ...b, weeks: [] })),
+    nutritionTips: data.nutritionTips ?? [],
+    recoveryTips: data.recoveryTips ?? [],
+  };
+}
+
+// Phase 2: generate workout details for one month on-demand
+// ~3,000 tokens — well within Groq free tier 12,000 TPM
+export async function generateMonthDetail(
+  monthBlock: Pick<MonthlyBlock, 'month' | 'monthName' | 'focus' | 'description'>,
+  profile: UserProfile,
+  overallGoal: string
+): Promise<WeeklyPlan[]> {
+  const prompt = `Personal trainer: gere os treinos detalhados do mês ${monthBlock.month} (${monthBlock.monthName}).
+
+Plano anual: ${overallGoal}
+Foco do mês: ${monthBlock.focus} — ${monthBlock.description}
+Nível: ${LEVEL_LABELS[profile.fitnessLevel]}, Objetivo: ${GOAL_LABELS[profile.goal]}
+Dias/semana: ${profile.daysPerWeek}
+${profile.injuries ? `Lesões/Limitações: ${profile.injuries}` : ''}
+
+Retorne SOMENTE este JSON:
+{
+  "weeks": [
+    {
+      "week": 1,
+      "theme": "tema da semana",
+      "weeklyGoals": ["meta 1"],
+      "days": [
+        {
+          "dayOfWeek": "Segunda",
+          "focus": "Peito e Tríceps",
+          "duration": 60,
+          "exercises": [
+            { "name": "Supino Reto", "sets": 3, "reps": "10-12", "rest": "60s" }
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Crie exatamente 4 semanas com ${profile.daysPerWeek} dias de treino cada. Adapte ao nível ${LEVEL_LABELS[profile.fitnessLevel]}.`;
+
+  const fullResponse = await groqPost([{ role: 'user', content: prompt }], 3500);
+
+  const jsonMatch = fullResponse.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error('Não foi possível gerar os treinos do mês. Tente novamente.');
+  }
+
+  const data = JSON.parse(jsonMatch[0]);
+  return data.weeks ?? [];
+}
+
+export async function generateAnnualPlan(
+  profile: UserProfile,
+  onProgress?: (status: string) => void
+): Promise<AnnualPlan> {
+  const overview = await generatePlanOverview(profile, onProgress);
 
   return {
     userId: profile.name,
     createdAt: new Date().toISOString(),
     userProfile: profile,
     totalMonths: 12,
-    overallGoal: planData.overallGoal,
-    monthlyBlocks: planData.monthlyBlocks,
-    nutritionTips: planData.nutritionTips ?? [],
-    recoveryTips: planData.recoveryTips ?? [],
+    ...overview,
   };
 }
 
@@ -185,6 +208,6 @@ Responda em português, de forma clara e motivadora. Você pode sugerir ajustes 
     { role: 'user', content: message },
   ];
 
-  const reply = await groqPost(messages);
+  const reply = await groqPost(messages, 1024);
   return reply || 'Não consegui gerar uma resposta. Tente novamente.';
 }
