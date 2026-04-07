@@ -1,14 +1,24 @@
-import { GEMINI_API_KEY } from '../constants/config';
 import { UserProfile, AnnualPlan } from '../types';
 
-// gemini-1.5-flash has the most reliable free tier (15 RPM, 1M TPD)
-const GEMINI_MODEL = 'gemini-1.5-flash';
-const BASE_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}`;
+// Groq API — free tier, no billing required (console.groq.com)
+const GROQ_MODEL = 'llama-3.3-70b-versatile';
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
-// Runtime-overridable key — set via SettingsScreen, falls back to config default
-let _runtimeApiKey: string | null = null;
-export function setRuntimeApiKey(key: string | null) { _runtimeApiKey = key; }
-function getApiKey() { return _runtimeApiKey ?? GEMINI_API_KEY; }
+// Runtime key set by SettingsScreen; required — no hardcoded default
+let _apiKey: string | null = null;
+
+export function setRuntimeApiKey(key: string | null) {
+  _apiKey = key?.trim() || null;
+}
+
+function getApiKey(): string {
+  if (!_apiKey) {
+    throw new Error(
+      'API Key não configurada. Toque em ⚙️ nas configurações e adicione sua chave Groq gratuita.'
+    );
+  }
+  return _apiKey;
+}
 
 export const GOAL_LABELS: Record<string, string> = {
   lose_weight: 'Perda de Peso',
@@ -24,11 +34,19 @@ export const LEVEL_LABELS: Record<string, string> = {
   advanced: 'Avançado',
 };
 
-async function geminiPost(endpoint: string, body: object): Promise<any> {
-  const response = await fetch(`${BASE_URL}:${endpoint}?key=${getApiKey()}`, {
+async function groqPost(messages: object[]): Promise<string> {
+  const response = await fetch(GROQ_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${getApiKey()}`,
+    },
+    body: JSON.stringify({
+      model: GROQ_MODEL,
+      messages,
+      max_tokens: 32768,
+      temperature: 1.0,
+    }),
   });
 
   if (!response.ok) {
@@ -40,7 +58,8 @@ async function geminiPost(endpoint: string, body: object): Promise<any> {
     throw new Error(errMsg);
   }
 
-  return response.json();
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content ?? '';
 }
 
 export async function generateAnnualPlan(
@@ -60,7 +79,7 @@ PERFIL DO USUÁRIO:
 - Dias por semana disponíveis: ${profile.daysPerWeek}
 ${profile.injuries ? `- Lesões/Limitações: ${profile.injuries}` : ''}
 
-Retorne APENAS um JSON válido com a seguinte estrutura exata (sem texto extra, sem markdown):
+Retorne APENAS um JSON válido com a seguinte estrutura exata (sem texto extra, sem markdown, sem \`\`\`):
 {
   "overallGoal": "descrição do objetivo geral em 1 frase",
   "monthlyBlocks": [
@@ -108,16 +127,13 @@ REGRAS IMPORTANTES:
 - Adapte todos os exercícios ao nível ${LEVEL_LABELS[profile.fitnessLevel]}
 - Foque no objetivo: ${GOAL_LABELS[profile.goal]}
 - Inclua descanso adequado entre grupos musculares
-- Para ${profile.daysPerWeek} dias/semana, distribua os grupos musculares adequadamente`;
+- Retorne SOMENTE o JSON, sem nenhum texto antes ou depois`;
 
   onProgress?.('Gerando seu plano personalizado...');
 
-  const data = await geminiPost('generateContent', {
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    generationConfig: { temperature: 1.0, maxOutputTokens: 65536 },
-  });
-
-  const fullResponse: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+  const fullResponse = await groqPost([
+    { role: 'user', content: prompt },
+  ]);
 
   const jsonMatch = fullResponse.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
@@ -148,7 +164,7 @@ export async function chatAboutPlan(
   plan: AnnualPlan,
   history: ChatMessage[]
 ): Promise<string> {
-  const systemContext = `Você é um personal trainer especialista e assistente do app GymAI.
+  const systemPrompt = `Você é um personal trainer especialista e assistente do app GymAI.
 
 PERFIL DO USUÁRIO:
 - Nome: ${plan.userProfile.name}
@@ -160,20 +176,15 @@ ${plan.userProfile.injuries ? `- Lesões: ${plan.userProfile.injuries}` : ''}
 
 Responda em português, de forma clara e motivadora. Você pode sugerir ajustes ao plano, responder dúvidas sobre treinos, nutrição e recuperação.`;
 
-  const contents = [
-    { role: 'user', parts: [{ text: systemContext }] },
-    { role: 'model', parts: [{ text: 'Entendido! Estou pronto para ajudar com seu treino.' }] },
-    ...history.map((h) => ({ role: h.role, parts: [{ text: h.text }] })),
-    { role: 'user', parts: [{ text: message }] },
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    ...history.map((h) => ({
+      role: h.role === 'model' ? 'assistant' : 'user',
+      content: h.text,
+    })),
+    { role: 'user', content: message },
   ];
 
-  const data = await geminiPost('generateContent', {
-    contents,
-    generationConfig: { temperature: 0.9, maxOutputTokens: 2048 },
-  });
-
-  return (
-    data.candidates?.[0]?.content?.parts?.[0]?.text ??
-    'Não consegui gerar uma resposta. Tente novamente.'
-  );
+  const reply = await groqPost(messages);
+  return reply || 'Não consegui gerar uma resposta. Tente novamente.';
 }

@@ -37,13 +37,14 @@ export function SettingsScreen({ navigation }: Props) {
   const handleSave = async () => {
     const trimmed = keyInput.trim();
     if (!trimmed) {
-      Alert.alert('Atenção', 'Cole sua API Key do Gemini.');
+      Alert.alert('Atenção', 'Cole sua API Key do Groq.');
       return;
     }
     await AsyncStorage.setItem(CUSTOM_KEY_STORAGE, trimmed);
     setSavedKey(trimmed);
     setRuntimeApiKey(trimmed);
-    Alert.alert('Salvo!', 'Sua API Key foi salva. Ela será usada a partir de agora.');
+    Alert.alert('Salvo!', 'Sua API Key foi salva. Volte e gere seu plano!');
+    navigation.goBack();
   };
 
   const handleRemove = async () => {
@@ -51,61 +52,29 @@ export function SettingsScreen({ navigation }: Props) {
     setSavedKey(null);
     setKeyInput('');
     setRuntimeApiKey(null);
-    Alert.alert('Removida', 'A chave customizada foi removida. Usando chave padrão do app.');
   };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>🔑 API Key Gemini (opcional)</Text>
-        <Text style={styles.desc}>
-          Por padrão o app usa uma chave compartilhada. Se ela estiver com quota esgotada,
-          crie a sua gratuitamente em{' '}
-          <Text
-            style={styles.link}
-            onPress={() => Linking.openURL('https://aistudio.google.com/app/apikey')}
-          >
-            aistudio.google.com
-          </Text>{' '}
-          e cole abaixo.
+
+      <View style={styles.heroCard}>
+        <Text style={styles.heroIcon}>🔑</Text>
+        <Text style={styles.heroTitle}>Configure sua chave gratuita</Text>
+        <Text style={styles.heroDesc}>
+          O app usa a API do Groq — 100% gratuita, sem cartão de crédito.{'\n'}
+          Crie sua chave em menos de 1 minuto.
         </Text>
-
-        {savedKey && (
-          <View style={styles.savedBadge}>
-            <Text style={styles.savedText}>✓ Chave personalizada ativa</Text>
-          </View>
-        )}
-
-        <TextInput
-          style={styles.input}
-          placeholder="AIza..."
-          value={keyInput}
-          onChangeText={setKeyInput}
-          secureTextEntry
-          autoCapitalize="none"
-          placeholderTextColor="#555"
-          testID="input-apikey"
-        />
-
-        <TouchableOpacity style={styles.saveBtn} onPress={handleSave} testID="btn-save-key">
-          <Text style={styles.saveBtnText}>Salvar minha chave</Text>
-        </TouchableOpacity>
-
-        {savedKey && (
-          <TouchableOpacity style={styles.removeBtn} onPress={handleRemove} testID="btn-remove-key">
-            <Text style={styles.removeBtnText}>Remover e usar chave padrão</Text>
-          </TouchableOpacity>
-        )}
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>ℹ️ Como obter sua chave gratuita</Text>
+        <Text style={styles.sectionTitle}>Como obter sua chave grátis</Text>
         <View style={styles.steps}>
           {[
-            'Acesse aistudio.google.com',
-            'Faça login com sua conta Google',
-            'Clique em "Get API key" → "Create API key"',
-            'Copie a chave gerada e cole no campo acima',
+            'Abra o site console.groq.com',
+            'Crie uma conta gratuita (ou entre com Google)',
+            'Clique em "API Keys" no menu lateral',
+            'Clique em "Create API Key", dê um nome e copie',
+            'Cole a chave no campo abaixo e salve',
           ].map((step, i) => (
             <View key={i} style={styles.stepRow}>
               <View style={styles.stepNum}>
@@ -117,10 +86,52 @@ export function SettingsScreen({ navigation }: Props) {
         </View>
         <TouchableOpacity
           style={styles.openBtn}
-          onPress={() => Linking.openURL('https://aistudio.google.com/app/apikey')}
+          onPress={() => Linking.openURL('https://console.groq.com/keys')}
+          testID="btn-open-groq"
         >
-          <Text style={styles.openBtnText}>Abrir AI Studio →</Text>
+          <Text style={styles.openBtnText}>Abrir console.groq.com →</Text>
         </TouchableOpacity>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Sua API Key</Text>
+
+        {savedKey && (
+          <View style={styles.savedBadge}>
+            <Text style={styles.savedText}>✓ Chave configurada</Text>
+          </View>
+        )}
+
+        <TextInput
+          style={styles.input}
+          placeholder="gsk_..."
+          value={keyInput}
+          onChangeText={setKeyInput}
+          secureTextEntry
+          autoCapitalize="none"
+          placeholderTextColor="#555"
+          testID="input-apikey"
+        />
+
+        <TouchableOpacity style={styles.saveBtn} onPress={handleSave} testID="btn-save-key">
+          <Text style={styles.saveBtnText}>Salvar e continuar</Text>
+        </TouchableOpacity>
+
+        {savedKey && (
+          <TouchableOpacity style={styles.removeBtn} onPress={handleRemove} testID="btn-remove-key">
+            <Text style={styles.removeBtnText}>Remover chave</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <View style={styles.infoCard}>
+        <Text style={styles.infoTitle}>Por que Groq?</Text>
+        <Text style={styles.infoText}>
+          • 100% gratuito, sem cartão de crédito{'\n'}
+          • Modelo Llama 3.3 70B (alta qualidade){'\n'}
+          • Muito rápido — plano gerado em segundos{'\n'}
+          • 14.400 requisições por dia no plano free
+        </Text>
       </View>
     </ScrollView>
   );
@@ -129,6 +140,18 @@ export function SettingsScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0f0f14' },
   content: { padding: 20, paddingBottom: 40 },
+  heroCard: {
+    backgroundColor: '#1a0f3a',
+    borderRadius: 16,
+    padding: 24,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#6c47ff44',
+    alignItems: 'center',
+  },
+  heroIcon: { fontSize: 48, marginBottom: 12 },
+  heroTitle: { color: '#fff', fontSize: 20, fontWeight: '800', textAlign: 'center', marginBottom: 8 },
+  heroDesc: { color: '#a78bfa', fontSize: 14, lineHeight: 22, textAlign: 'center' },
   section: {
     backgroundColor: '#1a1a24',
     borderRadius: 16,
@@ -137,9 +160,28 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#2a2a3a',
   },
-  sectionTitle: { color: '#fff', fontSize: 16, fontWeight: '700', marginBottom: 12 },
-  desc: { color: '#888', fontSize: 14, lineHeight: 22, marginBottom: 16 },
-  link: { color: '#6c47ff', textDecorationLine: 'underline' },
+  sectionTitle: { color: '#fff', fontSize: 16, fontWeight: '700', marginBottom: 16 },
+  steps: { gap: 14, marginBottom: 16 },
+  stepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  stepNum: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#6c47ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    marginTop: 1,
+  },
+  stepNumText: { color: '#fff', fontSize: 12, fontWeight: '800' },
+  stepText: { color: '#bbb', fontSize: 14, lineHeight: 22, flex: 1 },
+  openBtn: {
+    backgroundColor: '#6c47ff',
+    borderRadius: 12,
+    padding: 14,
+    alignItems: 'center',
+  },
+  openBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   savedBadge: {
     backgroundColor: '#0d2b1a',
     borderRadius: 8,
@@ -172,30 +214,16 @@ const styles = StyleSheet.create({
     padding: 12,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#444',
+    borderColor: '#333',
   },
-  removeBtnText: { color: '#888', fontSize: 14 },
-  steps: { gap: 12, marginBottom: 16 },
-  stepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  stepNum: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: '#6c47ff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-    marginTop: 1,
-  },
-  stepNumText: { color: '#fff', fontSize: 12, fontWeight: '800' },
-  stepText: { color: '#bbb', fontSize: 14, lineHeight: 22, flex: 1 },
-  openBtn: {
-    backgroundColor: '#1a0f3a',
-    borderRadius: 12,
-    padding: 14,
-    alignItems: 'center',
+  removeBtnText: { color: '#666', fontSize: 14 },
+  infoCard: {
+    backgroundColor: '#1a1a24',
+    borderRadius: 16,
+    padding: 20,
     borderWidth: 1,
-    borderColor: '#6c47ff',
+    borderColor: '#2a2a3a',
   },
-  openBtnText: { color: '#a78bfa', fontWeight: '700', fontSize: 15 },
+  infoTitle: { color: '#fff', fontSize: 15, fontWeight: '700', marginBottom: 10 },
+  infoText: { color: '#888', fontSize: 14, lineHeight: 24 },
 });

@@ -10,9 +10,11 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, UserProfile, FitnessGoal, FitnessLevel, Gender } from '../types';
 import { usePlan } from '../hooks/usePlan';
+import { setRuntimeApiKey } from '../services/aiService';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Onboarding'>;
@@ -54,9 +56,13 @@ export function OnboardingScreen({ navigation }: Props) {
   const [generating, setGenerating] = useState(false);
 
   React.useEffect(() => {
-    loadStoredPlan().then((found) => {
-      if (found) navigation.replace('Home');
-    });
+    (async () => {
+      const found = await loadStoredPlan();
+      if (found) { navigation.replace('Home'); return; }
+      // Pre-load API key so it's ready when user hits Generate
+      const key = await AsyncStorage.getItem('@gymapp_custom_apikey');
+      if (key) setRuntimeApiKey(key);
+    })();
   }, []);
 
   const handleGenerate = async () => {
@@ -99,7 +105,19 @@ export function OnboardingScreen({ navigation }: Props) {
       await generate(profile);
       navigation.replace('Home');
     } catch (err: any) {
-      Alert.alert('Erro', err.message || 'Erro ao gerar o plano. Tente novamente.');
+      const msg: string = err.message || 'Erro ao gerar o plano. Tente novamente.';
+      if (msg.includes('API Key não configurada') || msg.includes('401') || msg.includes('403')) {
+        Alert.alert(
+          'Chave API necessária',
+          'Configure sua chave Groq gratuita antes de gerar o plano.',
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            { text: 'Configurar agora', onPress: () => navigation.navigate('Settings') },
+          ]
+        );
+      } else {
+        Alert.alert('Erro', msg);
+      }
     } finally {
       setGenerating(false);
     }
