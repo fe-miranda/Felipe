@@ -32,9 +32,6 @@
       "eas": {
         "projectId": "gymapp-ai"
       }
-    },
-    "plugins": [
-      "expo-font"
-    ]
+    }
   }
 }
