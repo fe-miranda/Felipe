@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "GymAI",
+    "slug": "gymapp-ai",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0f0f14"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.gymapp.ai"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#6c47ff"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.gymapp.ai",
+      "permissions": []
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "gymapp-ai"
+      }
+    },
+    "plugins": [
+      "expo-font"
+    ]
+  }
+}
