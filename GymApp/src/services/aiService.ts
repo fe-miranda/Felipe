@@ -1,9 +1,10 @@
+import { GEMINI_API_KEY } from '../constants/config';
 import { UserProfile, AnnualPlan } from '../types';
 
 const GEMINI_MODEL = 'gemini-2.0-flash';
 const BASE_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}`;
 
-const GOAL_LABELS: Record<string, string> = {
+export const GOAL_LABELS: Record<string, string> = {
   lose_weight: 'Perda de Peso',
   gain_muscle: 'Ganho de Massa Muscular',
   improve_endurance: 'Melhora de Resistência',
@@ -11,16 +12,34 @@ const GOAL_LABELS: Record<string, string> = {
   increase_strength: 'Aumento de Força',
 };
 
-const LEVEL_LABELS: Record<string, string> = {
+export const LEVEL_LABELS: Record<string, string> = {
   beginner: 'Iniciante',
   intermediate: 'Intermediário',
   advanced: 'Avançado',
 };
 
+async function geminiPost(endpoint: string, body: object): Promise<any> {
+  const response = await fetch(`${BASE_URL}:${endpoint}?key=${GEMINI_API_KEY}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    let errMsg = `Erro ${response.status}`;
+    try {
+      const err = await response.json();
+      errMsg = err.error?.message || errMsg;
+    } catch {}
+    throw new Error(errMsg);
+  }
+
+  return response.json();
+}
+
 export async function generateAnnualPlan(
   profile: UserProfile,
-  apiKey: string,
-  onProgress?: (chunk: string) => void
+  onProgress?: (status: string) => void
 ): Promise<AnnualPlan> {
   const prompt = `Você é um personal trainer especialista. Crie um plano de treino anual completo e personalizado em formato JSON estrito.
 
@@ -85,54 +104,14 @@ REGRAS IMPORTANTES:
 - Inclua descanso adequado entre grupos musculares
 - Para ${profile.daysPerWeek} dias/semana, distribua os grupos musculares adequadamente`;
 
-  const response = await fetch(
-    `${BASE_URL}:streamGenerateContent?alt=sse&key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 1.0,
-          maxOutputTokens: 65536,
-        },
-      }),
-    }
-  );
+  onProgress?.('Gerando seu plano personalizado...');
 
-  if (!response.ok) {
-    let errMsg = `Erro ${response.status}`;
-    try {
-      const err = await response.json();
-      errMsg = err.error?.message || errMsg;
-    } catch {}
-    throw new Error(errMsg);
-  }
+  const data = await geminiPost('generateContent', {
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 1.0, maxOutputTokens: 65536 },
+  });
 
-  let fullResponse = '';
-  const reader = response.body!.getReader();
-  const decoder = new TextDecoder();
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    const chunk = decoder.decode(value);
-    const lines = chunk.split('\n');
-
-    for (const line of lines) {
-      if (line.startsWith('data: ')) {
-        try {
-          const data = JSON.parse(line.slice(6));
-          const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-          if (text) {
-            fullResponse += text;
-            onProgress?.(text);
-          }
-        } catch {}
-      }
-    }
-  }
+  const fullResponse: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
 
   const jsonMatch = fullResponse.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
@@ -148,8 +127,8 @@ REGRAS IMPORTANTES:
     totalMonths: 12,
     overallGoal: planData.overallGoal,
     monthlyBlocks: planData.monthlyBlocks,
-    nutritionTips: planData.nutritionTips || [],
-    recoveryTips: planData.recoveryTips || [],
+    nutritionTips: planData.nutritionTips ?? [],
+    recoveryTips: planData.recoveryTips ?? [],
   };
 }
 
@@ -161,8 +140,7 @@ export interface ChatMessage {
 export async function chatAboutPlan(
   message: string,
   plan: AnnualPlan,
-  history: ChatMessage[],
-  apiKey: string
+  history: ChatMessage[]
 ): Promise<string> {
   const systemContext = `Você é um personal trainer especialista e assistente do app GymAI.
 
@@ -179,40 +157,17 @@ Responda em português, de forma clara e motivadora. Você pode sugerir ajustes 
   const contents = [
     { role: 'user', parts: [{ text: systemContext }] },
     { role: 'model', parts: [{ text: 'Entendido! Estou pronto para ajudar com seu treino.' }] },
-    ...history.map((h) => ({
-      role: h.role,
-      parts: [{ text: h.text }],
-    })),
+    ...history.map((h) => ({ role: h.role, parts: [{ text: h.text }] })),
     { role: 'user', parts: [{ text: message }] },
   ];
 
-  const response = await fetch(
-    `${BASE_URL}:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents,
-        generationConfig: {
-          temperature: 0.9,
-          maxOutputTokens: 2048,
-        },
-      }),
-    }
-  );
+  const data = await geminiPost('generateContent', {
+    contents,
+    generationConfig: { temperature: 0.9, maxOutputTokens: 2048 },
+  });
 
-  if (!response.ok) {
-    let errMsg = `Erro ${response.status}`;
-    try {
-      const err = await response.json();
-      errMsg = err.error?.message || errMsg;
-    } catch {}
-    throw new Error(errMsg);
-  }
-
-  const data = await response.json();
   return (
-    data.candidates?.[0]?.content?.parts?.[0]?.text ||
+    data.candidates?.[0]?.content?.parts?.[0]?.text ??
     'Não consegui gerar uma resposta. Tente novamente.'
   );
 }

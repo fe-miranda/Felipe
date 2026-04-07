@@ -20,7 +20,6 @@ type Props = {
 };
 
 const PLAN_KEY = '@gymapp_plan';
-const APIKEY_KEY = '@gymapp_apikey';
 
 const QUICK_SUGGESTIONS = [
   'Como está meu progresso?',
@@ -35,24 +34,17 @@ export function ChatScreen({ navigation }: Props) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<AnnualPlan | null>(null);
-  const [apiKey, setApiKey] = useState<string | null>(null);
   const listRef = useRef<FlatList>(null);
 
   useEffect(() => {
-    (async () => {
-      const [storedPlan, storedKey] = await Promise.all([
-        AsyncStorage.getItem(PLAN_KEY),
-        AsyncStorage.getItem(APIKEY_KEY),
-      ]);
-      if (storedPlan) setPlan(JSON.parse(storedPlan));
-      if (storedKey) setApiKey(storedKey);
-    })();
+    AsyncStorage.getItem(PLAN_KEY).then((stored) => {
+      if (stored) setPlan(JSON.parse(stored));
+    });
   }, []);
 
   const sendMessage = async (text?: string) => {
     const messageText = (text || input).trim();
-    if (!messageText || loading) return;
-    if (!plan || !apiKey) return;
+    if (!messageText || loading || !plan) return;
 
     setInput('');
     const userMsg: ChatMessage = { role: 'user', text: messageText };
@@ -61,7 +53,7 @@ export function ChatScreen({ navigation }: Props) {
     setLoading(true);
 
     try {
-      const reply = await chatAboutPlan(messageText, plan, messages, apiKey);
+      const reply = await chatAboutPlan(messageText, plan, messages);
       setMessages([...newMessages, { role: 'model', text: reply }]);
     } catch (err: any) {
       setMessages([
@@ -97,7 +89,7 @@ export function ChatScreen({ navigation }: Props) {
     );
   };
 
-  if (!plan || !apiKey) {
+  if (!plan) {
     return (
       <View style={styles.errorContainer}>
         <Text style={styles.errorIcon}>⚠️</Text>
@@ -127,6 +119,7 @@ export function ChatScreen({ navigation }: Props) {
                 key={i}
                 style={styles.suggestionBtn}
                 onPress={() => sendMessage(s)}
+                testID={`suggestion-${i}`}
               >
                 <Text style={styles.suggestionText}>{s}</Text>
               </TouchableOpacity>
@@ -142,6 +135,7 @@ export function ChatScreen({ navigation }: Props) {
         renderItem={renderMessage}
         contentContainerStyle={styles.messageList}
         showsVerticalScrollIndicator={false}
+        testID="message-list"
       />
 
       {loading && (
@@ -165,14 +159,13 @@ export function ChatScreen({ navigation }: Props) {
           onChangeText={setInput}
           multiline
           maxLength={500}
-          returnKeyType="send"
-          onSubmitEditing={() => sendMessage()}
-          blurOnSubmit={false}
+          testID="chat-input"
         />
         <TouchableOpacity
           style={[styles.sendBtn, (!input.trim() || loading) && styles.sendBtnDisabled]}
           onPress={() => sendMessage()}
           disabled={!input.trim() || loading}
+          testID="btn-send"
         >
           <Text style={styles.sendIcon}>➤</Text>
         </TouchableOpacity>
@@ -219,24 +212,22 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   avatarText: { color: '#fff', fontSize: 11, fontWeight: '800' },
-  bubble: {
-    maxWidth: '78%',
-    borderRadius: 16,
-    padding: 12,
-  },
+  bubble: { maxWidth: '78%', borderRadius: 16, padding: 12 },
   bubbleAI: {
     backgroundColor: '#1a1a24',
     borderWidth: 1,
     borderColor: '#2a2a3a',
     borderBottomLeftRadius: 4,
   },
-  bubbleUser: {
-    backgroundColor: '#6c47ff',
-    borderBottomRightRadius: 4,
-  },
+  bubbleUser: { backgroundColor: '#6c47ff', borderBottomRightRadius: 4 },
   bubbleText: { color: '#ddd', fontSize: 15, lineHeight: 22 },
   bubbleTextUser: { color: '#fff' },
-  typingRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 8 },
+  typingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
   typingBubble: {
     flexDirection: 'row',
     alignItems: 'center',

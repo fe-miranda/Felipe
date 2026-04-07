@@ -5,7 +5,6 @@ import { generateAnnualPlan } from '../services/aiService';
 
 const PLAN_KEY = '@gymapp_plan';
 const PROFILE_KEY = '@gymapp_profile';
-const APIKEY_KEY = '@gymapp_apikey';
 
 export function usePlan() {
   const [plan, setPlan] = useState<AnnualPlan | null>(null);
@@ -39,43 +38,30 @@ export function usePlan() {
     }
   }, []);
 
-  const saveApiKey = useCallback(async (key: string) => {
-    await AsyncStorage.setItem(APIKEY_KEY, key);
-  }, []);
-
-  const loadApiKey = useCallback(async (): Promise<string | null> => {
-    try {
-      return await AsyncStorage.getItem(APIKEY_KEY);
-    } catch {
-      return null;
-    }
-  }, []);
-
   const generate = useCallback(
-    async (profile: UserProfile, apiKey: string) => {
+    async (profile: UserProfile) => {
       setLoading(true);
       setError(null);
       setProgress('');
 
       try {
         await saveProfile(profile);
-        await saveApiKey(apiKey);
 
-        const newPlan = await generateAnnualPlan(profile, apiKey, (chunk) => {
-          setProgress((prev) => prev + chunk);
+        const newPlan = await generateAnnualPlan(profile, (status) => {
+          setProgress(status);
         });
 
         await AsyncStorage.setItem(PLAN_KEY, JSON.stringify(newPlan));
         setPlan(newPlan);
         return newPlan;
       } catch (err: any) {
-        setError(err.message || 'Erro ao gerar o plano. Verifique sua API key.');
+        setError(err.message || 'Erro ao gerar o plano.');
         throw err;
       } finally {
         setLoading(false);
       }
     },
-    [saveProfile, saveApiKey]
+    [saveProfile]
   );
 
   const clearPlan = useCallback(async () => {
@@ -92,8 +78,6 @@ export function usePlan() {
     loadStoredPlan,
     loadProfile,
     saveProfile,
-    loadApiKey,
-    saveApiKey,
     clearPlan,
   };
 }
