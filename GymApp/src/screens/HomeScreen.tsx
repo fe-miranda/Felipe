@@ -85,6 +85,19 @@ export function HomeScreen({ navigation }: Props) {
         </TouchableOpacity>
       </View>
 
+      {/* Chat Button */}
+      <TouchableOpacity
+        style={styles.chatBtn}
+        onPress={() => navigation.navigate('Chat')}
+      >
+        <Text style={styles.chatBtnIcon}>💬</Text>
+        <View style={styles.chatBtnInfo}>
+          <Text style={styles.chatBtnTitle}>Chat com IA</Text>
+          <Text style={styles.chatBtnSub}>Tire dúvidas, ajuste o plano, peça treinos extras</Text>
+        </View>
+        <Text style={styles.arrow}>›</Text>
+      </TouchableOpacity>
+
       {/* Goal Card */}
       <View style={styles.goalCard}>
         <Text style={styles.goalLabel}>Objetivo</Text>
@@ -265,6 +278,21 @@ const styles = StyleSheet.create({
   },
   currentBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
   arrow: { color: '#444', fontSize: 22 },
+  chatBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1a0f3a',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#6c47ff',
+    gap: 12,
+  },
+  chatBtnIcon: { fontSize: 28 },
+  chatBtnInfo: { flex: 1 },
+  chatBtnTitle: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  chatBtnSub: { color: '#a78bfa', fontSize: 12, marginTop: 2 },
   tipsCard: {
     backgroundColor: '#1a1a24',
     borderRadius: 14,

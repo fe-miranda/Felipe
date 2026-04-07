@@ -57,16 +57,13 @@ export function OnboardingScreen({ navigation }: Props) {
 
   const handleGenerate = async () => {
     if (!apiKey.trim()) {
-      Alert.alert('Atenção', 'Por favor, insira sua API Key da Anthropic.');
+      Alert.alert('Atenção', 'Por favor, insira sua API Key do Google Gemini.');
       return;
     }
     if (!name || !age || !weight || !height) {
       Alert.alert('Atenção', 'Preencha todos os campos obrigatórios.');
       return;
     }
-
-    // Set API key in environment
-    process.env.ANTHROPIC_API_KEY = apiKey.trim();
 
     const profile: UserProfile = {
       name: name.trim(),
@@ -82,10 +79,10 @@ export function OnboardingScreen({ navigation }: Props) {
 
     setGenerating(true);
     try {
-      await generate(profile);
+      await generate(profile, apiKey.trim());
       navigation.replace('Home');
     } catch (err: any) {
-      Alert.alert('Erro', err.message || 'Erro ao gerar o plano. Verifique sua API Key.');
+      Alert.alert('Erro', err.message || 'Erro ao gerar o plano. Verifique sua API Key do Gemini.');
     } finally {
       setGenerating(false);
     }
@@ -110,17 +107,17 @@ export function OnboardingScreen({ navigation }: Props) {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>🔑 API Key Anthropic</Text>
+          <Text style={styles.sectionTitle}>🔑 API Key Google Gemini</Text>
           <TextInput
             style={styles.input}
-            placeholder="sk-ant-..."
+            placeholder="AIza..."
             value={apiKey}
             onChangeText={setApiKey}
             secureTextEntry
             placeholderTextColor="#666"
             autoCapitalize="none"
           />
-          <Text style={styles.hint}>Obtenha em console.anthropic.com</Text>
+          <Text style={styles.hint}>Gratuito em aistudio.google.com — crie sua chave em "Get API key"</Text>
         </View>
 
         <View style={styles.card}>
