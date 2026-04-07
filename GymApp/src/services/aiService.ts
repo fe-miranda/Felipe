@@ -1,8 +1,14 @@
 import { GEMINI_API_KEY } from '../constants/config';
 import { UserProfile, AnnualPlan } from '../types';
 
-const GEMINI_MODEL = 'gemini-2.0-flash';
+// gemini-1.5-flash has the most reliable free tier (15 RPM, 1M TPD)
+const GEMINI_MODEL = 'gemini-1.5-flash';
 const BASE_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}`;
+
+// Runtime-overridable key — set via SettingsScreen, falls back to config default
+let _runtimeApiKey: string | null = null;
+export function setRuntimeApiKey(key: string | null) { _runtimeApiKey = key; }
+function getApiKey() { return _runtimeApiKey ?? GEMINI_API_KEY; }
 
 export const GOAL_LABELS: Record<string, string> = {
   lose_weight: 'Perda de Peso',
@@ -19,7 +25,7 @@ export const LEVEL_LABELS: Record<string, string> = {
 };
 
 async function geminiPost(endpoint: string, body: object): Promise<any> {
-  const response = await fetch(`${BASE_URL}:${endpoint}?key=${GEMINI_API_KEY}`, {
+  const response = await fetch(`${BASE_URL}:${endpoint}?key=${getApiKey()}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

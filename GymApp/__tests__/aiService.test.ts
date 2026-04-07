@@ -125,7 +125,7 @@ describe('generateAnnualPlan', () => {
 
     expect(global.fetch).toHaveBeenCalledTimes(1);
     const url = (global.fetch as jest.Mock).mock.calls[0][0] as string;
-    expect(url).toContain('gemini-2.0-flash');
+    expect(url).toContain('gemini-1.5-flash');
     expect(url).toContain('generateContent');
   });
 
