@@ -1,0 +1,46 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - claude/create-new-app-enSnZ
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: GymApp/package-lock.json
+
+      - name: Install dependencies
+        working-directory: GymApp
+        run: npm install
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Build APK
+        working-directory: GymApp
+        run: eas build --platform android --profile preview --non-interactive
+
+      - name: Get APK URL
+        working-directory: GymApp
+        run: |
+          echo "✅ Build concluído!"
+          echo "Acesse expo.dev para baixar o APK"
+          eas build:list --platform android --limit 1 --non-interactive
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
