@@ -6,6 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   Alert,
+  Dimensions,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -13,326 +14,349 @@ import { RootStackParamList } from '../types';
 import { usePlan } from '../hooks/usePlan';
 import { setRuntimeApiKey } from '../services/aiService';
 
+const { width } = Dimensions.get('window');
+const CARD_WIDTH = (width - 48 - 16) / 3;
+
 const CUSTOM_KEY_STORAGE = '@gymapp_custom_apikey';
 
-type Props = {
-  navigation: NativeStackNavigationProp<RootStackParamList, 'Home'>;
+// ─── Design tokens ────────────────────────────────────────────────────────────
+const C = {
+  bg: '#07070F',
+  surface: '#0F0F1A',
+  elevated: '#161625',
+  border: '#1E1E30',
+  primary: '#7C3AED',
+  primaryLight: '#A78BFA',
+  primaryGlow: 'rgba(124,58,237,0.18)',
+  success: '#10B981',
+  successBg: 'rgba(16,185,129,0.12)',
+  warning: '#F59E0B',
+  text1: '#F1F5F9',
+  text2: '#94A3B8',
+  text3: '#475569',
 };
 
-const GOAL_LABELS: Record<string, string> = {
-  lose_weight: '🔥 Perda de Peso',
-  gain_muscle: '💪 Ganho de Massa',
-  improve_endurance: '🏃 Resistência',
-  increase_strength: '🏋️ Força',
-  general_fitness: '⚡ Condicionamento',
+const GOAL_META: Record<string, { icon: string; label: string }> = {
+  lose_weight:       { icon: '🔥', label: 'Perda de Peso' },
+  gain_muscle:       { icon: '💪', label: 'Ganho de Massa' },
+  improve_endurance: { icon: '🏃', label: 'Resistência' },
+  increase_strength: { icon: '🏋️', label: 'Força' },
+  general_fitness:   { icon: '⚡', label: 'Condicionamento' },
 };
 
-const MONTH_COLORS = [
-  '#6c47ff', '#7c3aed', '#8b5cf6', '#9333ea',
-  '#a855f7', '#c026d3', '#db2777', '#e11d48',
-  '#ea580c', '#d97706', '#65a30d', '#0891b2',
-];
+// Phase: 0-indexed months → color + label
+const PHASE = (i: number) => {
+  if (i < 3)  return { color: '#10B981', label: 'Base',          bg: 'rgba(16,185,129,0.15)' };
+  if (i < 6)  return { color: '#3B82F6', label: 'Evolução',      bg: 'rgba(59,130,246,0.15)' };
+  if (i < 9)  return { color: '#F59E0B', label: 'Intensidade',   bg: 'rgba(245,158,11,0.15)' };
+  return               { color: '#EF4444', label: 'Pico',          bg: 'rgba(239,68,68,0.15)' };
+};
+
+const MONTH_ABBR = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+function greeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return 'Bom dia';
+  if (h < 18) return 'Boa tarde';
+  return 'Boa noite';
+}
+
+type Props = { navigation: NativeStackNavigationProp<RootStackParamList, 'Home'> };
 
 export function HomeScreen({ navigation }: Props) {
   const { plan, loadStoredPlan, clearPlan } = usePlan();
 
   useEffect(() => {
     loadStoredPlan();
-    // Load custom API key if user has set one
-    AsyncStorage.getItem(CUSTOM_KEY_STORAGE).then((key) => {
-      if (key) setRuntimeApiKey(key);
-    });
+    AsyncStorage.getItem(CUSTOM_KEY_STORAGE).then((k) => { if (k) setRuntimeApiKey(k); });
   }, []);
 
   const handleClearPlan = () => {
-    Alert.alert(
-      'Criar Novo Plano',
-      'Tem certeza? Seu plano atual será perdido.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Confirmar',
-          style: 'destructive',
-          onPress: async () => {
-            await clearPlan();
-            navigation.replace('Onboarding');
-          },
-        },
-      ]
-    );
+    Alert.alert('Novo Plano', 'Seu plano atual será apagado. Continuar?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Apagar e recomeçar', style: 'destructive',
+        onPress: async () => { await clearPlan(); navigation.replace('Onboarding'); } },
+    ]);
   };
 
   if (!plan) {
     return (
-      <View style={styles.emptyContainer}>
-        <Text style={styles.emptyIcon}>📋</Text>
-        <Text style={styles.emptyText}>Nenhum plano encontrado</Text>
-        <TouchableOpacity
-          style={styles.createBtn}
-          onPress={() => navigation.replace('Onboarding')}
-        >
-          <Text style={styles.createBtnText}>Criar Plano</Text>
+      <View style={s.emptyWrap}>
+        <Text style={s.emptyEmoji}>🏋️</Text>
+        <Text style={s.emptyTitle}>Nenhum plano encontrado</Text>
+        <Text style={s.emptyDesc}>Crie seu plano anual personalizado com IA</Text>
+        <TouchableOpacity style={s.emptyBtn} onPress={() => navigation.replace('Onboarding')}>
+          <Text style={s.emptyBtnText}>Criar Plano Agora</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
-  const currentMonth = new Date().getMonth();
-  const profile = plan.userProfile;
+  const { userProfile: p, monthlyBlocks, overallGoal, nutritionTips, recoveryTips } = plan;
+  const goal = GOAL_META[p.goal] ?? { icon: '🎯', label: p.goal };
+  const generatedCount = monthlyBlocks.filter((b) => b.weeks.length > 0).length;
+  const progress = generatedCount / 12;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.greeting}>Olá, {profile.name}! 👋</Text>
-          <Text style={styles.subGreeting}>Seu plano anual está pronto</Text>
+    <ScrollView style={s.container} contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+
+      {/* ── Top bar ── */}
+      <View style={s.topBar}>
+        <View>
+          <Text style={s.greeting}>{greeting()}, {p.name} 👋</Text>
+          <Text style={s.greetingSub}>Seu plano de 12 meses está ativo</Text>
         </View>
-        <View style={styles.headerActions}>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('Settings')}
-            style={styles.iconBtn}
-            testID="btn-settings"
-          >
-            <Text style={styles.iconBtnText}>⚙️</Text>
+        <TouchableOpacity style={s.iconBtn} onPress={() => navigation.navigate('Settings')} testID="btn-settings">
+          <Text style={s.iconBtnText}>⚙️</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* ── Hero goal card ── */}
+      <View style={s.heroCard}>
+        <View style={s.heroTop}>
+          <Text style={s.heroEmoji}>{goal.icon}</Text>
+          <View style={s.heroInfo}>
+            <Text style={s.heroLabel}>OBJETIVO</Text>
+            <Text style={s.heroGoal}>{goal.label}</Text>
+          </View>
+          <TouchableOpacity style={s.newPlanBtn} onPress={handleClearPlan}>
+            <Text style={s.newPlanText}>Reiniciar</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={handleClearPlan} style={styles.newPlanBtn}>
-            <Text style={styles.newPlanText}>Novo Plano</Text>
-          </TouchableOpacity>
+        </View>
+
+        <Text style={s.heroDesc} numberOfLines={2}>{overallGoal}</Text>
+
+        {/* Progress bar */}
+        <View style={s.progressSection}>
+          <View style={s.progressHeader}>
+            <Text style={s.progressLabel}>Meses com treinos detalhados</Text>
+            <Text style={s.progressCount}>{generatedCount}/12</Text>
+          </View>
+          <View style={s.progressTrack}>
+            <View style={[s.progressFill, { width: `${progress * 100}%` }]} />
+          </View>
         </View>
       </View>
 
-      {/* Chat Button */}
-      <TouchableOpacity
-        style={styles.chatBtn}
-        onPress={() => navigation.navigate('Chat')}
-      >
-        <Text style={styles.chatBtnIcon}>💬</Text>
-        <View style={styles.chatBtnInfo}>
-          <Text style={styles.chatBtnTitle}>Chat com IA</Text>
-          <Text style={styles.chatBtnSub}>Tire dúvidas, ajuste o plano, peça treinos extras</Text>
+      {/* ── Stats row ── */}
+      <View style={s.statsRow}>
+        {[
+          { icon: '📅', value: `${p.daysPerWeek}×`, label: 'por semana' },
+          { icon: '📆', value: '12',               label: 'meses' },
+          { icon: '🏆', value: `${p.daysPerWeek * 48}`, label: 'treinos' },
+        ].map((stat, i) => (
+          <View key={i} style={s.statCard}>
+            <Text style={s.statIcon}>{stat.icon}</Text>
+            <Text style={s.statValue}>{stat.value}</Text>
+            <Text style={s.statLabel}>{stat.label}</Text>
+          </View>
+        ))}
+      </View>
+
+      {/* ── Chat CTA ── */}
+      <TouchableOpacity style={s.chatCard} onPress={() => navigation.navigate('Chat')} activeOpacity={0.85}>
+        <View style={s.chatAvatarWrap}>
+          <Text style={s.chatAvatar}>🤖</Text>
         </View>
-        <Text style={styles.arrow}>›</Text>
+        <View style={s.chatInfo}>
+          <Text style={s.chatTitle}>Coach IA</Text>
+          <Text style={s.chatSub}>Tire dúvidas, ajuste o plano, peça treinos extras</Text>
+        </View>
+        <View style={s.chatArrowWrap}>
+          <Text style={s.chatArrow}>›</Text>
+        </View>
       </TouchableOpacity>
 
-      {/* Goal Card */}
-      <View style={styles.goalCard}>
-        <Text style={styles.goalLabel}>Objetivo</Text>
-        <Text style={styles.goalValue}>{GOAL_LABELS[profile.goal]}</Text>
-        <Text style={styles.goalDesc}>{plan.overallGoal}</Text>
+      {/* ── Month grid ── */}
+      <Text style={s.sectionTitle}>📅 Plano Anual</Text>
+      <View style={s.monthGrid}>
+        {monthlyBlocks.map((month, idx) => {
+          const ph = PHASE(idx);
+          const hasWeeks = month.weeks.length > 0;
+          const isCurrent = idx === new Date().getMonth();
+          return (
+            <TouchableOpacity
+              key={idx}
+              style={[s.monthCell, isCurrent && { borderColor: C.primary, borderWidth: 2 }]}
+              onPress={() => navigation.navigate('MonthDetail', { monthIndex: idx })}
+              activeOpacity={0.75}
+            >
+              {/* Phase accent bar */}
+              <View style={[s.phaseBar, { backgroundColor: ph.color }]} />
+
+              <Text style={[s.monthNum, { color: ph.color }]}>{MONTH_ABBR[idx]}</Text>
+              <Text style={s.monthFocus} numberOfLines={1}>{month.focus}</Text>
+
+              <View style={[s.monthStatus, hasWeeks ? { backgroundColor: C.successBg } : { backgroundColor: C.elevated }]}>
+                <Text style={[s.monthStatusText, hasWeeks ? { color: C.success } : { color: C.text3 }]}>
+                  {hasWeeks ? '✓' : isCurrent ? '▶' : '○'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
-      {/* Stats Row */}
-      <View style={styles.statsRow}>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{profile.daysPerWeek}x</Text>
-          <Text style={styles.statLabel}>por semana</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>12</Text>
-          <Text style={styles.statLabel}>meses</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{profile.daysPerWeek * 4 * 12}</Text>
-          <Text style={styles.statLabel}>treinos</Text>
-        </View>
-      </View>
-
-      {/* Monthly Plan */}
-      <Text style={styles.sectionTitle}>📅 Plano Mensal</Text>
-      {plan.monthlyBlocks.map((month, idx) => (
-        <TouchableOpacity
-          key={idx}
-          style={[
-            styles.monthCard,
-            idx === currentMonth && styles.monthCardCurrent,
-          ]}
-          onPress={() => navigation.navigate('MonthDetail', { monthIndex: idx })}
-        >
-          <View style={[styles.monthBadge, { backgroundColor: MONTH_COLORS[idx] }]}>
-            <Text style={styles.monthNumber}>{month.month}</Text>
-          </View>
-          <View style={styles.monthInfo}>
-            <Text style={styles.monthName}>{month.monthName}</Text>
-            <Text style={styles.monthFocus}>{month.focus}</Text>
-            <Text style={styles.monthDesc} numberOfLines={1}>
-              {month.description}
-            </Text>
-          </View>
-          {idx === currentMonth && (
-            <View style={styles.currentBadge}>
-              <Text style={styles.currentBadgeText}>Atual</Text>
-            </View>
-          )}
-          <Text style={styles.arrow}>›</Text>
-        </TouchableOpacity>
-      ))}
-
-      {/* Tips */}
-      <Text style={styles.sectionTitle}>🥗 Dicas de Nutrição</Text>
-      <View style={styles.tipsCard}>
-        {plan.nutritionTips.map((tip, i) => (
-          <View key={i} style={styles.tipRow}>
-            <Text style={styles.tipBullet}>•</Text>
-            <Text style={styles.tipText}>{tip}</Text>
+      {/* ── Phase legend ── */}
+      <View style={s.legendRow}>
+        {[
+          { color: '#10B981', label: 'Base (1-3)' },
+          { color: '#3B82F6', label: 'Evolução (4-6)' },
+          { color: '#F59E0B', label: 'Intensidade (7-9)' },
+          { color: '#EF4444', label: 'Pico (10-12)' },
+        ].map((l, i) => (
+          <View key={i} style={s.legendItem}>
+            <View style={[s.legendDot, { backgroundColor: l.color }]} />
+            <Text style={s.legendText}>{l.label}</Text>
           </View>
         ))}
       </View>
 
-      <Text style={styles.sectionTitle}>😴 Recuperação</Text>
-      <View style={styles.tipsCard}>
-        {plan.recoveryTips.map((tip, i) => (
-          <View key={i} style={styles.tipRow}>
-            <Text style={styles.tipBullet}>•</Text>
-            <Text style={styles.tipText}>{tip}</Text>
+      {/* ── Nutrition tips ── */}
+      {nutritionTips.length > 0 && (
+        <>
+          <Text style={s.sectionTitle}>🥗 Nutrição</Text>
+          <View style={s.tipsCard}>
+            {nutritionTips.map((tip, i) => (
+              <View key={i} style={s.tipRow}>
+                <View style={s.tipDot} />
+                <Text style={s.tipText}>{tip}</Text>
+              </View>
+            ))}
           </View>
-        ))}
-      </View>
+        </>
+      )}
+
+      {/* ── Recovery tips ── */}
+      {recoveryTips.length > 0 && (
+        <>
+          <Text style={s.sectionTitle}>😴 Recuperação</Text>
+          <View style={s.tipsCard}>
+            {recoveryTips.map((tip, i) => (
+              <View key={i} style={s.tipRow}>
+                <View style={s.tipDot} />
+                <Text style={s.tipText}>{tip}</Text>
+              </View>
+            ))}
+          </View>
+        </>
+      )}
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f0f14' },
-  content: { padding: 20, paddingBottom: 40 },
-  emptyContainer: {
-    flex: 1,
-    backgroundColor: '#0f0f14',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 16,
-  },
-  emptyIcon: { fontSize: 60 },
-  emptyText: { color: '#888', fontSize: 18 },
-  createBtn: {
-    backgroundColor: '#6c47ff',
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    borderRadius: 12,
-  },
-  createBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-    paddingTop: 10,
-  },
-  headerLeft: { flex: 1 },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  iconBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    backgroundColor: '#1a1a24',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#2a2a3a',
-  },
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: C.bg },
+  content: { padding: 16, paddingBottom: 50 },
+
+  // Empty state
+  emptyWrap: { flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 12 },
+  emptyEmoji: { fontSize: 72, marginBottom: 8 },
+  emptyTitle: { color: C.text1, fontSize: 22, fontWeight: '800' },
+  emptyDesc: { color: C.text2, fontSize: 15, textAlign: 'center' },
+  emptyBtn: { marginTop: 8, backgroundColor: C.primary, paddingHorizontal: 32, paddingVertical: 14, borderRadius: 14 },
+  emptyBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+
+  // Top bar
+  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingTop: 8, marginBottom: 16 },
+  greeting: { color: C.text1, fontSize: 20, fontWeight: '800' },
+  greetingSub: { color: C.text3, fontSize: 12, marginTop: 2 },
+  iconBtn: { width: 38, height: 38, borderRadius: 10, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border },
   iconBtnText: { fontSize: 18 },
-  greeting: { fontSize: 22, fontWeight: '800', color: '#fff' },
-  subGreeting: { color: '#888', fontSize: 13, marginTop: 2 },
-  newPlanBtn: {
-    backgroundColor: '#1a1a24',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#333',
-  },
-  newPlanText: { color: '#aaa', fontSize: 13 },
-  goalCard: {
-    backgroundColor: '#1a0f3a',
-    borderRadius: 16,
+
+  // Hero card
+  heroCard: {
+    backgroundColor: C.surface,
+    borderRadius: 20,
     padding: 20,
-    marginBottom: 16,
+    marginBottom: 14,
     borderWidth: 1,
-    borderColor: '#6c47ff44',
+    borderColor: 'rgba(124,58,237,0.35)',
+    shadowColor: C.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 8,
   },
-  goalLabel: { color: '#a78bfa', fontSize: 12, fontWeight: '600', letterSpacing: 1 },
-  goalValue: { color: '#fff', fontSize: 22, fontWeight: '800', marginTop: 4 },
-  goalDesc: { color: '#888', fontSize: 14, marginTop: 8, lineHeight: 20 },
-  statsRow: { flexDirection: 'row', gap: 10, marginBottom: 24 },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#1a1a24',
-    borderRadius: 14,
-    padding: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#2a2a3a',
-  },
-  statValue: { color: '#6c47ff', fontSize: 26, fontWeight: '900' },
-  statLabel: { color: '#666', fontSize: 12, marginTop: 2 },
-  sectionTitle: {
-    color: '#fff',
-    fontSize: 17,
-    fontWeight: '700',
-    marginBottom: 12,
-    marginTop: 8,
-  },
-  monthCard: {
+  heroTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  heroEmoji: { fontSize: 42, marginRight: 14 },
+  heroInfo: { flex: 1 },
+  heroLabel: { color: C.primaryLight, fontSize: 10, fontWeight: '700', letterSpacing: 1.5 },
+  heroGoal: { color: C.text1, fontSize: 17, fontWeight: '800', marginTop: 2 },
+  newPlanBtn: { backgroundColor: C.elevated, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: C.border },
+  newPlanText: { color: C.text2, fontSize: 12 },
+  heroDesc: { color: C.text2, fontSize: 13, lineHeight: 20, marginBottom: 16 },
+  progressSection: { gap: 6 },
+  progressHeader: { flexDirection: 'row', justifyContent: 'space-between' },
+  progressLabel: { color: C.text3, fontSize: 12 },
+  progressCount: { color: C.primaryLight, fontSize: 12, fontWeight: '700' },
+  progressTrack: { height: 6, backgroundColor: C.elevated, borderRadius: 3, overflow: 'hidden' },
+  progressFill: { height: 6, backgroundColor: C.primary, borderRadius: 3 },
+
+  // Stats
+  statsRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
+  statCard: { flex: 1, backgroundColor: C.surface, borderRadius: 14, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: C.border },
+  statIcon: { fontSize: 20, marginBottom: 4 },
+  statValue: { color: C.primary, fontSize: 22, fontWeight: '900' },
+  statLabel: { color: C.text3, fontSize: 11, marginTop: 2 },
+
+  // Chat CTA
+  chatCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1a1a24',
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#2a2a3a',
-  },
-  monthCardCurrent: {
-    borderColor: '#6c47ff',
-    backgroundColor: '#1a0f3a',
-  },
-  monthBadge: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 14,
-  },
-  monthNumber: { color: '#fff', fontWeight: '800', fontSize: 16 },
-  monthInfo: { flex: 1 },
-  monthName: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  monthFocus: { color: '#a78bfa', fontSize: 12, marginTop: 2 },
-  monthDesc: { color: '#666', fontSize: 12, marginTop: 2 },
-  currentBadge: {
-    backgroundColor: '#6c47ff',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    marginRight: 8,
-  },
-  currentBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  arrow: { color: '#444', fontSize: 22 },
-  chatBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1a0f3a',
+    backgroundColor: C.surface,
     borderRadius: 16,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#6c47ff',
+    borderColor: 'rgba(124,58,237,0.4)',
     gap: 12,
+    shadowColor: C.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  chatBtnIcon: { fontSize: 28 },
-  chatBtnInfo: { flex: 1 },
-  chatBtnTitle: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  chatBtnSub: { color: '#a78bfa', fontSize: 12, marginTop: 2 },
-  tipsCard: {
-    backgroundColor: '#1a1a24',
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 16,
+  chatAvatarWrap: { width: 48, height: 48, borderRadius: 24, backgroundColor: C.primaryGlow, alignItems: 'center', justifyContent: 'center' },
+  chatAvatar: { fontSize: 26 },
+  chatInfo: { flex: 1 },
+  chatTitle: { color: C.text1, fontWeight: '800', fontSize: 15 },
+  chatSub: { color: C.primaryLight, fontSize: 12, marginTop: 2 },
+  chatArrowWrap: { width: 32, height: 32, borderRadius: 16, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' },
+  chatArrow: { color: '#fff', fontSize: 18, fontWeight: '700' },
+
+  // Section
+  sectionTitle: { color: C.text1, fontSize: 16, fontWeight: '800', marginBottom: 12 },
+
+  // Month grid
+  monthGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  monthCell: {
+    width: CARD_WIDTH,
+    backgroundColor: C.surface,
+    borderRadius: 12,
+    padding: 10,
     borderWidth: 1,
-    borderColor: '#2a2a3a',
-    gap: 10,
+    borderColor: C.border,
+    alignItems: 'center',
+    overflow: 'hidden',
+    minHeight: 80,
+    justifyContent: 'space-between',
   },
-  tipRow: { flexDirection: 'row', gap: 8 },
-  tipBullet: { color: '#6c47ff', fontSize: 16, marginTop: 1 },
-  tipText: { color: '#bbb', fontSize: 14, lineHeight: 20, flex: 1 },
+  phaseBar: { position: 'absolute', top: 0, left: 0, right: 0, height: 3, borderTopLeftRadius: 12, borderTopRightRadius: 12 },
+  monthNum: { fontSize: 13, fontWeight: '800', marginTop: 6 },
+  monthFocus: { color: C.text3, fontSize: 9, textAlign: 'center', marginTop: 2 },
+  monthStatus: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', marginTop: 6 },
+  monthStatusText: { fontSize: 11, fontWeight: '700' },
+
+  // Legend
+  legendRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  legendDot: { width: 8, height: 8, borderRadius: 4 },
+  legendText: { color: C.text3, fontSize: 11 },
+
+  // Tips
+  tipsCard: { backgroundColor: C.surface, borderRadius: 14, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: C.border, gap: 10 },
+  tipRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
+  tipDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.primary, marginTop: 6, flexShrink: 0 },
+  tipText: { color: C.text2, fontSize: 14, lineHeight: 20, flex: 1 },
 });

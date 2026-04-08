@@ -16,34 +16,52 @@ import { RootStackParamList, UserProfile, FitnessGoal, FitnessLevel, Gender } fr
 import { usePlan } from '../hooks/usePlan';
 import { setRuntimeApiKey } from '../services/aiService';
 
-type Props = {
-  navigation: NativeStackNavigationProp<RootStackParamList, 'Onboarding'>;
+type Props = { navigation: NativeStackNavigationProp<RootStackParamList, 'Onboarding'> };
+
+// ─── Design tokens ────────────────────────────────────────────────────────────
+const C = {
+  bg: '#07070F',
+  surface: '#0F0F1A',
+  elevated: '#161625',
+  border: '#1E1E30',
+  borderFocus: '#7C3AED',
+  primary: '#7C3AED',
+  primaryLight: '#A78BFA',
+  primaryGlow: 'rgba(124,58,237,0.15)',
+  text1: '#F1F5F9',
+  text2: '#94A3B8',
+  text3: '#475569',
+  inputBg: '#0A0A14',
 };
 
-const GOALS: { value: FitnessGoal; label: string; icon: string }[] = [
-  { value: 'lose_weight', label: 'Perda de Peso', icon: '🔥' },
-  { value: 'gain_muscle', label: 'Ganho de Massa', icon: '💪' },
-  { value: 'improve_endurance', label: 'Resistência', icon: '🏃' },
-  { value: 'increase_strength', label: 'Força', icon: '🏋️' },
-  { value: 'general_fitness', label: 'Condicionamento', icon: '⚡' },
+const GOALS: { value: FitnessGoal; label: string; icon: string; desc: string }[] = [
+  { value: 'lose_weight',       label: 'Perda de Peso',    icon: '🔥', desc: 'Queimar gordura' },
+  { value: 'gain_muscle',       label: 'Ganho de Massa',   icon: '💪', desc: 'Hipertrofia' },
+  { value: 'improve_endurance', label: 'Resistência',      icon: '🏃', desc: 'Cardio & stamina' },
+  { value: 'increase_strength', label: 'Força',            icon: '🏋️', desc: 'Mais carga' },
+  { value: 'general_fitness',   label: 'Condicionamento',  icon: '⚡', desc: 'Saúde geral' },
 ];
 
-const LEVELS: { value: FitnessLevel; label: string; desc: string }[] = [
-  { value: 'beginner', label: 'Iniciante', desc: 'Menos de 6 meses' },
-  { value: 'intermediate', label: 'Intermediário', desc: '6 meses - 2 anos' },
-  { value: 'advanced', label: 'Avançado', desc: 'Mais de 2 anos' },
+const LEVELS: { value: FitnessLevel; label: string; icon: string; desc: string }[] = [
+  { value: 'beginner',     label: 'Iniciante',     icon: '🌱', desc: '< 6 meses de treino' },
+  { value: 'intermediate', label: 'Intermediário', icon: '🔥', desc: '6 meses – 2 anos' },
+  { value: 'advanced',     label: 'Avançado',      icon: '⚡', desc: '+ de 2 anos' },
 ];
 
 const GENDERS: { value: Gender; label: string }[] = [
-  { value: 'male', label: 'Masculino' },
+  { value: 'male',   label: 'Masculino' },
   { value: 'female', label: 'Feminino' },
-  { value: 'other', label: 'Outro' },
+  { value: 'other',  label: 'Outro' },
 ];
 
 const DAYS = [2, 3, 4, 5, 6];
 
+// Step labels for the visual progress bar
+const STEPS = ['Perfil', 'Objetivo', 'Treino', 'Gerar'];
+
 export function OnboardingScreen({ navigation }: Props) {
   const { generate, loadStoredPlan } = usePlan();
+
   const [name, setName] = useState('');
   const [age, setAge] = useState('');
   const [weight, setWeight] = useState('');
@@ -59,7 +77,6 @@ export function OnboardingScreen({ navigation }: Props) {
     (async () => {
       const found = await loadStoredPlan();
       if (found) { navigation.replace('Home'); return; }
-      // Pre-load API key so it's ready when user hits Generate
       const key = await AsyncStorage.getItem('@gymapp_custom_apikey');
       if (key) setRuntimeApiKey(key);
     })();
@@ -70,33 +87,23 @@ export function OnboardingScreen({ navigation }: Props) {
       Alert.alert('Atenção', 'Preencha todos os campos obrigatórios.');
       return;
     }
-
-    const parsedAge = parseInt(age, 10);
+    const parsedAge    = parseInt(age, 10);
     const parsedWeight = parseFloat(weight);
     const parsedHeight = parseFloat(height);
 
     if (isNaN(parsedAge) || parsedAge < 10 || parsedAge > 100) {
-      Alert.alert('Atenção', 'Insira uma idade válida (10–100).');
-      return;
+      Alert.alert('Atenção', 'Insira uma idade válida (10–100).'); return;
     }
     if (isNaN(parsedWeight) || parsedWeight < 30 || parsedWeight > 300) {
-      Alert.alert('Atenção', 'Insira um peso válido em kg.');
-      return;
+      Alert.alert('Atenção', 'Insira um peso válido em kg.'); return;
     }
     if (isNaN(parsedHeight) || parsedHeight < 100 || parsedHeight > 250) {
-      Alert.alert('Atenção', 'Insira uma altura válida em cm.');
-      return;
+      Alert.alert('Atenção', 'Insira uma altura válida em cm.'); return;
     }
 
     const profile: UserProfile = {
-      name: name.trim(),
-      age: parsedAge,
-      weight: parsedWeight,
-      height: parsedHeight,
-      gender,
-      goal,
-      fitnessLevel: level,
-      daysPerWeek,
+      name: name.trim(), age: parsedAge, weight: parsedWeight, height: parsedHeight,
+      gender, goal, fitnessLevel: level, daysPerWeek,
       injuries: injuries.trim() || undefined,
     };
 
@@ -106,7 +113,7 @@ export function OnboardingScreen({ navigation }: Props) {
       navigation.replace('Home');
     } catch (err: any) {
       const msg: string = err.message || 'Erro ao gerar o plano. Tente novamente.';
-      if (msg.includes('API Key não configurada') || msg.includes('401') || msg.includes('403')) {
+      if (msg.includes('API Key') || msg.includes('401') || msg.includes('403')) {
         Alert.alert(
           'Chave API necessária',
           'Configure sua chave Groq gratuita antes de gerar o plano.',
@@ -124,272 +131,329 @@ export function OnboardingScreen({ navigation }: Props) {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <Text style={styles.logo}>💪</Text>
-          <Text style={styles.title}>GymAI</Text>
-          <Text style={styles.subtitle}>Seu plano de treino anual com IA</Text>
+    <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+
+        {/* ── Hero header ── */}
+        <View style={s.hero}>
+          <View style={s.logoWrap}>
+            <Text style={s.logoEmoji}>💪</Text>
+          </View>
+          <Text style={s.appName}>GymAI</Text>
+          <Text style={s.tagline}>Plano anual personalizado com IA</Text>
+          <Text style={s.taglineSub}>Em segundos. Gratuito. Feito para você.</Text>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>👤 Seus Dados</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Seu nome *"
-            value={name}
-            onChangeText={setName}
-            placeholderTextColor="#666"
-            testID="input-name"
-          />
-          <View style={styles.row}>
-            <TextInput
-              style={[styles.input, styles.halfInput]}
-              placeholder="Idade *"
-              value={age}
-              onChangeText={setAge}
-              keyboardType="numeric"
-              placeholderTextColor="#666"
-              testID="input-age"
-            />
-            <TextInput
-              style={[styles.input, styles.halfInput]}
-              placeholder="Peso (kg) *"
-              value={weight}
-              onChangeText={setWeight}
-              keyboardType="decimal-pad"
-              placeholderTextColor="#666"
-              testID="input-weight"
-            />
-          </View>
-          <TextInput
-            style={styles.input}
-            placeholder="Altura (cm) *"
-            value={height}
-            onChangeText={setHeight}
-            keyboardType="numeric"
-            placeholderTextColor="#666"
-            testID="input-height"
-          />
-
-          <Text style={styles.label}>Gênero</Text>
-          <View style={styles.optionRow}>
-            {GENDERS.map((g) => (
-              <TouchableOpacity
-                key={g.value}
-                style={[styles.optionBtn, gender === g.value && styles.optionBtnActive]}
-                onPress={() => setGender(g.value)}
-                testID={`gender-${g.value}`}
-              >
-                <Text style={[styles.optionText, gender === g.value && styles.optionTextActive]}>
-                  {g.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>🎯 Objetivo</Text>
-          <View style={styles.goalGrid}>
-            {GOALS.map((g) => (
-              <TouchableOpacity
-                key={g.value}
-                style={[styles.goalBtn, goal === g.value && styles.goalBtnActive]}
-                onPress={() => setGoal(g.value)}
-                testID={`goal-${g.value}`}
-              >
-                <Text style={styles.goalIcon}>{g.icon}</Text>
-                <Text style={[styles.goalText, goal === g.value && styles.goalTextActive]}>
-                  {g.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>📊 Nível de Experiência</Text>
-          {LEVELS.map((l) => (
-            <TouchableOpacity
-              key={l.value}
-              style={[styles.levelBtn, level === l.value && styles.levelBtnActive]}
-              onPress={() => setLevel(l.value)}
-              testID={`level-${l.value}`}
-            >
-              <View>
-                <Text style={[styles.levelLabel, level === l.value && styles.levelLabelActive]}>
-                  {l.label}
-                </Text>
-                <Text style={styles.levelDesc}>{l.desc}</Text>
+        {/* Step dots */}
+        <View style={s.stepRow}>
+          {STEPS.map((label, i) => (
+            <View key={i} style={s.stepItem}>
+              <View style={s.stepDot}>
+                <Text style={s.stepNum}>{i + 1}</Text>
               </View>
-              {level === l.value && <Text style={styles.checkmark}>✓</Text>}
-            </TouchableOpacity>
+              <Text style={s.stepLabel}>{label}</Text>
+            </View>
           ))}
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>📅 Dias por Semana</Text>
-          <View style={styles.optionRow}>
-            {DAYS.map((d) => (
+        {/* ── Section 1: Perfil ── */}
+        <View style={s.sectionHeader}>
+          <View style={s.sectionBadge}><Text style={s.sectionBadgeText}>1</Text></View>
+          <Text style={s.sectionTitle}>Seus dados</Text>
+        </View>
+        <View style={s.card}>
+          <Text style={s.inputLabel}>Nome completo *</Text>
+          <TextInput
+            style={s.input}
+            placeholder="Como prefere ser chamado"
+            placeholderTextColor={C.text3}
+            value={name}
+            onChangeText={setName}
+            testID="input-name"
+          />
+
+          <View style={s.row}>
+            <View style={s.halfWrap}>
+              <Text style={s.inputLabel}>Idade *</Text>
+              <TextInput
+                style={s.input}
+                placeholder="Ex: 28"
+                placeholderTextColor={C.text3}
+                value={age}
+                onChangeText={setAge}
+                keyboardType="numeric"
+                testID="input-age"
+              />
+            </View>
+            <View style={[s.halfWrap, { marginLeft: 10 }]}>
+              <Text style={s.inputLabel}>Peso (kg) *</Text>
+              <TextInput
+                style={s.input}
+                placeholder="Ex: 75"
+                placeholderTextColor={C.text3}
+                value={weight}
+                onChangeText={setWeight}
+                keyboardType="decimal-pad"
+                testID="input-weight"
+              />
+            </View>
+          </View>
+
+          <Text style={s.inputLabel}>Altura (cm) *</Text>
+          <TextInput
+            style={s.input}
+            placeholder="Ex: 175"
+            placeholderTextColor={C.text3}
+            value={height}
+            onChangeText={setHeight}
+            keyboardType="numeric"
+            testID="input-height"
+          />
+
+          <Text style={s.inputLabel}>Gênero</Text>
+          <View style={s.pillRow}>
+            {GENDERS.map((g) => (
               <TouchableOpacity
-                key={d}
-                style={[styles.dayBtn, daysPerWeek === d && styles.dayBtnActive]}
-                onPress={() => setDaysPerWeek(d)}
-                testID={`days-${d}`}
+                key={g.value}
+                style={[s.pill, gender === g.value && s.pillActive]}
+                onPress={() => setGender(g.value)}
+                testID={`gender-${g.value}`}
               >
-                <Text style={[styles.dayText, daysPerWeek === d && styles.dayTextActive]}>
-                  {d}x
-                </Text>
+                <Text style={[s.pillText, gender === g.value && s.pillTextActive]}>{g.label}</Text>
               </TouchableOpacity>
             ))}
           </View>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>🩹 Lesões ou Limitações (opcional)</Text>
+        {/* ── Section 2: Objetivo ── */}
+        <View style={s.sectionHeader}>
+          <View style={s.sectionBadge}><Text style={s.sectionBadgeText}>2</Text></View>
+          <Text style={s.sectionTitle}>Seu objetivo</Text>
+        </View>
+        <View style={s.card}>
+          <View style={s.goalGrid}>
+            {GOALS.map((g) => (
+              <TouchableOpacity
+                key={g.value}
+                style={[s.goalCard, goal === g.value && s.goalCardActive]}
+                onPress={() => setGoal(g.value)}
+                testID={`goal-${g.value}`}
+              >
+                <Text style={s.goalEmoji}>{g.icon}</Text>
+                <Text style={[s.goalLabel, goal === g.value && s.goalLabelActive]}>{g.label}</Text>
+                <Text style={s.goalDesc}>{g.desc}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* ── Section 3: Nível e frequência ── */}
+        <View style={s.sectionHeader}>
+          <View style={s.sectionBadge}><Text style={s.sectionBadgeText}>3</Text></View>
+          <Text style={s.sectionTitle}>Nível e frequência</Text>
+        </View>
+        <View style={s.card}>
+          <Text style={s.inputLabel}>Experiência</Text>
+          {LEVELS.map((l) => (
+            <TouchableOpacity
+              key={l.value}
+              style={[s.levelRow, level === l.value && s.levelRowActive]}
+              onPress={() => setLevel(l.value)}
+              testID={`level-${l.value}`}
+            >
+              <Text style={s.levelEmoji}>{l.icon}</Text>
+              <View style={s.levelInfo}>
+                <Text style={[s.levelName, level === l.value && s.levelNameActive]}>{l.label}</Text>
+                <Text style={s.levelDesc}>{l.desc}</Text>
+              </View>
+              <View style={[s.radioOuter, level === l.value && s.radioOuterActive]}>
+                {level === l.value && <View style={s.radioInner} />}
+              </View>
+            </TouchableOpacity>
+          ))}
+
+          <Text style={[s.inputLabel, { marginTop: 16 }]}>Dias de treino por semana</Text>
+          <View style={s.daysRow}>
+            {DAYS.map((d) => (
+              <TouchableOpacity
+                key={d}
+                style={[s.dayCircle, daysPerWeek === d && s.dayCircleActive]}
+                onPress={() => setDaysPerWeek(d)}
+                testID={`days-${d}`}
+              >
+                <Text style={[s.dayNum, daysPerWeek === d && s.dayNumActive]}>{d}</Text>
+                <Text style={[s.dayLabel, daysPerWeek === d && s.dayLabelActive]}>dias</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* ── Section 4: Lesões ── */}
+        <View style={s.sectionHeader}>
+          <View style={[s.sectionBadge, { backgroundColor: C.elevated }]}>
+            <Text style={[s.sectionBadgeText, { color: C.text2 }]}>4</Text>
+          </View>
+          <Text style={s.sectionTitle}>Limitações <Text style={s.optional}>(opcional)</Text></Text>
+        </View>
+        <View style={s.card}>
+          <Text style={s.inputLabel}>Lesões ou restrições físicas</Text>
           <TextInput
-            style={[styles.input, styles.textArea]}
-            placeholder="Ex: dor no joelho, lesão no ombro..."
+            style={[s.input, s.textArea]}
+            placeholder="Ex: dor no joelho, lesão no ombro, hérnia de disco..."
+            placeholderTextColor={C.text3}
             value={injuries}
             onChangeText={setInjuries}
             multiline
             numberOfLines={3}
-            placeholderTextColor="#666"
             testID="input-injuries"
           />
+          <Text style={s.hint}>A IA adaptará seus treinos para respeitar suas limitações.</Text>
         </View>
 
+        {/* ── Generate CTA ── */}
         <TouchableOpacity
-          style={[styles.generateBtn, generating && styles.generateBtnDisabled]}
+          style={[s.generateBtn, generating && s.generateBtnLoading]}
           onPress={handleGenerate}
           disabled={generating}
           testID="btn-generate"
+          activeOpacity={0.85}
         >
-          {generating ? (
-            <Text style={styles.generateBtnText}>⏳ Gerando seu plano anual...</Text>
-          ) : (
-            <Text style={styles.generateBtnText}>🚀 Gerar Plano Anual</Text>
-          )}
+          <Text style={s.generateText}>
+            {generating ? '⏳  Criando seu plano...' : '🚀  Gerar Meu Plano Anual'}
+          </Text>
         </TouchableOpacity>
 
         {generating && (
-          <View style={styles.loadingCard}>
-            <Text style={styles.loadingText}>
-              A IA está criando a estrutura do seu plano anual.{'\n'}
-              Os treinos de cada mês serão gerados ao abri-los.
+          <View style={s.loadingCard}>
+            <Text style={s.loadingTitle}>✨ IA gerando sua estrutura...</Text>
+            <Text style={s.loadingDesc}>
+              O plano estará pronto em segundos. Os treinos de cada mês são gerados ao abrí-los — assim usamos muito menos IA e você começa mais rápido!
             </Text>
           </View>
         )}
+
+        <Text style={s.footer}>100% gratuito · Powered by Groq + Llama 3.3</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f0f14' },
-  scroll: { padding: 20, paddingBottom: 40 },
-  header: { alignItems: 'center', paddingVertical: 30 },
-  logo: { fontSize: 60 },
-  title: { fontSize: 36, fontWeight: '900', color: '#fff', letterSpacing: 1 },
-  subtitle: { fontSize: 16, color: '#888', marginTop: 6 },
-  card: {
-    backgroundColor: '#1a1a24',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#2a2a3a',
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: C.bg },
+  scroll: { padding: 20, paddingBottom: 50 },
+
+  // Hero
+  hero: { alignItems: 'center', paddingTop: 16, paddingBottom: 24 },
+  logoWrap: {
+    width: 80, height: 80, borderRadius: 24,
+    backgroundColor: C.primaryGlow,
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 14,
+    borderWidth: 1, borderColor: 'rgba(124,58,237,0.3)',
+    shadowColor: C.primary, shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4, shadowRadius: 20, elevation: 10,
   },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#fff', marginBottom: 14 },
+  logoEmoji: { fontSize: 42 },
+  appName: { color: C.text1, fontSize: 38, fontWeight: '900', letterSpacing: 0.5 },
+  tagline: { color: C.primaryLight, fontSize: 16, marginTop: 6, fontWeight: '600' },
+  taglineSub: { color: C.text3, fontSize: 13, marginTop: 4 },
+
+  // Step dots
+  stepRow: { flexDirection: 'row', justifyContent: 'center', gap: 20, marginBottom: 24 },
+  stepItem: { alignItems: 'center', gap: 4 },
+  stepDot: { width: 28, height: 28, borderRadius: 14, backgroundColor: C.primaryGlow, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(124,58,237,0.3)' },
+  stepNum: { color: C.primaryLight, fontSize: 12, fontWeight: '700' },
+  stepLabel: { color: C.text3, fontSize: 10 },
+
+  // Section header
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10, marginTop: 6 },
+  sectionBadge: { width: 26, height: 26, borderRadius: 13, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' },
+  sectionBadgeText: { color: '#fff', fontSize: 12, fontWeight: '800' },
+  sectionTitle: { color: C.text1, fontSize: 16, fontWeight: '700' },
+  optional: { color: C.text3, fontWeight: '400', fontSize: 13 },
+
+  // Card
+  card: { backgroundColor: C.surface, borderRadius: 18, padding: 18, marginBottom: 16, borderWidth: 1, borderColor: C.border },
+
+  // Input
+  inputLabel: { color: C.text2, fontSize: 12, fontWeight: '600', marginBottom: 6, letterSpacing: 0.3 },
   input: {
-    backgroundColor: '#0f0f14',
-    borderWidth: 1,
-    borderColor: '#333',
-    borderRadius: 10,
-    padding: 14,
-    color: '#fff',
-    fontSize: 15,
-    marginBottom: 12,
+    backgroundColor: C.inputBg, borderWidth: 1, borderColor: C.border,
+    borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13,
+    color: C.text1, fontSize: 15, marginBottom: 14,
   },
-  textArea: { height: 80, textAlignVertical: 'top' },
-  halfInput: { flex: 1, marginRight: 8 },
+  textArea: { height: 90, textAlignVertical: 'top', paddingTop: 12 },
   row: { flexDirection: 'row' },
-  label: { color: '#aaa', fontSize: 14, marginBottom: 10, marginTop: 4 },
-  optionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  optionBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: '#0f0f14',
-    borderWidth: 1,
-    borderColor: '#333',
-  },
-  optionBtnActive: { backgroundColor: '#6c47ff', borderColor: '#6c47ff' },
-  optionText: { color: '#aaa', fontSize: 14 },
-  optionTextActive: { color: '#fff', fontWeight: '700' },
+  halfWrap: { flex: 1 },
+  hint: { color: C.text3, fontSize: 12, lineHeight: 18, marginTop: -6 },
+
+  // Gender pills
+  pillRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  pill: { paddingHorizontal: 18, paddingVertical: 9, borderRadius: 10, backgroundColor: C.elevated, borderWidth: 1, borderColor: C.border },
+  pillActive: { backgroundColor: C.primaryGlow, borderColor: C.primary },
+  pillText: { color: C.text2, fontSize: 14, fontWeight: '500' },
+  pillTextActive: { color: C.primaryLight, fontWeight: '700' },
+
+  // Goals
   goalGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  goalBtn: {
-    width: '47%',
-    padding: 16,
-    borderRadius: 12,
-    backgroundColor: '#0f0f14',
-    borderWidth: 1,
-    borderColor: '#333',
+  goalCard: {
+    width: '47%', padding: 14, borderRadius: 14,
+    backgroundColor: C.elevated, borderWidth: 1, borderColor: C.border,
     alignItems: 'center',
   },
-  goalBtnActive: { backgroundColor: '#1a0f3a', borderColor: '#6c47ff' },
-  goalIcon: { fontSize: 28, marginBottom: 6 },
-  goalText: { color: '#aaa', fontSize: 13, textAlign: 'center' },
-  goalTextActive: { color: '#a78bfa', fontWeight: '700' },
-  levelBtn: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 14,
-    borderRadius: 12,
-    backgroundColor: '#0f0f14',
-    borderWidth: 1,
-    borderColor: '#333',
-    marginBottom: 8,
+  goalCardActive: { backgroundColor: C.primaryGlow, borderColor: C.primary },
+  goalEmoji: { fontSize: 32, marginBottom: 6 },
+  goalLabel: { color: C.text2, fontSize: 13, fontWeight: '600', textAlign: 'center' },
+  goalLabelActive: { color: C.primaryLight, fontWeight: '800' },
+  goalDesc: { color: C.text3, fontSize: 11, marginTop: 3, textAlign: 'center' },
+
+  // Levels
+  levelRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    padding: 14, borderRadius: 12, marginBottom: 8,
+    backgroundColor: C.elevated, borderWidth: 1, borderColor: C.border,
   },
-  levelBtnActive: { backgroundColor: '#1a0f3a', borderColor: '#6c47ff' },
-  levelLabel: { color: '#aaa', fontSize: 15, fontWeight: '600' },
-  levelLabelActive: { color: '#a78bfa' },
-  levelDesc: { color: '#555', fontSize: 12, marginTop: 2 },
-  checkmark: { color: '#6c47ff', fontSize: 18, fontWeight: '700' },
-  dayBtn: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: '#0f0f14',
-    borderWidth: 1,
-    borderColor: '#333',
-    alignItems: 'center',
-    justifyContent: 'center',
+  levelRowActive: { backgroundColor: C.primaryGlow, borderColor: C.primary },
+  levelEmoji: { fontSize: 24 },
+  levelInfo: { flex: 1 },
+  levelName: { color: C.text2, fontSize: 15, fontWeight: '600' },
+  levelNameActive: { color: C.primaryLight, fontWeight: '700' },
+  levelDesc: { color: C.text3, fontSize: 12, marginTop: 2 },
+  radioOuter: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: C.text3, alignItems: 'center', justifyContent: 'center' },
+  radioOuterActive: { borderColor: C.primary },
+  radioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: C.primary },
+
+  // Days
+  daysRow: { flexDirection: 'row', gap: 10, justifyContent: 'center', marginTop: 4 },
+  dayCircle: {
+    width: 56, height: 60, borderRadius: 14,
+    backgroundColor: C.elevated, borderWidth: 1, borderColor: C.border,
+    alignItems: 'center', justifyContent: 'center',
   },
-  dayBtnActive: { backgroundColor: '#6c47ff', borderColor: '#6c47ff' },
-  dayText: { color: '#aaa', fontSize: 15, fontWeight: '600' },
-  dayTextActive: { color: '#fff' },
+  dayCircleActive: { backgroundColor: C.primary, borderColor: C.primary },
+  dayNum: { color: C.text2, fontSize: 20, fontWeight: '800' },
+  dayNumActive: { color: '#fff' },
+  dayLabel: { color: C.text3, fontSize: 10, marginTop: 1 },
+  dayLabelActive: { color: 'rgba(255,255,255,0.8)' },
+
+  // Generate
   generateBtn: {
-    backgroundColor: '#6c47ff',
-    padding: 18,
-    borderRadius: 16,
-    alignItems: 'center',
-    marginTop: 8,
+    backgroundColor: C.primary, padding: 18, borderRadius: 16,
+    alignItems: 'center', marginTop: 8,
+    shadowColor: C.primary, shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.45, shadowRadius: 16, elevation: 10,
   },
-  generateBtnDisabled: { backgroundColor: '#3d2b99', opacity: 0.7 },
-  generateBtnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
+  generateBtnLoading: { backgroundColor: '#5B21B6', opacity: 0.8, shadowOpacity: 0 },
+  generateText: { color: '#fff', fontSize: 17, fontWeight: '800', letterSpacing: 0.3 },
+
+  // Loading info card
   loadingCard: {
-    marginTop: 16,
-    padding: 16,
-    backgroundColor: '#1a0f3a',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#6c47ff44',
+    marginTop: 14, padding: 18,
+    backgroundColor: C.surface, borderRadius: 14,
+    borderWidth: 1, borderColor: 'rgba(124,58,237,0.3)',
   },
-  loadingText: { color: '#a78bfa', textAlign: 'center', lineHeight: 22 },
+  loadingTitle: { color: C.primaryLight, fontWeight: '700', fontSize: 14, marginBottom: 8 },
+  loadingDesc: { color: C.text2, fontSize: 13, lineHeight: 20 },
+
+  footer: { color: C.text3, fontSize: 11, textAlign: 'center', marginTop: 20 },
 });

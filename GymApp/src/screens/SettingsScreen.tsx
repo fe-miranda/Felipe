@@ -1,24 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  StyleSheet,
-  Alert,
-  Linking,
+  View, Text, TextInput, TouchableOpacity, ScrollView,
+  StyleSheet, Alert, Linking,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types';
 import { setRuntimeApiKey } from '../services/aiService';
 
-type Props = {
-  navigation: NativeStackNavigationProp<RootStackParamList, 'Settings'>;
+type Props = { navigation: NativeStackNavigationProp<RootStackParamList, 'Settings'> };
+
+const C = {
+  bg: '#07070F', surface: '#0F0F1A', elevated: '#161625', border: '#1E1E30',
+  primary: '#7C3AED', primaryLight: '#A78BFA', primaryGlow: 'rgba(124,58,237,0.15)',
+  success: '#10B981', successBg: 'rgba(16,185,129,0.1)',
+  text1: '#F1F5F9', text2: '#94A3B8', text3: '#475569',
 };
 
 const CUSTOM_KEY_STORAGE = '@gymapp_custom_apikey';
+
+const HOW_TO_STEPS = [
+  { icon: '🌐', text: 'Acesse console.groq.com' },
+  { icon: '👤', text: 'Crie uma conta gratuita (ou entre com Google)' },
+  { icon: '🔑', text: 'Clique em "API Keys" no menu lateral' },
+  { icon: '✨', text: 'Clique em "Create API Key", copie a chave' },
+  { icon: '📋', text: 'Cole a chave abaixo e salve' },
+];
 
 export function SettingsScreen({ navigation }: Props) {
   const [keyInput, setKeyInput] = useState('');
@@ -26,25 +33,19 @@ export function SettingsScreen({ navigation }: Props) {
 
   useEffect(() => {
     AsyncStorage.getItem(CUSTOM_KEY_STORAGE).then((stored) => {
-      if (stored) {
-        setSavedKey(stored);
-        setKeyInput(stored);
-        setRuntimeApiKey(stored);
-      }
+      if (stored) { setSavedKey(stored); setKeyInput(stored); setRuntimeApiKey(stored); }
     });
   }, []);
 
   const handleSave = async () => {
     const trimmed = keyInput.trim();
-    if (!trimmed) {
-      Alert.alert('Atenção', 'Cole sua API Key do Groq.');
-      return;
-    }
+    if (!trimmed) { Alert.alert('Atenção', 'Cole sua API Key do Groq.'); return; }
     await AsyncStorage.setItem(CUSTOM_KEY_STORAGE, trimmed);
     setSavedKey(trimmed);
     setRuntimeApiKey(trimmed);
-    Alert.alert('Salvo!', 'Sua API Key foi salva. Volte e gere seu plano!');
-    navigation.goBack();
+    Alert.alert('✅ Salvo!', 'Chave configurada! Volte e gere seu plano.', [
+      { text: 'OK', onPress: () => navigation.goBack() }
+    ]);
   };
 
   const handleRemove = async () => {
@@ -55,175 +56,167 @@ export function SettingsScreen({ navigation }: Props) {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={s.container} contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
 
-      <View style={styles.heroCard}>
-        <Text style={styles.heroIcon}>🔑</Text>
-        <Text style={styles.heroTitle}>Configure sua chave gratuita</Text>
-        <Text style={styles.heroDesc}>
-          O app usa a API do Groq — 100% gratuita, sem cartão de crédito.{'\n'}
-          Crie sua chave em menos de 1 minuto.
+      {/* ── Hero ── */}
+      <View style={s.hero}>
+        <View style={s.heroIconWrap}>
+          <Text style={s.heroIcon}>🔑</Text>
+        </View>
+        <Text style={s.heroTitle}>API Key Gratuita</Text>
+        <Text style={s.heroDesc}>
+          Use o Groq — 100% gratuito, sem cartão de crédito.{'\n'}Configure uma vez e use para sempre.
         </Text>
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Como obter sua chave grátis</Text>
-        <View style={styles.steps}>
-          {[
-            'Abra o site console.groq.com',
-            'Crie uma conta gratuita (ou entre com Google)',
-            'Clique em "API Keys" no menu lateral',
-            'Clique em "Create API Key", dê um nome e copie',
-            'Cole a chave no campo abaixo e salve',
-          ].map((step, i) => (
-            <View key={i} style={styles.stepRow}>
-              <View style={styles.stepNum}>
-                <Text style={styles.stepNumText}>{i + 1}</Text>
-              </View>
-              <Text style={styles.stepText}>{step}</Text>
+      {/* ── Why Groq ── */}
+      <View style={s.whyCard}>
+        {[
+          { icon: '🆓', label: 'Grátis', desc: 'Sem cartão, sem cobrança' },
+          { icon: '⚡', label: 'Rápido', desc: 'Respostas em segundos' },
+          { icon: '🧠', label: 'Llama 3.3', desc: 'Modelo de alta qualidade' },
+        ].map((item, i) => (
+          <View key={i} style={s.whyItem}>
+            <Text style={s.whyEmoji}>{item.icon}</Text>
+            <Text style={s.whyLabel}>{item.label}</Text>
+            <Text style={s.whyDesc}>{item.desc}</Text>
+          </View>
+        ))}
+      </View>
+
+      {/* ── How to ── */}
+      <View style={s.card}>
+        <Text style={s.cardTitle}>Como obter sua chave grátis</Text>
+        {HOW_TO_STEPS.map((step, i) => (
+          <View key={i} style={s.stepRow}>
+            <View style={s.stepNumWrap}>
+              <Text style={s.stepNum}>{i + 1}</Text>
             </View>
-          ))}
-        </View>
+            <Text style={s.stepIcon}>{step.icon}</Text>
+            <Text style={s.stepText}>{step.text}</Text>
+          </View>
+        ))}
         <TouchableOpacity
-          style={styles.openBtn}
+          style={s.openBtn}
           onPress={() => Linking.openURL('https://console.groq.com/keys')}
           testID="btn-open-groq"
+          activeOpacity={0.85}
         >
-          <Text style={styles.openBtnText}>Abrir console.groq.com →</Text>
+          <Text style={s.openBtnText}>Abrir console.groq.com →</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Sua API Key</Text>
+      {/* ── Key input ── */}
+      <View style={s.card}>
+        <Text style={s.cardTitle}>Sua API Key</Text>
 
         {savedKey && (
-          <View style={styles.savedBadge}>
-            <Text style={styles.savedText}>✓ Chave configurada</Text>
+          <View style={s.savedBadge}>
+            <Text style={s.savedIcon}>✓</Text>
+            <Text style={s.savedText}>Chave configurada e ativa</Text>
           </View>
         )}
 
+        <Text style={s.inputLabel}>Cole sua chave Groq abaixo:</Text>
         <TextInput
-          style={styles.input}
-          placeholder="gsk_..."
+          style={s.input}
+          placeholder="gsk_xxxxxxxxxxxx..."
           value={keyInput}
           onChangeText={setKeyInput}
           secureTextEntry
           autoCapitalize="none"
-          placeholderTextColor="#555"
+          autoCorrect={false}
+          placeholderTextColor={C.text3}
           testID="input-apikey"
         />
 
-        <TouchableOpacity style={styles.saveBtn} onPress={handleSave} testID="btn-save-key">
-          <Text style={styles.saveBtnText}>Salvar e continuar</Text>
+        <TouchableOpacity style={s.saveBtn} onPress={handleSave} testID="btn-save-key" activeOpacity={0.85}>
+          <Text style={s.saveBtnText}>💾  Salvar e Continuar</Text>
         </TouchableOpacity>
 
         {savedKey && (
-          <TouchableOpacity style={styles.removeBtn} onPress={handleRemove} testID="btn-remove-key">
-            <Text style={styles.removeBtnText}>Remover chave</Text>
+          <TouchableOpacity style={s.removeBtn} onPress={handleRemove} testID="btn-remove-key">
+            <Text style={s.removeBtnText}>Remover chave</Text>
           </TouchableOpacity>
         )}
       </View>
 
-      <View style={styles.infoCard}>
-        <Text style={styles.infoTitle}>Por que Groq?</Text>
-        <Text style={styles.infoText}>
-          • 100% gratuito, sem cartão de crédito{'\n'}
-          • Modelo Llama 3.3 70B (alta qualidade){'\n'}
-          • Muito rápido — plano gerado em segundos{'\n'}
-          • 14.400 requisições por dia no plano free
+      {/* ── Token info ── */}
+      <View style={s.tokenCard}>
+        <Text style={s.tokenTitle}>📊 Uso eficiente de tokens</Text>
+        <Text style={s.tokenText}>
+          Este app foi otimizado para usar o mínimo de tokens possível:{'\n'}
+          • Geração do plano: ~600 tokens{'\n'}
+          • Treinos por mês: ~700 tokens{'\n'}
+          • Chat: ~512 tokens por resposta{'\n\n'}
+          O plano free do Groq oferece 14.400 requisições/dia — mais do que suficiente!
         </Text>
       </View>
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f0f14' },
-  content: { padding: 20, paddingBottom: 40 },
-  heroCard: {
-    backgroundColor: '#1a0f3a',
-    borderRadius: 16,
-    padding: 24,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#6c47ff44',
-    alignItems: 'center',
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: C.bg },
+  content: { padding: 16, paddingBottom: 50 },
+
+  hero: {
+    backgroundColor: C.surface, borderRadius: 20, padding: 24, marginBottom: 14,
+    alignItems: 'center', borderWidth: 1, borderColor: 'rgba(124,58,237,0.3)',
+    shadowColor: C.primary, shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2, shadowRadius: 16, elevation: 6,
   },
-  heroIcon: { fontSize: 48, marginBottom: 12 },
-  heroTitle: { color: '#fff', fontSize: 20, fontWeight: '800', textAlign: 'center', marginBottom: 8 },
-  heroDesc: { color: '#a78bfa', fontSize: 14, lineHeight: 22, textAlign: 'center' },
-  section: {
-    backgroundColor: '#1a1a24',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#2a2a3a',
+  heroIconWrap: {
+    width: 64, height: 64, borderRadius: 20, backgroundColor: C.primaryGlow,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 14,
+    borderWidth: 1, borderColor: 'rgba(124,58,237,0.3)',
   },
-  sectionTitle: { color: '#fff', fontSize: 16, fontWeight: '700', marginBottom: 16 },
-  steps: { gap: 14, marginBottom: 16 },
-  stepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  stepNum: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: '#6c47ff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-    marginTop: 1,
+  heroIcon: { fontSize: 32 },
+  heroTitle: { color: C.text1, fontSize: 22, fontWeight: '800', marginBottom: 8 },
+  heroDesc: { color: C.text2, fontSize: 14, lineHeight: 22, textAlign: 'center' },
+
+  whyCard: {
+    backgroundColor: C.surface, borderRadius: 16, padding: 20, marginBottom: 14,
+    flexDirection: 'row', borderWidth: 1, borderColor: C.border,
   },
-  stepNumText: { color: '#fff', fontSize: 12, fontWeight: '800' },
-  stepText: { color: '#bbb', fontSize: 14, lineHeight: 22, flex: 1 },
-  openBtn: {
-    backgroundColor: '#6c47ff',
-    borderRadius: 12,
-    padding: 14,
-    alignItems: 'center',
-  },
+  whyItem: { flex: 1, alignItems: 'center', gap: 4 },
+  whyEmoji: { fontSize: 28 },
+  whyLabel: { color: C.text1, fontSize: 13, fontWeight: '700' },
+  whyDesc: { color: C.text3, fontSize: 11, textAlign: 'center' },
+
+  card: { backgroundColor: C.surface, borderRadius: 16, padding: 18, marginBottom: 14, borderWidth: 1, borderColor: C.border },
+  cardTitle: { color: C.text1, fontSize: 15, fontWeight: '700', marginBottom: 16 },
+
+  stepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 14 },
+  stepNumWrap: { width: 24, height: 24, borderRadius: 12, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 },
+  stepNum: { color: '#fff', fontSize: 11, fontWeight: '800' },
+  stepIcon: { fontSize: 16, marginTop: 1 },
+  stepText: { color: C.text2, fontSize: 14, lineHeight: 22, flex: 1 },
+  openBtn: { backgroundColor: C.primary, borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 4 },
   openBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+
   savedBadge: {
-    backgroundColor: '#0d2b1a',
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#1a5c35',
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: C.successBg, borderRadius: 10, padding: 12, marginBottom: 14,
+    borderWidth: 1, borderColor: 'rgba(16,185,129,0.3)',
   },
-  savedText: { color: '#4ade80', fontSize: 13, fontWeight: '600' },
+  savedIcon: { color: C.success, fontSize: 16, fontWeight: '800' },
+  savedText: { color: C.success, fontSize: 13, fontWeight: '600' },
+
+  inputLabel: { color: C.text3, fontSize: 12, fontWeight: '600', marginBottom: 8 },
   input: {
-    backgroundColor: '#0f0f14',
-    borderWidth: 1,
-    borderColor: '#333',
-    borderRadius: 10,
-    padding: 14,
-    color: '#fff',
-    fontSize: 15,
-    marginBottom: 12,
+    backgroundColor: '#0A0A14', borderWidth: 1, borderColor: C.border,
+    borderRadius: 12, padding: 14, color: C.text1, fontSize: 15, marginBottom: 12,
   },
   saveBtn: {
-    backgroundColor: '#6c47ff',
-    borderRadius: 12,
-    padding: 14,
-    alignItems: 'center',
-    marginBottom: 8,
+    backgroundColor: C.primary, borderRadius: 12, padding: 15, alignItems: 'center', marginBottom: 8,
+    shadowColor: C.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 6,
   },
-  saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  removeBtn: {
-    borderRadius: 12,
-    padding: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#333',
-  },
-  removeBtnText: { color: '#666', fontSize: 14 },
-  infoCard: {
-    backgroundColor: '#1a1a24',
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#2a2a3a',
-  },
-  infoTitle: { color: '#fff', fontSize: 15, fontWeight: '700', marginBottom: 10 },
-  infoText: { color: '#888', fontSize: 14, lineHeight: 24 },
+  saveBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
+  removeBtn: { borderRadius: 10, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: C.border },
+  removeBtnText: { color: C.text3, fontSize: 14 },
+
+  tokenCard: { backgroundColor: C.surface, borderRadius: 14, padding: 18, borderWidth: 1, borderColor: C.border },
+  tokenTitle: { color: C.text1, fontSize: 14, fontWeight: '700', marginBottom: 10 },
+  tokenText: { color: C.text2, fontSize: 13, lineHeight: 22 },
 });
