@@ -210,11 +210,11 @@ describe('generatePlanOverview', () => {
     overview.monthlyBlocks.forEach((b) => expect(b.weeks).toEqual([]));
   });
 
-  it('uses max_tokens 900 for overview (compact)', async () => {
+  it('uses max_tokens 1400 for overview', async () => {
     (global.fetch as jest.Mock).mockResolvedValueOnce(groqResponse(JSON.stringify(mockOverviewData)));
     await generatePlanOverview(mockProfile);
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
-    expect(body.max_tokens).toBe(900);
+    expect(body.max_tokens).toBe(1400);
   });
 
   it('includes injuries in prompt when present', async () => {
@@ -277,11 +277,11 @@ describe('generateMonthDetail', () => {
     expect(w2sets).toBe(w1sets + 1); // volume week
   });
 
-  it('uses max_tokens 1400 for month detail', async () => {
+  it('uses max_tokens 1800 for month detail', async () => {
     (global.fetch as jest.Mock).mockResolvedValueOnce(groqResponse(JSON.stringify(mockTemplate)));
     await generateMonthDetail(mockMonthBlock, mockProfile, 'Ganhar massa');
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
-    expect(body.max_tokens).toBe(1400);
+    expect(body.max_tokens).toBe(1800);
   });
 
   it('includes month name in prompt', async () => {

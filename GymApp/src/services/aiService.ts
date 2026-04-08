@@ -108,7 +108,27 @@ async function groqPost(messages: object[], maxTokens: number): Promise<string> 
 function extractJson(text: string): any {
   const match = text.match(/\{[\s\S]*\}/);
   if (!match) throw new Error('Resposta inválida da IA. Tente novamente.');
-  return JSON.parse(match[0]);
+  const raw = match[0];
+  // Auto-repair truncated JSON: close unclosed arrays and objects
+  const repaired = repairJson(raw);
+  return JSON.parse(repaired);
+}
+
+function repairJson(raw: string): string {
+  // Count unclosed braces/brackets
+  let str = raw;
+  const opens: string[] = [];
+  for (const ch of str) {
+    if (ch === '{') opens.push('}');
+    else if (ch === '[') opens.push(']');
+    else if (ch === '}' || ch === ']') opens.pop();
+  }
+  // Remove trailing comma before we close
+  str = str.replace(/,\s*$/, '');
+  // Close any open strings (truncated mid-string)
+  if ((str.match(/"/g) ?? []).length % 2 !== 0) str += '"';
+  // Close open containers
+  return str + opens.reverse().join('');
 }
 
 // ─── Phase 1: Plan overview — ~600 tokens total ──────────────────────────────
@@ -129,7 +149,7 @@ export async function generatePlanOverview(
 
   onProgress?.('Gerando seu plano personalizado...');
 
-  const raw = await groqPost([{ role: 'user', content: prompt }], 900);
+  const raw = await groqPost([{ role: 'user', content: prompt }], 1400);
   const data = extractJson(raw);
 
   return {
@@ -163,7 +183,7 @@ export async function generateMonthDetail(
     `{"theme":"tema","goals":["meta"],"days":[{"dayOfWeek":"Segunda","focus":"Peito","duration":60,` +
     `"exercises":[{"name":"Supino Reto","sets":3,"reps":"10-12","rest":"60s"}]}]}`;
 
-  const raw = await groqPost([{ role: 'user', content: prompt }], 1400);
+  const raw = await groqPost([{ role: 'user', content: prompt }], 1800);
   const data = extractJson(raw);
 
   if (!data.days || !Array.isArray(data.days)) {
