@@ -1,0 +1,42 @@
+{
+  "expo": {
+    "name": "Mundo das Descobertas",
+    "slug": "mundo-das-descobertas",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#1a1a2e"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.mundodescobertas.app",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Não usamos microfone."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#1a1a2e"
+      },
+      "package": "com.mundodescobertas.app",
+      "versionCode": 1,
+      "permissions": []
+    },
+    "plugins": [
+      [
+        "expo-av",
+        {
+          "microphonePermission": false
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "SEU_PROJECT_ID_AQUI"
+      }
+    }
+  }
+}
