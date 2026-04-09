@@ -24,6 +24,8 @@ const mockPlan: AnnualPlan = {
     goal: 'general_fitness',
     fitnessLevel: 'intermediate',
     daysPerWeek: 3,
+    workoutDuration: 60,
+    cardioMinutes: 10,
   },
   totalMonths: 12,
   overallGoal: 'Melhorar condicionamento geral',

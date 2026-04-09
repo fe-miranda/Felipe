@@ -213,6 +213,8 @@ describe('OnboardingScreen — validation', () => {
         goal: 'lose_weight',
         fitnessLevel: 'intermediate',
         daysPerWeek: 4,
+        workoutDuration: 60,
+        cardioMinutes: 10,
         injuries: undefined,
       });
     });

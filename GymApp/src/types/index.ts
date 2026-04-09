@@ -18,6 +18,8 @@ export interface UserProfile {
   fitnessLevel: FitnessLevel;
   goal: FitnessGoal;
   daysPerWeek: number;
+  workoutDuration: number; // total minutes per session
+  cardioMinutes: number;   // cardio portion per session
   injuries?: string;
 }
 

@@ -61,18 +61,18 @@ export function SettingsScreen({ navigation }: Props) {
       {/* ── Hero ── */}
       <View style={s.hero}>
         <View style={s.heroIconWrap}>
-          <Text style={s.heroIcon}>🔑</Text>
+          <Text style={s.heroIcon}>⚡</Text>
         </View>
-        <Text style={s.heroTitle}>API Key Gratuita</Text>
+        <Text style={s.heroTitle}>Configurações de IA</Text>
         <Text style={s.heroDesc}>
-          Use o Groq — 100% gratuito, sem cartão de crédito.{'\n'}Configure uma vez e use para sempre.
+          O app já vem com uma chave Groq embutida.{'\n'}Pronto para usar sem nenhuma configuração!
         </Text>
       </View>
 
-      {/* ── Why Groq ── */}
+      {/* ── Status card ── */}
       <View style={s.whyCard}>
         {[
-          { icon: '🆓', label: 'Grátis', desc: 'Sem cartão, sem cobrança' },
+          { icon: '✅', label: 'Pronto', desc: 'Chave já configurada' },
           { icon: '⚡', label: 'Rápido', desc: 'Respostas em segundos' },
           { icon: '🧠', label: 'Llama 3.3', desc: 'Modelo de alta qualidade' },
         ].map((item, i) => (
@@ -84,18 +84,12 @@ export function SettingsScreen({ navigation }: Props) {
         ))}
       </View>
 
-      {/* ── How to ── */}
+      {/* ── Optional override ── */}
       <View style={s.card}>
-        <Text style={s.cardTitle}>Como obter sua chave grátis</Text>
-        {HOW_TO_STEPS.map((step, i) => (
-          <View key={i} style={s.stepRow}>
-            <View style={s.stepNumWrap}>
-              <Text style={s.stepNum}>{i + 1}</Text>
-            </View>
-            <Text style={s.stepIcon}>{step.icon}</Text>
-            <Text style={s.stepText}>{step.text}</Text>
-          </View>
-        ))}
+        <Text style={s.cardTitle}>Usar sua própria chave Groq (opcional)</Text>
+        <Text style={s.stepText} style={{ color: '#94A3B8', fontSize: 13, lineHeight: 20, marginBottom: 12 }}>
+          Quer usar sua conta pessoal Groq? Obtenha uma chave gratuita em console.groq.com e cole abaixo.
+        </Text>
         <TouchableOpacity
           style={s.openBtn}
           onPress={() => Linking.openURL('https://console.groq.com/keys')}

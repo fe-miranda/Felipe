@@ -55,6 +55,8 @@ const GENDERS: { value: Gender; label: string }[] = [
 ];
 
 const DAYS = [2, 3, 4, 5, 6];
+const DURATIONS = [30, 45, 60, 75, 90]; // total minutes per session
+const CARDIO_OPTIONS = [0, 10, 15, 20, 30]; // cardio minutes per session
 
 // Step labels for the visual progress bar
 const STEPS = ['Perfil', 'Objetivo', 'Treino', 'Gerar'];
@@ -70,6 +72,8 @@ export function OnboardingScreen({ navigation }: Props) {
   const [goal, setGoal] = useState<FitnessGoal>('gain_muscle');
   const [level, setLevel] = useState<FitnessLevel>('beginner');
   const [daysPerWeek, setDaysPerWeek] = useState(3);
+  const [workoutDuration, setWorkoutDuration] = useState(60);
+  const [cardioMinutes, setCardioMinutes] = useState(10);
   const [injuries, setInjuries] = useState('');
   const [generating, setGenerating] = useState(false);
 
@@ -103,7 +107,7 @@ export function OnboardingScreen({ navigation }: Props) {
 
     const profile: UserProfile = {
       name: name.trim(), age: parsedAge, weight: parsedWeight, height: parsedHeight,
-      gender, goal, fitnessLevel: level, daysPerWeek,
+      gender, goal, fitnessLevel: level, daysPerWeek, workoutDuration, cardioMinutes,
       injuries: injuries.trim() || undefined,
     };
 
@@ -283,6 +287,36 @@ export function OnboardingScreen({ navigation }: Props) {
               >
                 <Text style={[s.dayNum, daysPerWeek === d && s.dayNumActive]}>{d}</Text>
                 <Text style={[s.dayLabel, daysPerWeek === d && s.dayLabelActive]}>dias</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={[s.inputLabel, { marginTop: 16 }]}>Duração do treino</Text>
+          <View style={s.daysRow}>
+            {DURATIONS.map((d) => (
+              <TouchableOpacity
+                key={d}
+                style={[s.dayCircle, workoutDuration === d && s.dayCircleActive]}
+                onPress={() => setWorkoutDuration(d)}
+                testID={`duration-${d}`}
+              >
+                <Text style={[s.dayNum, workoutDuration === d && s.dayNumActive, { fontSize: 14 }]}>{d}</Text>
+                <Text style={[s.dayLabel, workoutDuration === d && s.dayLabelActive]}>min</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={[s.inputLabel, { marginTop: 16 }]}>Tempo de cardio por sessão</Text>
+          <View style={s.daysRow}>
+            {CARDIO_OPTIONS.map((c) => (
+              <TouchableOpacity
+                key={c}
+                style={[s.dayCircle, cardioMinutes === c && s.dayCircleActive]}
+                onPress={() => setCardioMinutes(c)}
+                testID={`cardio-${c}`}
+              >
+                <Text style={[s.dayNum, cardioMinutes === c && s.dayNumActive, { fontSize: 14 }]}>{c}</Text>
+                <Text style={[s.dayLabel, cardioMinutes === c && s.dayLabelActive]}>min</Text>
               </TouchableOpacity>
             ))}
           </View>

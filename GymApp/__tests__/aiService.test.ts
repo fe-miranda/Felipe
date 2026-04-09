@@ -16,6 +16,7 @@ import type { UserProfile, AnnualPlan, MonthlyBlock, WorkoutDay } from '../src/t
 const mockProfile: UserProfile = {
   name: 'João', age: 28, weight: 80, height: 178,
   gender: 'male', goal: 'gain_muscle', fitnessLevel: 'intermediate', daysPerWeek: 4,
+  workoutDuration: 60, cardioMinutes: 10,
 };
 
 const mockMonthBlock: Pick<MonthlyBlock, 'month' | 'monthName' | 'focus' | 'description'> = {
@@ -169,14 +170,21 @@ describe('expandToWeeks', () => {
 // ─── setRuntimeApiKey ──────────────────────────────────────────────────────
 
 describe('setRuntimeApiKey', () => {
-  it('throws when no key is set', async () => {
+  it('uses default embedded key when no custom key is set', async () => {
     setRuntimeApiKey(null);
-    await expect(generateAnnualPlan(mockProfile)).rejects.toThrow('API Key não configurada');
+    (global.fetch as jest.Mock).mockResolvedValueOnce(groqResponse(JSON.stringify(mockOverviewData)));
+    const plan = await generateAnnualPlan(mockProfile);
+    expect(plan.userId).toBe('João');
+    // Authorization header should use the default key
+    const headers = (global.fetch as jest.Mock).mock.calls[0][1].headers;
+    expect(headers.Authorization).toMatch(/^Bearer gsk_/);
   });
 
-  it('throws when empty string is set', async () => {
+  it('uses default embedded key when empty string is set', async () => {
     setRuntimeApiKey('   ');
-    await expect(generateAnnualPlan(mockProfile)).rejects.toThrow('API Key não configurada');
+    (global.fetch as jest.Mock).mockResolvedValueOnce(groqResponse(JSON.stringify(mockOverviewData)));
+    const plan = await generateAnnualPlan(mockProfile);
+    expect(plan.userId).toBe('João');
   });
 });
 
