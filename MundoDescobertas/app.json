@@ -12,7 +12,9 @@
       },
       "package": "com.mundodescobertas.app",
       "versionCode": 1,
-      "permissions": []
+      "permissions": [
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
     },
     "ios": {
       "supportsTablet": false,
@@ -36,6 +38,11 @@
           "microphonePermission": false
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "94d8ed3e-d9cd-4a6e-a7cc-0456ee20626c"
+      }
+    }
   }
 }
