@@ -3,7 +3,7 @@ import { View, Animated, Dimensions, StyleSheet } from 'react-native';
 import { CONFETTI_COLORS } from '../constants/colors';
 
 const { width: SW, height: SH } = Dimensions.get('window');
-const NUM_PIECES = 36;
+const NUM_PIECES = 15; // keep low to avoid ANR on mid-range Android devices
 
 /** A single falling confetti piece (memoised to avoid re-renders). */
 const Piece = memo(({ x, color, delay, isCircle, rotDir }) => {

@@ -11,17 +11,12 @@
         "backgroundColor": "#1a1a2e"
       },
       "package": "com.mundodescobertas.app",
-      "versionCode": 1,
-      "permissions": [
-        "android.permission.MODIFY_AUDIO_SETTINGS"
-      ]
+      "versionCode": 2,
+      "permissions": []
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.mundodescobertas.app",
-      "infoPlist": {
-        "NSMicrophoneUsageDescription": "Não usamos microfone."
-      }
+      "bundleIdentifier": "com.mundodescobertas.app"
     },
     "plugins": [
       [
@@ -30,12 +25,6 @@
           "android": {
             "kotlinVersion": "1.9.25"
           }
-        }
-      ],
-      [
-        "expo-av",
-        {
-          "microphonePermission": false
         }
       ]
     ],

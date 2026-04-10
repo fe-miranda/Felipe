@@ -1,16 +1,14 @@
 /**
- * ShapesScreen — Arrastar Formas minigame.
+ * ShapesScreen — Arrastar Formas (Encaixar Formas).
  *
- * Three shapes (Circle, Square, Triangle) sit at the bottom of the screen.
- * Three matching shadow outlines sit at the top.
- * The child drags each shape onto its shadow:
- *   • Correct target → snaps in, shows label, haptic success.
- *   • Wrong target   → bounces back, gentle haptic error.
- *   • All three placed → confetti + StarBurst celebration.
+ * Tap-to-select + tap-to-place approach (toddler-friendly, crash-safe):
+ *   1. Tap a shape at the bottom → it is selected (highlighted, bounces).
+ *   2. Tap the matching shadow target at the top → snaps in, celebrates.
+ *   3. Tap the wrong target → gentle shake error.
+ *   4. All three placed → confetti + StarBurst.
  *
- * Drag is implemented with React Native's PanResponder (no extra deps).
- * Shape and target positions are calculated from screen dimensions so the
- * layout is responsive across phone sizes.
+ * Uses only React Native core APIs — no PanResponder, no gesture handler,
+ * no external native modules. Zero crash risk from native layer.
  */
 import React, { useState, useRef, useCallback } from 'react';
 import {
@@ -18,67 +16,37 @@ import {
   Text,
   StyleSheet,
   Dimensions,
-  PanResponder,
-  Animated,
   TouchableOpacity,
+  Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as Haptics from 'expo-haptics';
 
 import ConfettiEffect from '../components/ConfettiEffect';
 import StarBurst      from '../components/StarBurst';
 import { SHAPES }     from '../constants/gameData';
 
-const { width: SW, height: SH } = Dimensions.get('window');
+const { width: SW } = Dimensions.get('window');
 
-// ─── Layout constants ───────────────────────────────────────────────────────
-const SHAPE_SIZE  = 82;
-const TARGET_SIZE = 108;
-const SNAP_DIST   = 70; // px from target centre to snap
-
-// Evenly spaced horizontal positions for 3 items
-const col = (i) => (SW / 4) * (i + 1); // centres at 25 %, 50 %, 75 % of screen
-
-// Target outlines in the upper section
-const TARGET_POSITIONS = SHAPES.map((_, i) => ({
-  cx: col(i),
-  cy: SH * 0.28,
-}));
-
-// Draggable shapes start in the lower section
-const SHAPE_START = SHAPES.map((_, i) => ({
-  cx: col(i),
-  cy: SH * 0.72,
-}));
-
-// ─── SVG-free shape renderers ────────────────────────────────────────────────
-function Circle({ size, color, style }) {
+// ── Shape renderers (pure View, no SVG) ──────────────────────────────────────
+function Circle({ size, color }) {
   return (
-    <View
-      style={[{ width: size, height: size, borderRadius: size / 2, backgroundColor: color }, style]}
-    />
+    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: color }} />
   );
 }
-
-function Square({ size, color, style }) {
+function Square({ size, color }) {
   return (
-    <View
-      style={[{ width: size, height: size, borderRadius: size * 0.12, backgroundColor: color }, style]}
-    />
+    <View style={{ width: size, height: size, borderRadius: size * 0.14, backgroundColor: color }} />
   );
 }
-
 function Triangle({ size, color }) {
-  // Classic border-trick triangle
   return (
     <View
       style={{
-        width: 0,
-        height: 0,
+        width: 0, height: 0,
         borderLeftWidth:   size / 2,
         borderRightWidth:  size / 2,
-        borderBottomWidth: size * 0.87,
+        borderBottomWidth: Math.round(size * 0.87),
         borderLeftColor:   'transparent',
         borderRightColor:  'transparent',
         borderBottomColor: color,
@@ -86,129 +54,145 @@ function Triangle({ size, color }) {
     />
   );
 }
-
-function ShapeRenderer({ type, size, color, style }) {
+function ShapeView({ type, size, color }) {
   switch (type) {
-    case 'circle':   return <Circle   size={size} color={color} style={style} />;
-    case 'square':   return <Square   size={size} color={color} style={style} />;
+    case 'circle':   return <Circle   size={size} color={color} />;
+    case 'square':   return <Square   size={size} color={color} />;
     case 'triangle': return <Triangle size={size} color={color} />;
     default:         return null;
   }
 }
 
-// ─── DraggableShape ─────────────────────────────────────────────────────────
-function DraggableShape({ shape, index, targetPositions, onSuccess, placed }) {
-  const pan   = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+// ── Animated shape button at the bottom ──────────────────────────────────────
+const SHAPE_SIZE  = 78;
+const TARGET_SIZE = 100;
+
+function ShapeButton({ shape, selected, placed, onPress }) {
   const scale = useRef(new Animated.Value(1)).current;
+  const shake = useRef(new Animated.Value(0)).current;
 
-  // Store the absolute screen position of this shape's resting spot
-  const restX = SHAPE_START[index].cx - SHAPE_SIZE / 2;
-  const restY = SHAPE_START[index].cy - SHAPE_SIZE / 2;
+  const press = useCallback(() => {
+    Animated.spring(scale, { toValue: 1.2, tension: 120, friction: 5, useNativeDriver: true }).start(() =>
+      Animated.spring(scale, { toValue: 1, tension: 80, friction: 6, useNativeDriver: true }).start()
+    );
+    onPress(shape.id);
+  }, [shape.id, onPress]);
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => !placed,
-      onMoveShouldSetPanResponder:  () => !placed,
-
-      onPanResponderGrant: () => {
-        pan.setOffset({ x: pan.x._value, y: pan.y._value });
-        pan.setValue({ x: 0, y: 0 });
-        Animated.spring(scale, { toValue: 1.18, tension: 100, friction: 6, useNativeDriver: true }).start();
-      },
-
-      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
-        useNativeDriver: false,
-      }),
-
-      onPanResponderRelease: (_, gesture) => {
-        pan.flattenOffset();
-        Animated.spring(scale, { toValue: 1, tension: 80, friction: 7, useNativeDriver: true }).start();
-
-        // Absolute centre of the shape when released
-        const dropCX = restX + SHAPE_SIZE / 2 + pan.x._value;
-        const dropCY = restY + SHAPE_SIZE / 2 + pan.y._value;
-
-        // Find the matching target
-        const myTarget = targetPositions[index];
-        const dist = Math.hypot(dropCX - myTarget.cx, dropCY - myTarget.cy);
-
-        if (dist < SNAP_DIST) {
-          // ✅ Correct target — snap to it
-          const snapX = myTarget.cx - SHAPE_SIZE / 2 - restX;
-          const snapY = myTarget.cy - SHAPE_SIZE / 2 - restY;
-          Animated.spring(pan, {
-            toValue:    { x: snapX, y: snapY },
-            tension:    120,
-            friction:   8,
-            useNativeDriver: false,
-          }).start();
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          onSuccess(shape.id);
-        } else {
-          // ❌ Missed or wrong — bounce back to start
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-          Animated.spring(pan, {
-            toValue:    { x: 0, y: 0 },
-            tension:    70,
-            friction:   8,
-            useNativeDriver: false,
-          }).start();
-        }
-      },
-    })
-  ).current;
+  // Expose shake trigger via ref pattern on parent
+  React.useEffect(() => {
+    if (shape._shake) {
+      Animated.sequence([
+        Animated.timing(shake, { toValue:  12, duration: 60, useNativeDriver: true }),
+        Animated.timing(shake, { toValue: -12, duration: 60, useNativeDriver: true }),
+        Animated.timing(shake, { toValue:   8, duration: 60, useNativeDriver: true }),
+        Animated.timing(shake, { toValue:   0, duration: 60, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [shape._shake]);
 
   return (
-    <Animated.View
-      {...panResponder.panHandlers}
-      style={[
-        styles.draggable,
-        {
-          left:    restX,
-          top:     restY,
-          opacity: placed ? 0.35 : 1,
-          zIndex:  placed ? 0 : 10,
-          transform: [
-            { translateX: pan.x },
-            { translateY: pan.y },
-            { scale },
-          ],
-        },
-      ]}
+    <TouchableOpacity
+      onPress={press}
+      disabled={placed}
+      activeOpacity={0.75}
+      style={styles.shapeBtn}
     >
-      <ShapeRenderer type={shape.id} size={SHAPE_SIZE} color={shape.color} />
-    </Animated.View>
+      <Animated.View
+        style={[
+          styles.shapeBtnInner,
+          selected && styles.shapeBtnSelected,
+          placed   && styles.shapeBtnPlaced,
+          { transform: [{ scale }, { translateX: shake }] },
+        ]}
+      >
+        <ShapeView type={shape.id} size={SHAPE_SIZE} color={placed ? 'rgba(255,255,255,0.25)' : shape.color} />
+        {!placed && <Text style={styles.shapeLabel}>{shape.label}</Text>}
+        {placed  && <Text style={styles.shapeLabel}>✅</Text>}
+      </Animated.View>
+    </TouchableOpacity>
   );
 }
 
-// ─── ShapesScreen ────────────────────────────────────────────────────────────
+// ── Target shadow at the top ──────────────────────────────────────────────────
+function TargetSlot({ shape, filled, selected, onPress }) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const press = useCallback(() => {
+    Animated.spring(scale, { toValue: 1.1, tension: 100, friction: 6, useNativeDriver: true }).start(() =>
+      Animated.spring(scale, { toValue: 1, tension: 80, friction: 7, useNativeDriver: true }).start()
+    );
+    onPress(shape.id);
+  }, [shape.id, onPress]);
+
+  return (
+    <TouchableOpacity onPress={press} activeOpacity={0.8} style={styles.targetBtn}>
+      <Animated.View
+        style={[
+          styles.targetInner,
+          selected && styles.targetHighlighted,
+          { transform: [{ scale }] },
+        ]}
+      >
+        <ShapeView
+          type={shape.id}
+          size={TARGET_SIZE}
+          color={filled ? shape.color : 'rgba(255,255,255,0.13)'}
+        />
+        <Text style={[styles.targetLabel, filled && styles.targetLabelFilled]}>
+          {shape.label}
+        </Text>
+      </Animated.View>
+    </TouchableOpacity>
+  );
+}
+
+// ── Screen ────────────────────────────────────────────────────────────────────
 export default function ShapesScreen({ navigation }) {
-  const [placed,       setPlaced]       = useState({});          // { shapeId: true }
+  const [selected,     setSelected]     = useState(null); // shapeId being held
+  const [placed,       setPlaced]       = useState({});   // { shapeId: true }
+  const [shakeTick,    setShakeTick]    = useState({});   // trigger shake
   const [showConfetti, setShowConfetti] = useState(false);
   const [showBurst,    setShowBurst]    = useState(false);
 
-  const handleSuccess = useCallback(
-    (shapeId) => {
-      setPlaced((prev) => {
-        const next = { ...prev, [shapeId]: true };
-        if (Object.keys(next).length === SHAPES.length) {
-          // All placed — celebrate!
-          setTimeout(() => {
-            setShowConfetti(true);
-            setShowBurst(true);
-          }, 400);
-        }
-        return next;
-      });
-    },
-    []
-  );
+  const handleShapePress = useCallback((id) => {
+    if (placed[id]) return;
+    setSelected((prev) => (prev === id ? null : id));
+  }, [placed]);
 
-  const resetGame = useCallback(() => {
+  const handleTargetPress = useCallback((targetId) => {
+    if (!selected) return;
+
+    if (selected === targetId) {
+      // ✅ Correct!
+      const next = { ...placed, [selected]: true };
+      setPlaced(next);
+      setSelected(null);
+
+      if (Object.keys(next).length === SHAPES.length) {
+        setTimeout(() => {
+          setShowConfetti(true);
+          setShowBurst(true);
+        }, 300);
+      }
+    } else {
+      // ❌ Wrong target — shake the selected shape
+      setShakeTick((prev) => ({ ...prev, [selected]: (prev[selected] ?? 0) + 1 }));
+      setSelected(null);
+    }
+  }, [selected, placed]);
+
+  const reset = useCallback(() => {
     setPlaced({});
+    setSelected(null);
     setShowConfetti(false);
     setShowBurst(false);
   }, []);
+
+  // Build shape data annotated with shake trigger
+  const shapesWithShake = SHAPES.map((s) => ({
+    ...s,
+    _shake: shakeTick[s.id] ?? 0,
+  }));
 
   const allPlaced = Object.keys(placed).length === SHAPES.length;
 
@@ -219,55 +203,60 @@ export default function ShapesScreen({ navigation }) {
         <View style={styles.header}>
           <TouchableOpacity
             onPress={() => navigation.navigate('Home')}
-            style={styles.homeBtn}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={styles.navBtn}
+            hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
           >
-            <Text style={styles.homeBtnText}>🏠</Text>
+            <Text style={styles.navBtnTxt}>🏠</Text>
           </TouchableOpacity>
           <View style={styles.headerCenter}>
-            <Text style={styles.title}>Arrastar Formas</Text>
+            <Text style={styles.title}>Encaixar Formas</Text>
             <Text style={styles.subtitle}>
-              {allPlaced ? '🎉 Todas encaixadas!' : 'Arraste cada forma até a sombra!'}
+              {selected
+                ? `"${SHAPES.find((s) => s.id === selected)?.label}" selecionado — toque na sombra!`
+                : allPlaced
+                ? '🎉 Todas encaixadas!'
+                : 'Toque na forma e depois na sombra!'}
             </Text>
           </View>
-          {/* Reset button */}
           <TouchableOpacity
-            onPress={resetGame}
-            style={styles.homeBtn}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            onPress={reset}
+            style={styles.navBtn}
+            hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
           >
-            <Text style={styles.homeBtnText}>🔄</Text>
+            <Text style={styles.navBtnTxt}>🔄</Text>
           </TouchableOpacity>
         </View>
 
-        {/* ── Target shadows (upper area) ── */}
-        <View style={styles.playground}>
-          {SHAPES.map((shape, i) => {
-            const tx = TARGET_POSITIONS[i].cx - TARGET_SIZE / 2;
-            const ty = TARGET_POSITIONS[i].cy - TARGET_SIZE / 2;
-            return (
-              <View key={`target-${shape.id}`} style={[styles.target, { left: tx, top: ty }]}>
-                <ShapeRenderer
-                  type={shape.id}
-                  size={TARGET_SIZE}
-                  color={placed[shape.id] ? shape.color : 'rgba(255,255,255,0.12)'}
-                  style={placed[shape.id] ? {} : styles.targetInner}
-                />
-                {/* Label below target */}
-                <Text style={styles.targetLabel}>{shape.label}</Text>
-              </View>
-            );
-          })}
-
-          {/* ── Draggable shapes (lower area) ── */}
-          {SHAPES.map((shape, i) => (
-            <DraggableShape
-              key={`shape-${shape.id}`}
+        {/* Target shadows (top) */}
+        <View style={styles.targetsRow}>
+          {SHAPES.map((shape) => (
+            <TargetSlot
+              key={shape.id}
               shape={shape}
-              index={i}
-              targetPositions={TARGET_POSITIONS}
-              onSuccess={handleSuccess}
+              filled={!!placed[shape.id]}
+              selected={selected !== null && !placed[shape.id]}
+              onPress={handleTargetPress}
+            />
+          ))}
+        </View>
+
+        {/* Instruction arrow */}
+        {selected && (
+          <Text style={styles.arrow}>⬆️  Toque na sombra certa!</Text>
+        )}
+
+        {/* Spacer */}
+        <View style={styles.spacer} />
+
+        {/* Draggable shapes (bottom) */}
+        <View style={styles.shapesRow}>
+          {shapesWithShake.map((shape) => (
+            <ShapeButton
+              key={shape.id}
+              shape={shape}
+              selected={selected === shape.id}
               placed={!!placed[shape.id]}
+              onPress={handleShapePress}
             />
           ))}
         </View>
@@ -285,9 +274,8 @@ export default function ShapesScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container:  { flex: 1 },
-  safeArea:   { flex: 1 },
-  playground: { flex: 1, position: 'relative' },
+  container: { flex: 1 },
+  safeArea:  { flex: 1 },
 
   header: {
     flexDirection:  'row',
@@ -295,37 +283,72 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingTop:  10,
-    paddingBottom: 6,
+    paddingBottom:  4,
   },
   headerCenter: { flex: 1, alignItems: 'center' },
-  homeBtn:     { width: 48, alignItems: 'center' },
-  homeBtnText: { fontSize: 30 },
+  navBtn:    { width: 48, alignItems: 'center' },
+  navBtnTxt: { fontSize: 30 },
+  title:    { fontSize: 20, fontWeight: '900', color: '#FFF', textAlign: 'center' },
+  subtitle: { fontSize: 12, color: 'rgba(255,255,255,0.70)', textAlign: 'center', marginTop: 2 },
 
-  title:    { fontSize: 22, fontWeight: '900', color: '#FFFFFF', textAlign: 'center' },
-  subtitle: { fontSize: 13, color: 'rgba(255,255,255,0.70)', textAlign: 'center', marginTop: 2 },
-
-  target: {
-    position:  'absolute',
-    alignItems: 'center',
+  targetsRow: {
+    flexDirection:  'row',
+    justifyContent: 'space-evenly',
+    paddingHorizontal: 16,
+    marginTop: 20,
   },
-  targetInner: {
-    borderWidth:  3,
-    borderStyle:  'dashed',
-    borderColor:  'rgba(255,255,255,0.35)',
-    backgroundColor: 'transparent',
+  targetBtn:   { alignItems: 'center' },
+  targetInner: { alignItems: 'center', padding: 10 },
+  targetHighlighted: {
+    backgroundColor: 'rgba(255,230,109,0.15)',
+    borderRadius:     20,
   },
   targetLabel: {
-    marginTop:  6,
-    fontSize:   14,
+    marginTop:  8,
+    fontSize:   13,
     fontWeight: '700',
-    color:      'rgba(255,255,255,0.60)',
+    color:      'rgba(255,255,255,0.55)',
+  },
+  targetLabelFilled: { color: '#FFE66D' },
+
+  arrow: {
+    textAlign: 'center',
+    fontSize:   16,
+    color:      '#FFE66D',
+    marginTop:  16,
+    fontWeight: '700',
   },
 
-  draggable: {
-    position: 'absolute',
-    width:    SHAPE_SIZE,
-    height:   SHAPE_SIZE,
-    alignItems: 'center',
-    justifyContent: 'center',
+  spacer: { flex: 1 },
+
+  shapesRow: {
+    flexDirection:  'row',
+    justifyContent: 'space-evenly',
+    paddingHorizontal: 16,
+    paddingBottom: 40,
+  },
+  shapeBtn: { alignItems: 'center' },
+  shapeBtnInner: {
+    alignItems:     'center',
+    padding:        14,
+    borderRadius:   20,
+    borderWidth:     2,
+    borderColor:    'transparent',
+  },
+  shapeBtnSelected: {
+    borderColor:       '#FFE66D',
+    backgroundColor:   'rgba(255,230,109,0.18)',
+    shadowColor:       '#FFE66D',
+    shadowOpacity:     0.8,
+    shadowRadius:      12,
+    shadowOffset:      { width: 0, height: 0 },
+    elevation:          8,
+  },
+  shapeBtnPlaced: { opacity: 0.35 },
+  shapeLabel: {
+    marginTop:  8,
+    fontSize:   13,
+    fontWeight: '800',
+    color:      '#FFF',
   },
 });

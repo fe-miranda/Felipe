@@ -41,14 +41,17 @@ function FloatingOrb({ x, y, size, color, delay }) {
   const floatY = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(floatY, { toValue: -14, duration: 2200 + delay * 0.3, useNativeDriver: true }),
-        Animated.timing(floatY, { toValue: 0,   duration: 2200 + delay * 0.3, useNativeDriver: true }),
-      ])
-    );
-    const t = setTimeout(() => loop.start(), delay);
-    return () => { clearTimeout(t); loop.stop(); };
+    let loop;
+    const t = setTimeout(() => {
+      loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(floatY, { toValue: -14, duration: 2200 + delay * 0.3, useNativeDriver: true }),
+          Animated.timing(floatY, { toValue: 0,   duration: 2200 + delay * 0.3, useNativeDriver: true }),
+        ])
+      );
+      loop.start();
+    }, delay);
+    return () => { clearTimeout(t); loop && loop.stop(); };
   }, []);
 
   return (
