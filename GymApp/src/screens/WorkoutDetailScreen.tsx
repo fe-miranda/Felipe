@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types';
@@ -26,6 +27,7 @@ const PHASE_COLOR = (mi: number) => {
 export function WorkoutDetailScreen({ route }: Props) {
   const { monthIndex, weekIndex, dayIndex } = route.params;
   const { plan, loadStoredPlan } = usePlan();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => { loadStoredPlan(); }, []);
   if (!plan) return null;
@@ -38,7 +40,7 @@ export function WorkoutDetailScreen({ route }: Props) {
   const totalSets = day.exercises.reduce((a, e) => a + e.sets, 0);
 
   return (
-    <ScrollView style={s.container} contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+    <ScrollView style={s.container} contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 16 }]} showsVerticalScrollIndicator={false}>
 
       {/* ── Header ── */}
       <View style={[s.header, { borderColor: `${phaseColor}40` }]}>

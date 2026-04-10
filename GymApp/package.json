@@ -15,7 +15,8 @@
     "moduleNameMapper": {
       "^@react-native-async-storage/async-storage$": "<rootDir>/__mocks__/async-storage.js",
       "^expo/src/winter$": "<rootDir>/__mocks__/expo-winter.js",
-      "^expo/src/winter/ImportMetaRegistry$": "<rootDir>/__mocks__/expo-import-meta-registry.js"
+      "^expo/src/winter/ImportMetaRegistry$": "<rootDir>/__mocks__/expo-import-meta-registry.js",
+      "^react-native-safe-area-context$": "<rootDir>/__mocks__/react-native-safe-area-context.js"
     }
   },
   "dependencies": {

@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, UserProfile, FitnessGoal, FitnessLevel, Gender } from '../types';
@@ -135,6 +136,7 @@ export function OnboardingScreen({ navigation }: Props) {
   };
 
   return (
+    <SafeAreaView style={s.safeArea} edges={['top', 'bottom']}>
     <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
@@ -369,12 +371,14 @@ export function OnboardingScreen({ navigation }: Props) {
         <Text style={s.footer}>100% gratuito · Powered by Groq + Llama 3.3</Text>
       </ScrollView>
     </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: C.bg },
   container: { flex: 1, backgroundColor: C.bg },
-  scroll: { padding: 20, paddingBottom: 50 },
+  scroll: { padding: 20, paddingBottom: 20 },
 
   // Hero
   hero: { alignItems: 'center', paddingTop: 16, paddingBottom: 24 },

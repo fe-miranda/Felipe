@@ -292,11 +292,12 @@ describe('generateMonthDetail', () => {
     expect(body.max_tokens).toBe(1800);
   });
 
-  it('includes month name in prompt', async () => {
+  it('includes month number and focus in prompt', async () => {
     (global.fetch as jest.Mock).mockResolvedValueOnce(groqResponse(JSON.stringify(mockTemplate)));
     await generateMonthDetail(mockMonthBlock, mockProfile, 'Ganhar massa');
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
-    expect(body.messages[0].content).toContain('Janeiro');
+    expect(body.messages[0].content).toContain('Month 1');
+    expect(body.messages[0].content).toContain('Adaptação');
   });
 
   it('includes injuries in prompt', async () => {

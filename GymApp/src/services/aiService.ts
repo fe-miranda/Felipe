@@ -188,16 +188,24 @@ export async function generateMonthDetail(
 ): Promise<WeeklyPlan[]> {
   const inj = profile.injuries ? ` Avoid: ${profile.injuries}.` : '';
   const strength = profile.workoutDuration - profile.cardioMinutes;
+  // ~8 min per exercise (warm-up set + working sets + rest between sets)
+  const exCount = Math.max(3, Math.min(12, Math.floor(strength / 8)));
+  const phaseIdx = Math.min(3, Math.floor((monthBlock.month - 1) / 3));
+  const phaseGuide = [
+    '3 sets, 12-15 reps, compound basics, light-moderate load',
+    '4 sets, 8-12 reps, progressive overload, moderate-heavy',
+    '4-5 sets, 5-8 reps, heavy load, strength/hypertrophy',
+    '5 sets, 3-6 reps, near-max load, peak performance',
+  ][phaseIdx];
+
   const prompt =
-    `Month ${monthBlock.month} (${monthBlock.monthName}) workout template. ` +
-    `Plan: ${overallGoal}. Focus: ${monthBlock.focus}.\n` +
-    `User: ${profile.fitnessLevel}, goal ${profile.goal}, ${profile.daysPerWeek}d/week. ` +
-    `Body: ${userCtx(profile)}.${inj}\n` +
-    `Each session: ${strength}min strength + ${profile.cardioMinutes}min cardio. ` +
-    `Total session: ${profile.workoutDuration}min.\n` +
-    `JSON only, PT-BR, ${profile.daysPerWeek} training days, 4+ exercises each:\n` +
-    `{"theme":"tema","goals":["meta"],"days":[{"dayOfWeek":"Segunda","focus":"Peito","duration":${profile.workoutDuration},` +
-    `"exercises":[{"name":"Supino Reto","sets":3,"reps":"10-12","rest":"60s"}]}]}`;
+    `Month ${monthBlock.month} "${monthBlock.focus}" workout for: ` +
+    `${profile.fitnessLevel}, ${profile.goal}, ${profile.daysPerWeek}d/week. ` +
+    `${userCtx(profile)}.${inj}\n` +
+    `Phase: ${phaseGuide}. Each session: ${strength}min strength (${exCount} exercises) + ${profile.cardioMinutes}min cardio.\n` +
+    `Rules: exercises SPECIFIC to "${monthBlock.focus}", each day hits DIFFERENT muscle groups, no repeated exercises across days.\n` +
+    `JSON only, PT-BR, exactly ${profile.daysPerWeek} days:\n` +
+    `{"theme":"tema","goals":["meta"],"days":[{"dayOfWeek":"Segunda","focus":"Peito","duration":${profile.workoutDuration},"exercises":[{"name":"Supino Reto","sets":4,"reps":"8-10","rest":"90s"}]}]}`;
 
   const raw = await groqPost([{ role: 'user', content: prompt }], 1800);
   const data = extractJson(raw);

@@ -3,6 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
   StyleSheet, Alert, Linking,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types';
@@ -30,6 +31,7 @@ const HOW_TO_STEPS = [
 export function SettingsScreen({ navigation }: Props) {
   const [keyInput, setKeyInput] = useState('');
   const [savedKey, setSavedKey] = useState<string | null>(null);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     AsyncStorage.getItem(CUSTOM_KEY_STORAGE).then((stored) => {
@@ -56,7 +58,7 @@ export function SettingsScreen({ navigation }: Props) {
   };
 
   return (
-    <ScrollView style={s.container} contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+    <ScrollView style={s.container} contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 16 }]} showsVerticalScrollIndicator={false}>
 
       {/* ── Hero ── */}
       <View style={s.hero}>
@@ -87,7 +89,7 @@ export function SettingsScreen({ navigation }: Props) {
       {/* ── Optional override ── */}
       <View style={s.card}>
         <Text style={s.cardTitle}>Usar sua própria chave Groq (opcional)</Text>
-        <Text style={s.stepText} style={{ color: '#94A3B8', fontSize: 13, lineHeight: 20, marginBottom: 12 }}>
+        <Text style={[s.stepText, { marginBottom: 12 }]}>
           Quer usar sua conta pessoal Groq? Obtenha uma chave gratuita em console.groq.com e cole abaixo.
         </Text>
         <TouchableOpacity

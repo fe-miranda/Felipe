@@ -3,6 +3,7 @@ import {
   View, Text, TouchableOpacity, ScrollView,
   StyleSheet, ActivityIndicator, Alert,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../types';
@@ -33,6 +34,7 @@ export function MonthDetailScreen({ navigation, route }: Props) {
   const { monthIndex } = route.params;
   const { plan, loadStoredPlan, generateMonth } = usePlan();
   const [generating, setGenerating] = useState(false);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => { loadStoredPlan(); }, []);
 
@@ -54,7 +56,7 @@ export function MonthDetailScreen({ navigation, route }: Props) {
   };
 
   return (
-    <ScrollView style={s.container} contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+    <ScrollView style={s.container} contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 16 }]} showsVerticalScrollIndicator={false}>
 
       {/* ── Phase badge ── */}
       <View style={[s.phaseBadge, { borderColor: phase.color }]}>

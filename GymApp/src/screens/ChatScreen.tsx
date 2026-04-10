@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RootStackParamList, AnnualPlan } from '../types';
 import { chatAboutPlan, ChatMessage } from '../services/aiService';
 
@@ -33,6 +34,7 @@ export function ChatScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<AnnualPlan | null>(null);
   const listRef = useRef<FlatList>(null);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     AsyncStorage.getItem(PLAN_KEY).then((stored) => {
@@ -149,7 +151,7 @@ export function ChatScreen({ navigation }: Props) {
       )}
 
       {/* ── Input bar ── */}
-      <View style={s.inputBar}>
+      <View style={[s.inputBar, { paddingBottom: insets.bottom + 8 }]}>
         <TextInput
           style={s.input}
           placeholder="Pergunte sobre seu treino..."

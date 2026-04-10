@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../types';
@@ -39,6 +40,7 @@ function focusIcon(focus: string) {
 export function WeekDetailScreen({ navigation, route }: Props) {
   const { monthIndex, weekIndex } = route.params;
   const { plan, loadStoredPlan } = usePlan();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => { loadStoredPlan(); }, []);
   if (!plan) return null;
@@ -50,7 +52,7 @@ export function WeekDetailScreen({ navigation, route }: Props) {
   const totalSets = week.days.reduce((a, d) => a + d.exercises.reduce((b, e) => b + e.sets, 0), 0);
 
   return (
-    <ScrollView style={s.container} contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+    <ScrollView style={s.container} contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 16 }]} showsVerticalScrollIndicator={false}>
 
       {/* ── Header ── */}
       <View style={[s.header, { borderColor: `${phaseColor}40` }]}>

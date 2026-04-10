@@ -8,6 +8,7 @@ import {
   Alert,
   Dimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types';
@@ -81,14 +82,16 @@ export function HomeScreen({ navigation }: Props) {
 
   if (!plan) {
     return (
-      <View style={s.emptyWrap}>
-        <Text style={s.emptyEmoji}>🏋️</Text>
-        <Text style={s.emptyTitle}>Nenhum plano encontrado</Text>
-        <Text style={s.emptyDesc}>Crie seu plano anual personalizado com IA</Text>
-        <TouchableOpacity style={s.emptyBtn} onPress={() => navigation.replace('Onboarding')}>
-          <Text style={s.emptyBtnText}>Criar Plano Agora</Text>
-        </TouchableOpacity>
-      </View>
+      <SafeAreaView style={s.safeArea} edges={['top', 'bottom']}>
+        <View style={s.emptyWrap}>
+          <Text style={s.emptyEmoji}>🏋️</Text>
+          <Text style={s.emptyTitle}>Nenhum plano encontrado</Text>
+          <Text style={s.emptyDesc}>Crie seu plano anual personalizado com IA</Text>
+          <TouchableOpacity style={s.emptyBtn} onPress={() => navigation.replace('Onboarding')}>
+            <Text style={s.emptyBtnText}>Criar Plano Agora</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -98,6 +101,7 @@ export function HomeScreen({ navigation }: Props) {
   const progress = generatedCount / 12;
 
   return (
+    <SafeAreaView style={s.safeArea} edges={['top', 'bottom']}>
     <ScrollView style={s.container} contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
 
       {/* ── Top bar ── */}
@@ -242,15 +246,17 @@ export function HomeScreen({ navigation }: Props) {
         </>
       )}
     </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: C.bg },
   container: { flex: 1, backgroundColor: C.bg },
-  content: { padding: 16, paddingBottom: 50 },
+  content: { padding: 16, paddingBottom: 16 },
 
   // Empty state
-  emptyWrap: { flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 12 },
+  emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 12 },
   emptyEmoji: { fontSize: 72, marginBottom: 8 },
   emptyTitle: { color: C.text1, fontSize: 22, fontWeight: '800' },
   emptyDesc: { color: C.text2, fontSize: 15, textAlign: 'center' },
