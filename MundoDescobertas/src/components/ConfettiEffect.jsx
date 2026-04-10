@@ -56,7 +56,7 @@ export default function ConfettiEffect() {
   }));
 
   return (
-    <View style={styles.container} pointerEvents="none">
+    <View style={[styles.container, { pointerEvents: 'none' }]}>
       {pieces.map((p) => (
         <Piece key={p.key} {...p} />
       ))}

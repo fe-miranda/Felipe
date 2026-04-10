@@ -59,8 +59,7 @@ function ScorePopup({ label, color, x, y }) {
 
   return (
     <Animated.View
-      style={[styles.popup, { left: x - 55, top: y - 60, opacity, transform: [{ translateY }] }]}
-      pointerEvents="none"
+      style={[styles.popup, { left: x - 55, top: y - 60, opacity, transform: [{ translateY }], pointerEvents: 'none' }]}
     >
       <View style={[styles.popupBadge, { backgroundColor: color }]}>
         <Text style={styles.popupName}>{label}</Text>
@@ -155,7 +154,7 @@ export default function BubblePopScreen({ navigation }) {
 
       {/* ── Hint for first-time ── */}
       {score === 0 && (
-        <View style={styles.hintContainer} pointerEvents="none">
+        <View style={[styles.hintContainer, { pointerEvents: 'none' }]}>
           <Text style={styles.hintText}>👆 Toque nas bolhas!</Text>
         </View>
       )}

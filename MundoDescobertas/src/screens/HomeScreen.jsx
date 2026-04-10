@@ -56,9 +56,8 @@ function FloatingOrb({ x, y, size, color, delay }) {
       style={[
         styles.orb,
         { left: x, top: y, width: size, height: size, borderRadius: size / 2, backgroundColor: color },
-        { transform: [{ translateY: floatY }] },
+        { transform: [{ translateY: floatY }], pointerEvents: 'none' },
       ]}
-      pointerEvents="none"
     />
   );
 }

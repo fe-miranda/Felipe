@@ -18,7 +18,7 @@ export default function StarBurst({ message = '🌟 Parabéns! 🌟', onDone }) 
   }, []);
 
   return (
-    <Animated.View style={[styles.overlay, { opacity }]} pointerEvents="none">
+    <Animated.View style={[styles.overlay, { opacity, pointerEvents: 'none' }]}>
       <Animated.View style={[styles.card, { transform: [{ scale }] }]}>
         <Text style={styles.text}>{message}</Text>
         <Text style={styles.sub}>Muito bem!</Text>

@@ -1,3 +1,4 @@
+import 'react-native-gesture-handler'; // MUST be first import for production APK
 import React from 'react';
 import { StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
