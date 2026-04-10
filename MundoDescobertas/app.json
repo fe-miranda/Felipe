@@ -6,17 +6,6 @@
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "newArchEnabled": false,
-    "splash": {
-      "resizeMode": "contain",
-      "backgroundColor": "#1a1a2e"
-    },
-    "ios": {
-      "supportsTablet": false,
-      "bundleIdentifier": "com.mundodescobertas.app",
-      "infoPlist": {
-        "NSMicrophoneUsageDescription": "Não usamos microfone."
-      }
-    },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#1a1a2e"
@@ -24,6 +13,13 @@
       "package": "com.mundodescobertas.app",
       "versionCode": 1,
       "permissions": []
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.mundodescobertas.app",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Não usamos microfone."
+      }
     },
     "plugins": [
       [
@@ -40,6 +36,6 @@
           "microphonePermission": false
         }
       ]
-    ],
+    ]
   }
 }
