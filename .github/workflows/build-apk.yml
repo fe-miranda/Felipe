@@ -49,5 +49,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: GymAI-release
-          path: GymApp/android/app/build/outputs/apk/release/app-release-unsigned.apk
+          path: GymApp/android/app/build/outputs/apk/**/*.apk
           retention-days: 30
