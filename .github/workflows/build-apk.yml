@@ -37,17 +37,28 @@ jobs:
         working-directory: GymApp
         run: npx expo prebuild --platform android --clean
 
+      - name: Bundle JavaScript into APK assets
+        working-directory: GymApp
+        run: |
+          mkdir -p android/app/src/main/assets
+          npx react-native bundle \
+            --platform android \
+            --dev false \
+            --entry-file index.ts \
+            --bundle-output android/app/src/main/assets/index.android.bundle \
+            --assets-dest android/app/src/main/res
+
       - name: Make gradlew executable
         working-directory: GymApp/android
         run: chmod +x gradlew
 
-      - name: Build debug APK
+      - name: Build APK
         working-directory: GymApp/android
-        run: ./gradlew assembleDebug --no-daemon
+        run: ./gradlew assembleRelease --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: GymAI-debug
-          path: GymApp/android/app/build/outputs/apk/debug/app-debug.apk
+          name: GymAI-release
+          path: GymApp/android/app/build/outputs/apk/release/app-release-unsigned.apk
           retention-days: 30
