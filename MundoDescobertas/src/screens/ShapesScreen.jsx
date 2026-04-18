@@ -147,7 +147,7 @@ function TargetSlot({ shape, filled, selected, onPress }) {
 }
 
 // ── Screen ────────────────────────────────────────────────────────────────────
-export default function ShapesScreen({ navigation }) {
+export default function ShapesScreen({ onGoHome }) {
   const [selected,     setSelected]     = useState(null); // shapeId being held
   const [placed,       setPlaced]       = useState({});   // { shapeId: true }
   const [shakeTick,    setShakeTick]    = useState({});   // trigger shake
@@ -202,7 +202,7 @@ export default function ShapesScreen({ navigation }) {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
-            onPress={() => navigation.navigate('Home')}
+            onPress={onGoHome}
             style={styles.navBtn}
             hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
           >

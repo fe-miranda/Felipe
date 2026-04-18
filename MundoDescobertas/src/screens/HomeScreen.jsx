@@ -65,7 +65,8 @@ function FloatingOrb({ x, y, size, color, delay }) {
   );
 }
 
-export default function HomeScreen({ navigation }) {
+export default function HomeScreen({ onNavigate }) {
+  const navigation = { navigate: onNavigate };
   const titleAnim  = useRef(new Animated.Value(0)).current;
   const cardsAnim  = useRef(new Animated.Value(0)).current;
   const starAnim   = useRef(new Animated.Value(1)).current;

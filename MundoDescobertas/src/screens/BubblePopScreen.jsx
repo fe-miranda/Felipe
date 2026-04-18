@@ -65,7 +65,7 @@ function ScorePopup({ label, color, x, y }) {
   );
 }
 
-export default function BubblePopScreen({ navigation }) {
+export default function BubblePopScreen({ onGoHome }) {
   const [bubbles,      setBubbles]      = useState(() =>
     Array.from({ length: NUM_BUBBLES }, (_, i) => makeBubble(i))
   );
@@ -105,7 +105,7 @@ export default function BubblePopScreen({ navigation }) {
       <SafeAreaView edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity
-            onPress={() => navigation.navigate('Home')}
+            onPress={onGoHome}
             style={styles.homeBtn}
             hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
           >

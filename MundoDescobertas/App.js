@@ -1,15 +1,12 @@
-import 'react-native-gesture-handler'; // must be first for production APK
-
-import React from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import AppNavigator from './src/navigation/AppNavigator';
+import HomeScreen        from './src/screens/HomeScreen';
+import BubblePopScreen   from './src/screens/BubblePopScreen';
+import AnimalSoundsScreen from './src/screens/AnimalSoundsScreen';
+import ShapesScreen      from './src/screens/ShapesScreen';
 
-// Catches any unhandled JS error and shows a friendly restart button
-// instead of letting Android show the "app has constant failures" dialog
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -41,22 +38,35 @@ class ErrorBoundary extends React.Component {
 }
 
 export default function App() {
+  const [screen, setScreen] = useState('Home');
+
+  const navigate = (name) => setScreen(name);
+  const goHome   = () => setScreen('Home');
+
+  const renderScreen = () => {
+    switch (screen) {
+      case 'BubblePop':
+        return <BubblePopScreen onGoHome={goHome} />;
+      case 'AnimalSounds':
+        return <AnimalSoundsScreen onGoHome={goHome} />;
+      case 'Shapes':
+        return <ShapesScreen onGoHome={goHome} />;
+      default:
+        return <HomeScreen onNavigate={navigate} />;
+    }
+  };
+
   return (
     <SafeAreaProvider>
-      <GestureHandlerRootView style={styles.flex}>
-        <ErrorBoundary>
-          <NavigationContainer>
-            <StatusBar style="light" />
-            <AppNavigator />
-          </NavigationContainer>
-        </ErrorBoundary>
-      </GestureHandlerRootView>
+      <StatusBar style="light" />
+      <ErrorBoundary>
+        {renderScreen()}
+      </ErrorBoundary>
     </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
   errBox: {
     flex: 1,
     backgroundColor: '#1a1a2e',
@@ -65,7 +75,7 @@ const styles = StyleSheet.create({
     padding: 32,
   },
   errEmoji: { fontSize: 64, marginBottom: 16 },
-  errMsg: { fontSize: 22, color: '#FFF', marginBottom: 28, textAlign: 'center' },
+  errMsg:   { fontSize: 22, color: '#FFF', marginBottom: 28, textAlign: 'center' },
   errBtn: {
     backgroundColor: '#FF6B6B',
     borderRadius: 18,

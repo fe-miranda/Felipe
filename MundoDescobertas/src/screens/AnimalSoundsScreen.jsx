@@ -20,7 +20,7 @@ import AnimalCard     from '../components/AnimalCard';
 import ConfettiEffect from '../components/ConfettiEffect';
 import { ANIMALS }   from '../constants/gameData';
 
-export default function AnimalSoundsScreen({ navigation }) {
+export default function AnimalSoundsScreen({ onGoHome }) {
   const [activeId,     setActiveId]     = useState(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [tapCount,     setTapCount]     = useState(0);
@@ -56,7 +56,7 @@ export default function AnimalSoundsScreen({ navigation }) {
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
           <TouchableOpacity
-            onPress={() => navigation.navigate('Home')}
+            onPress={onGoHome}
             style={styles.homeBtn}
             hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
           >

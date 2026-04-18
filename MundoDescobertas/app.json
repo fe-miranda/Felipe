@@ -11,7 +11,7 @@
         "backgroundColor": "#1a1a2e"
       },
       "package": "com.mundodescobertas.app",
-      "versionCode": 2,
+      "versionCode": 3,
       "permissions": []
     },
     "ios": {
