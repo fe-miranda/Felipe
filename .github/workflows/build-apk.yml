@@ -37,22 +37,11 @@ jobs:
         working-directory: GymApp
         run: npx expo prebuild --platform android --clean
 
-      - name: Bundle JavaScript into APK assets
-        working-directory: GymApp
-        run: |
-          mkdir -p android/app/src/main/assets
-          npx react-native bundle \
-            --platform android \
-            --dev false \
-            --entry-file index.ts \
-            --bundle-output android/app/src/main/assets/index.android.bundle \
-            --assets-dest android/app/src/main/res
-
       - name: Make gradlew executable
         working-directory: GymApp/android
         run: chmod +x gradlew
 
-      - name: Build APK
+      - name: Build release APK (bundles JS automatically)
         working-directory: GymApp/android
         run: ./gradlew assembleRelease --no-daemon
 
