@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList, UserProfile, FitnessGoal, FitnessLevel, Gender } from '../types';
+import { RootStackParamList, UserProfile, FitnessGoal, FitnessLevel, Gender, PlanDuration } from '../types';
 import { usePlan } from '../hooks/usePlan';
 import { setRuntimeApiKey } from '../services/aiService';
 
@@ -59,6 +59,14 @@ const DAYS = [2, 3, 4, 5, 6];
 const DURATIONS = [30, 45, 60, 75, 90]; // total minutes per session
 const CARDIO_OPTIONS = [0, 10, 15, 20, 30]; // cardio minutes per session
 
+const PLAN_DURATIONS: { value: PlanDuration; label: string; sub: string }[] = [
+  { value: 'weekly',   label: 'Semanal',    sub: '1 semana' },
+  { value: 'monthly',  label: 'Mensal',     sub: '1 mês' },
+  { value: 'quarterly',label: 'Trimestral', sub: '3 meses' },
+  { value: 'biannual', label: 'Semestral',  sub: '6 meses' },
+  { value: 'annual',   label: 'Anual',      sub: '12 meses' },
+];
+
 // Step labels for the visual progress bar
 const STEPS = ['Perfil', 'Objetivo', 'Treino', 'Gerar'];
 
@@ -76,6 +84,7 @@ export function OnboardingScreen({ navigation }: Props) {
   const [workoutDuration, setWorkoutDuration] = useState(60);
   const [cardioMinutes, setCardioMinutes] = useState(10);
   const [injuries, setInjuries] = useState('');
+  const [planDuration, setPlanDuration] = useState<PlanDuration>('annual');
   const [generating, setGenerating] = useState(false);
 
   React.useEffect(() => {
@@ -110,6 +119,7 @@ export function OnboardingScreen({ navigation }: Props) {
       name: name.trim(), age: parsedAge, weight: parsedWeight, height: parsedHeight,
       gender, goal, fitnessLevel: level, daysPerWeek, workoutDuration, cardioMinutes,
       injuries: injuries.trim() || undefined,
+      planDuration,
     };
 
     setGenerating(true);
@@ -324,10 +334,32 @@ export function OnboardingScreen({ navigation }: Props) {
           </View>
         </View>
 
-        {/* ── Section 4: Lesões ── */}
+        {/* ── Section 4: Plan duration ── */}
+        <View style={s.sectionHeader}>
+          <View style={s.sectionBadge}><Text style={s.sectionBadgeText}>4</Text></View>
+          <Text style={s.sectionTitle}>Duração do plano</Text>
+        </View>
+        <View style={s.card}>
+          <Text style={s.inputLabel}>Por quanto tempo quer planejar?</Text>
+          <View style={s.durationGrid}>
+            {PLAN_DURATIONS.map((d) => (
+              <TouchableOpacity
+                key={d.value}
+                style={[s.durationOption, planDuration === d.value && s.durationOptionActive]}
+                onPress={() => setPlanDuration(d.value)}
+                testID={`duration-plan-${d.value}`}
+              >
+                <Text style={[s.durationLabel, planDuration === d.value && s.durationLabelActive]}>{d.label}</Text>
+                <Text style={s.durationSub}>{d.sub}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* ── Section 5: Lesões ── */}
         <View style={s.sectionHeader}>
           <View style={[s.sectionBadge, { backgroundColor: C.elevated }]}>
-            <Text style={[s.sectionBadgeText, { color: C.text2 }]}>4</Text>
+            <Text style={[s.sectionBadgeText, { color: C.text2 }]}>5</Text>
           </View>
           <Text style={s.sectionTitle}>Limitações <Text style={s.optional}>(opcional)</Text></Text>
         </View>
@@ -355,7 +387,9 @@ export function OnboardingScreen({ navigation }: Props) {
           activeOpacity={0.85}
         >
           <Text style={s.generateText}>
-            {generating ? '⏳  Criando seu plano...' : '🚀  Gerar Meu Plano Anual'}
+            {generating
+              ? '⏳  Criando seu plano...'
+              : `🚀  Gerar Plano ${PLAN_DURATIONS.find(d => d.value === planDuration)?.label ?? ''}`}
           </Text>
         </TouchableOpacity>
 
@@ -494,4 +528,16 @@ const s = StyleSheet.create({
   loadingDesc: { color: C.text2, fontSize: 13, lineHeight: 20 },
 
   footer: { color: C.text3, fontSize: 11, textAlign: 'center', marginTop: 20 },
+
+  // Plan duration
+  durationGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  durationOption: {
+    width: '47%', paddingVertical: 12, paddingHorizontal: 14,
+    borderRadius: 12, backgroundColor: C.elevated,
+    borderWidth: 1, borderColor: C.border, alignItems: 'center',
+  },
+  durationOptionActive: { backgroundColor: C.primaryGlow, borderColor: C.primary },
+  durationLabel: { color: C.text2, fontSize: 14, fontWeight: '700' },
+  durationLabelActive: { color: C.primaryLight },
+  durationSub: { color: C.text3, fontSize: 11, marginTop: 3 },
 });

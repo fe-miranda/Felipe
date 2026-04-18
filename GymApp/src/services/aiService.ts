@@ -1,4 +1,4 @@
-import { UserProfile, AnnualPlan, MonthlyBlock, WeeklyPlan, WorkoutDay } from '../types';
+import { UserProfile, AnnualPlan, MonthlyBlock, WeeklyPlan, WorkoutDay, PlanDuration } from '../types';
 
 const GROQ_MODEL = 'llama-3.3-70b-versatile';
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
@@ -142,26 +142,68 @@ function repairJson(raw: string): string {
   return str + opens.reverse().join('');
 }
 
+// ─── Plan duration ───────────────────────────────────────────────────────────
+
+const DURATION_MONTHS: Record<PlanDuration, number> = {
+  weekly: 1,
+  monthly: 1,
+  quarterly: 3,
+  biannual: 6,
+  annual: 12,
+};
+
+function phaseDescForMonths(n: number): string {
+  if (n <= 1) return 'Focus entirely on goal-specific training. No phase labels.';
+  if (n <= 3) return 'Month 1: Base. Month 2: Development. Month 3: Consolidation.';
+  if (n <= 6) return 'Months 1-2: Base. Months 3-4: Development. Months 5-6: Intensity/Peak.';
+  return 'Months 1-3: Base. Months 4-6: Development. Months 7-9: Intensity. Months 10-12: Peak.';
+}
+
+// ─── Exercise alternatives ────────────────────────────────────────────────────
+
+export async function getExerciseAlternatives(
+  exerciseName: string,
+  focus: string,
+  exclude: string[],
+): Promise<string[]> {
+  const ex = exclude.length ? ` Not: ${exclude.slice(0, 6).join(', ')}.` : '';
+  const prompt =
+    `3 alternative exercises for "${exerciseName}" targeting ${focus}.${ex}\n` +
+    `JSON only: {"a":["ex1","ex2","ex3"]}`;
+  const raw = await groqPost([{ role: 'user', content: prompt }], 150);
+  try {
+    const data = extractJson(raw);
+    const alts = data.a ?? data.alternatives;
+    return Array.isArray(alts) ? alts.slice(0, 3) : [];
+  } catch {
+    return [];
+  }
+}
+
 // ─── Phase 1: Plan overview — ~600 tokens total ──────────────────────────────
-// Ultra-compact prompt; no exercise detail, just the 12-month skeleton.
+// Ultra-compact prompt; no exercise detail, just the N-month skeleton.
 
 export async function generatePlanOverview(
   profile: UserProfile,
   onProgress?: (s: string) => void
 ): Promise<Omit<AnnualPlan, 'userId' | 'createdAt' | 'userProfile' | 'totalMonths'>> {
+  const totalMonths = DURATION_MONTHS[profile.planDuration ?? 'annual'];
   const inj = profile.injuries ? ` Restrictions: ${profile.injuries}.` : '';
+  const phases = phaseDescForMonths(totalMonths);
+  const maxTokens = totalMonths <= 3 ? 600 : totalMonths <= 6 ? 900 : 1400;
   const prompt =
-    `12-month fitness plan. User: ${profile.daysPerWeek}d/week, ${profile.gender}, ` +
+    `${totalMonths}-month fitness plan. User: ${profile.daysPerWeek}d/week, ${profile.gender}, ` +
     `${profile.age}yo, ${profile.fitnessLevel}, goal ${profile.goal}. ` +
     `Body: ${userCtx(profile)}.${inj}\n` +
+    `Phases: ${phases}\n` +
     `JSON only, PT-BR, no markdown:\n` +
     `{"overallGoal":"..","months":[{"month":1,"monthName":"Janeiro","focus":"Adaptação",` +
     `"description":"..","progressIndicators":["meta"]}],"nutritionTips":[".."],"recoveryTips":[".."]}\n` +
-    `Exactly 12 months. Progressive: m1-3 base, m4-6 development, m7-9 intensity, m10-12 peak.`;
+    `Exactly ${totalMonths} month(s). Start months from current date.`;
 
   onProgress?.('Gerando seu plano personalizado...');
 
-  const raw = await groqPost([{ role: 'user', content: prompt }], 1400);
+  const raw = await groqPost([{ role: 'user', content: prompt }], maxTokens);
   const data = extractJson(raw);
 
   return {
@@ -228,11 +270,12 @@ export async function generateAnnualPlan(
   onProgress?: (s: string) => void
 ): Promise<AnnualPlan> {
   const overview = await generatePlanOverview(profile, onProgress);
+  const totalMonths = DURATION_MONTHS[profile.planDuration ?? 'annual'];
   return {
     userId: profile.name,
     createdAt: new Date().toISOString(),
     userProfile: profile,
-    totalMonths: 12,
+    totalMonths,
     ...overview,
   };
 }

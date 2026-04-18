@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -24,7 +24,7 @@ const PHASE_COLOR = (mi: number) => {
   return '#EF4444';
 };
 
-export function WorkoutDetailScreen({ route }: Props) {
+export function WorkoutDetailScreen({ navigation, route }: Props) {
   const { monthIndex, weekIndex, dayIndex } = route.params;
   const { plan, loadStoredPlan } = usePlan();
   const insets = useSafeAreaInsets();
@@ -115,6 +115,18 @@ export function WorkoutDetailScreen({ route }: Props) {
         </View>
       ))}
 
+      {/* ── Start workout button ── */}
+      <TouchableOpacity
+        style={[s.startBtn, { backgroundColor: phaseColor }]}
+        activeOpacity={0.85}
+        onPress={() => navigation.navigate('ActiveWorkout', {
+          workout: day,
+          context: { monthIndex, weekIndex, dayIndex },
+        })}
+      >
+        <Text style={s.startBtnText}>▶  Iniciar Treino</Text>
+      </TouchableOpacity>
+
       {/* ── Summary card ── */}
       <View style={[s.summaryCard, { borderColor: `${phaseColor}30` }]}>
         <Text style={[s.summaryTitle, { color: phaseColor }]}>📊 Resumo do Treino</Text>
@@ -170,6 +182,13 @@ const s = StyleSheet.create({
   barDiv: { width: 1, height: 36, backgroundColor: C.border },
   exNote: { backgroundColor: C.elevated, borderRadius: 10, padding: 10, borderWidth: 1, borderColor: C.border },
   exNoteText: { color: C.primaryLight, fontSize: 13, lineHeight: 18 },
+
+  startBtn: {
+    borderRadius: 16, paddingVertical: 16, alignItems: 'center',
+    marginBottom: 16, marginTop: 4,
+    shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 12, elevation: 8,
+  },
+  startBtnText: { color: '#fff', fontSize: 17, fontWeight: '800', letterSpacing: 0.3 },
 
   summaryCard: { backgroundColor: C.surface, borderRadius: 16, padding: 18, marginTop: 8, borderWidth: 1 },
   summaryTitle: { fontWeight: '700', fontSize: 15, marginBottom: 14 },

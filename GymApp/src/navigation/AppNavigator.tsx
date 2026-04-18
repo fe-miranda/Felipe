@@ -7,6 +7,8 @@ import { HomeScreen } from '../screens/HomeScreen';
 import { MonthDetailScreen } from '../screens/MonthDetailScreen';
 import { WeekDetailScreen } from '../screens/WeekDetailScreen';
 import { WorkoutDetailScreen } from '../screens/WorkoutDetailScreen';
+import { ActiveWorkoutScreen } from '../screens/ActiveWorkoutScreen';
+import { WorkoutHistoryScreen } from '../screens/WorkoutHistoryScreen';
 import { ChatScreen } from '../screens/ChatScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 
@@ -51,6 +53,16 @@ export function AppNavigator() {
           name="WorkoutDetail"
           component={WorkoutDetailScreen}
           options={{ title: 'Treino do Dia' }}
+        />
+        <Stack.Screen
+          name="ActiveWorkout"
+          component={ActiveWorkoutScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="WorkoutHistory"
+          component={WorkoutHistoryScreen}
+          options={{ title: 'Histórico de Treinos' }}
         />
         <Stack.Screen
           name="Chat"

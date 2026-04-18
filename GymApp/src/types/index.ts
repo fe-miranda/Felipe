@@ -1,3 +1,5 @@
+export type PlanDuration = 'weekly' | 'monthly' | 'quarterly' | 'biannual' | 'annual';
+
 export type FitnessGoal =
   | 'lose_weight'
   | 'gain_muscle'
@@ -21,6 +23,7 @@ export interface UserProfile {
   workoutDuration: number; // total minutes per session
   cardioMinutes: number;   // cardio portion per session
   injuries?: string;
+  planDuration?: PlanDuration;
 }
 
 export interface WorkoutDay {
@@ -34,8 +37,8 @@ export interface WorkoutDay {
 export interface Exercise {
   name: string;
   sets: number;
-  reps: string; // e.g., "8-12" or "30 seconds"
-  rest: string; // e.g., "60s"
+  reps: string;
+  rest: string;
   notes?: string;
 }
 
@@ -66,6 +69,47 @@ export interface AnnualPlan {
   recoveryTips: string[];
 }
 
+// ─── Workout tracking ────────────────────────────────────────────────────────
+
+export interface SetLog {
+  load: string;  // kg as string (empty = bodyweight)
+  reps: string;
+  done: boolean;
+}
+
+export interface ExerciseLog {
+  name: string;
+  targetSets: number;
+  targetReps: string;
+  rest: string;
+  sets: SetLog[];
+}
+
+export interface CompletedWorkout {
+  id: string;
+  date: string;            // ISO string
+  dayOfWeek: string;
+  focus: string;
+  durationSeconds: number;
+  exercises: ExerciseLog[];
+  monthIndex?: number;
+  weekIndex?: number;
+  dayIndex?: number;
+}
+
+// ─── Quick workouts ──────────────────────────────────────────────────────────
+
+export interface QuickWorkout {
+  id: string;
+  name: string;
+  icon: string;
+  duration: number;
+  color: string;
+  description: string;
+  tag: string;
+  exercises: Exercise[];
+}
+
 export type RootStackParamList = {
   Onboarding: undefined;
   Home: undefined;
@@ -74,6 +118,12 @@ export type RootStackParamList = {
   MonthDetail: { monthIndex: number };
   WeekDetail: { monthIndex: number; weekIndex: number };
   WorkoutDetail: { monthIndex: number; weekIndex: number; dayIndex: number };
+  ActiveWorkout: {
+    workout: WorkoutDay;
+    context?: { monthIndex: number; weekIndex: number; dayIndex: number };
+  };
+  WorkoutHistory: undefined;
   Chat: undefined;
   Settings: undefined;
 };
+

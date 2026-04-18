@@ -216,6 +216,7 @@ describe('OnboardingScreen — validation', () => {
         workoutDuration: 60,
         cardioMinutes: 10,
         injuries: undefined,
+        planDuration: 'annual',
       });
     });
   });

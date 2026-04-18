@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,9 +11,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../types';
+import { RootStackParamList, QuickWorkout, WorkoutDay, CompletedWorkout } from '../types';
 import { usePlan } from '../hooks/usePlan';
 import { setRuntimeApiKey } from '../services/aiService';
+import { loadHistory } from '../services/workoutHistoryService';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48 - 16) / 3;
@@ -55,6 +56,81 @@ const PHASE = (i: number) => {
 
 const MONTH_ABBR = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
+// ─── Quick workout templates ──────────────────────────────────────────────────
+
+const QUICK_WORKOUTS: QuickWorkout[] = [
+  {
+    id: 'hiit', name: 'HIIT Express', icon: '⚡', duration: 20,
+    color: '#EF4444', description: 'Alta intensidade, queima máxima', tag: 'Queima Rápida',
+    exercises: [
+      { name: 'Burpee',           sets: 4, reps: '10',  rest: '30s' },
+      { name: 'Mountain Climber', sets: 4, reps: '30s', rest: '20s' },
+      { name: 'Jump Squat',       sets: 3, reps: '15',  rest: '30s' },
+      { name: 'High Knees',       sets: 3, reps: '30s', rest: '20s' },
+    ],
+  },
+  {
+    id: 'biset', name: 'Biset Força', icon: '🏋️', duration: 35,
+    color: '#7C3AED', description: 'Empurrar + Puxar em biset', tag: 'Biset',
+    exercises: [
+      { name: 'Supino Reto',       sets: 4, reps: '10', rest: '60s', notes: 'Biset c/ Remada' },
+      { name: 'Remada Curvada',    sets: 4, reps: '10', rest: '60s', notes: 'Biset c/ Supino' },
+      { name: 'Desenvolvimento',   sets: 3, reps: '12', rest: '60s', notes: 'Biset c/ Puxada' },
+      { name: 'Puxada Frontal',    sets: 3, reps: '12', rest: '60s', notes: 'Biset c/ Desenvolvimento' },
+    ],
+  },
+  {
+    id: 'pyramid', name: 'Pirâmide', icon: '📈', duration: 40,
+    color: '#F59E0B', description: 'Progride a carga a cada série', tag: 'Pirâmide',
+    exercises: [
+      { name: 'Agachamento Livre', sets: 5, reps: '15/12/10/8/6', rest: '90s', notes: 'Aumente a carga a cada série' },
+      { name: 'Leg Press',         sets: 4, reps: '15/12/10/8',   rest: '75s', notes: 'Pirâmide crescente' },
+      { name: 'Cadeira Extensora', sets: 3, reps: '15/12/10',     rest: '60s', notes: 'Finalizador' },
+    ],
+  },
+  {
+    id: 'dropset', name: 'Dropset', icon: '📉', duration: 30,
+    color: '#10B981', description: 'Reduza a carga sem parar', tag: 'Dropset',
+    exercises: [
+      { name: 'Rosca Direta',   sets: 3, reps: '12+drop', rest: '90s', notes: 'Dropset: tire 20% da carga e continue' },
+      { name: 'Tríceps Pulley', sets: 3, reps: '12+drop', rest: '90s', notes: 'Dropset no mesmo cabo' },
+      { name: 'Elevação Lateral', sets: 3, reps: '15+drop', rest: '75s', notes: 'Dropset com halter' },
+    ],
+  },
+  {
+    id: 'crossfit', name: 'CrossFit WOD', icon: '🏅', duration: 25,
+    color: '#3B82F6', description: 'Condicionamento funcional intenso', tag: 'Funcional',
+    exercises: [
+      { name: 'Thruster (barra)',  sets: 5, reps: '10', rest: '45s' },
+      { name: 'Pull-up',          sets: 5, reps: '8',  rest: '45s' },
+      { name: 'Box Jump',         sets: 4, reps: '12', rest: '30s' },
+      { name: 'Kettlebell Swing', sets: 4, reps: '15', rest: '30s' },
+    ],
+  },
+  {
+    id: 'triset', name: 'Triset Core', icon: '🔥', duration: 20,
+    color: '#EC4899', description: 'Triset para abdômen e core', tag: 'Triset',
+    exercises: [
+      { name: 'Prancha',         sets: 4, reps: '45s', rest: '0s',  notes: 'Triset 1/3' },
+      { name: 'Abdominal Bici',  sets: 4, reps: '20',  rest: '0s',  notes: 'Triset 2/3' },
+      { name: 'Russian Twist',   sets: 4, reps: '20',  rest: '60s', notes: 'Triset 3/3 — descanse aqui' },
+    ],
+  },
+];
+
+function quickToWorkoutDay(q: QuickWorkout): WorkoutDay {
+  return { dayOfWeek: 'Hoje', focus: q.name, duration: q.duration, exercises: q.exercises };
+}
+
+function fmtHistoryDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+function fmtDuration(s: number): string {
+  const m = Math.floor(s / 60);
+  return m > 0 ? `${m}min` : `${s}s`;
+}
+
 function greeting(): string {
   const h = new Date().getHours();
   if (h < 12) return 'Bom dia';
@@ -66,10 +142,17 @@ type Props = { navigation: NativeStackNavigationProp<RootStackParamList, 'Home'>
 
 export function HomeScreen({ navigation }: Props) {
   const { plan, loadStoredPlan, clearPlan } = usePlan();
+  const [recentWorkouts, setRecentWorkouts] = useState<CompletedWorkout[]>([]);
+
+  const reloadHistory = useCallback(async () => {
+    const hist = await loadHistory();
+    setRecentWorkouts(hist.slice(0, 3));
+  }, []);
 
   useEffect(() => {
     loadStoredPlan();
     AsyncStorage.getItem(CUSTOM_KEY_STORAGE).then((k) => { if (k) setRuntimeApiKey(k); });
+    reloadHistory();
   }, []);
 
   const handleClearPlan = () => {
@@ -171,8 +254,60 @@ export function HomeScreen({ navigation }: Props) {
         </View>
       </TouchableOpacity>
 
+      {/* ── Quick workouts ── */}
+      <Text style={s.sectionTitle}>⚡ Treinos Rápidos</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.quickScroll} contentContainerStyle={s.quickContent}>
+        {QUICK_WORKOUTS.map((q) => (
+          <TouchableOpacity
+            key={q.id}
+            style={[s.quickCard, { borderColor: `${q.color}40` }]}
+            activeOpacity={0.82}
+            onPress={() => navigation.navigate('ActiveWorkout', { workout: quickToWorkoutDay(q) })}
+          >
+            <View style={[s.quickIconWrap, { backgroundColor: `${q.color}20` }]}>
+              <Text style={s.quickIcon}>{q.icon}</Text>
+            </View>
+            <View style={[s.quickTag, { backgroundColor: `${q.color}18` }]}>
+              <Text style={[s.quickTagText, { color: q.color }]}>{q.tag}</Text>
+            </View>
+            <Text style={s.quickName}>{q.name}</Text>
+            <Text style={s.quickDesc} numberOfLines={2}>{q.description}</Text>
+            <Text style={[s.quickDuration, { color: q.color }]}>⏱ {q.duration} min</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      {/* ── Recent history ── */}
+      <View style={s.historyHeader}>
+        <Text style={s.sectionTitle}>📋 Histórico Recente</Text>
+        <TouchableOpacity onPress={() => navigation.navigate('WorkoutHistory')}>
+          <Text style={s.historyLink}>Ver tudo ›</Text>
+        </TouchableOpacity>
+      </View>
+      {recentWorkouts.length === 0 ? (
+        <View style={s.historyEmpty}>
+          <Text style={s.historyEmptyText}>Nenhum treino registrado ainda. Complete um treino para ver aqui!</Text>
+        </View>
+      ) : (
+        recentWorkouts.map((w) => {
+          const doneSets = w.exercises.reduce((a, e) => a + e.sets.filter(s => s.done).length, 0);
+          return (
+            <View key={w.id} style={s.historyCard}>
+              <View style={s.historyCardLeft}>
+                <Text style={s.historyCardDate}>{fmtHistoryDate(w.date)}</Text>
+                <Text style={s.historyCardFocus}>{w.focus}</Text>
+              </View>
+              <View style={s.historyCardRight}>
+                <Text style={s.historyCardDur}>{fmtDuration(w.durationSeconds)}</Text>
+                <Text style={s.historyCardSets}>{doneSets} séries</Text>
+              </View>
+            </View>
+          );
+        })
+      )}
+
       {/* ── Month grid ── */}
-      <Text style={s.sectionTitle}>📅 Plano Anual</Text>
+      <Text style={[s.sectionTitle, { marginTop: 8 }]}>📅 Plano Anual</Text>
       <View style={s.monthGrid}>
         {monthlyBlocks.map((month, idx) => {
           const ph = PHASE(idx);
@@ -365,4 +500,36 @@ const s = StyleSheet.create({
   tipRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
   tipDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.primary, marginTop: 6, flexShrink: 0 },
   tipText: { color: C.text2, fontSize: 14, lineHeight: 20, flex: 1 },
+
+  // Quick workouts
+  quickScroll: { marginHorizontal: -16, marginBottom: 20 },
+  quickContent: { paddingHorizontal: 16, gap: 10 },
+  quickCard: {
+    width: 150, backgroundColor: C.surface, borderRadius: 16,
+    padding: 14, borderWidth: 1, gap: 6,
+  },
+  quickIconWrap: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
+  quickIcon: { fontSize: 22 },
+  quickTag: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  quickTagText: { fontSize: 10, fontWeight: '700' },
+  quickName: { color: C.text1, fontSize: 14, fontWeight: '800' },
+  quickDesc: { color: C.text3, fontSize: 11, lineHeight: 15 },
+  quickDuration: { fontSize: 12, fontWeight: '700', marginTop: 2 },
+
+  // History preview
+  historyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  historyLink: { color: C.primaryLight, fontSize: 13, fontWeight: '700' },
+  historyEmpty: { backgroundColor: C.surface, borderRadius: 14, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: C.border },
+  historyEmptyText: { color: C.text3, fontSize: 13, textAlign: 'center', lineHeight: 19 },
+  historyCard: {
+    backgroundColor: C.surface, borderRadius: 14, padding: 14,
+    borderWidth: 1, borderColor: C.border, flexDirection: 'row',
+    justifyContent: 'space-between', alignItems: 'center', marginBottom: 8,
+  },
+  historyCardLeft: { flex: 1 },
+  historyCardDate: { color: C.text3, fontSize: 11 },
+  historyCardFocus: { color: C.text1, fontSize: 15, fontWeight: '700', marginTop: 2 },
+  historyCardRight: { alignItems: 'flex-end' },
+  historyCardDur: { color: C.primaryLight, fontSize: 13, fontWeight: '700' },
+  historyCardSets: { color: C.text3, fontSize: 11, marginTop: 2 },
 });
