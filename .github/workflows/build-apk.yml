@@ -11,6 +11,7 @@ jobs:
   build:
     name: Build APK
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,25 +23,31 @@ jobs:
           cache: npm
           cache-dependency-path: GymApp/package-lock.json
 
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
       - name: Install dependencies
         working-directory: GymApp
         run: npm install
 
-      - name: Setup EAS
-        uses: expo/expo-github-action@v8
+      - name: Generate native Android project
+        working-directory: GymApp
+        run: npx expo prebuild --platform android --clean
+
+      - name: Make gradlew executable
+        working-directory: GymApp/android
+        run: chmod +x gradlew
+
+      - name: Build debug APK
+        working-directory: GymApp/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
-
-      - name: Build APK
-        working-directory: GymApp
-        run: eas build --platform android --profile preview --non-interactive
-
-      - name: Get APK URL
-        working-directory: GymApp
-        run: |
-          echo "✅ Build concluído!"
-          echo "Acesse expo.dev para baixar o APK"
-          eas build:list --platform android --limit 1 --non-interactive
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          name: GymAI-debug
+          path: GymApp/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
