@@ -53,7 +53,7 @@ export async function showWorkoutStartedNotification(workoutFocus: string): Prom
       content: {
         title: '💪 Treino em andamento',
         body: workoutFocus,
-        sticky: false,
+        sticky: true,
         data: { type: 'workout_active' },
       },
       trigger: null, // immediate

@@ -38,10 +38,20 @@ export function ChatScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
-    AsyncStorage.getItem(PLAN_KEY).then((stored) => {
-      if (stored) setPlan(JSON.parse(stored));
-      setPlanLoading(false);
-    });
+    AsyncStorage.getItem(PLAN_KEY)
+      .then((stored) => {
+        try {
+          if (stored) setPlan(JSON.parse(stored));
+        } catch {
+          // malformed data — leave plan as null
+        }
+      })
+      .catch(() => {
+        // storage read failed — leave plan as null
+      })
+      .finally(() => {
+        setPlanLoading(false);
+      });
   }, []);
 
   const sendMessage = async (text?: string) => {
