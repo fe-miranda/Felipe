@@ -264,7 +264,7 @@ export function HomeScreen({ navigation }: Props) {
             <Text style={s.heroGoal}>{goal.label}</Text>
           </View>
           <TouchableOpacity style={s.newPlanBtn} onPress={handleClearPlan}>
-            <Text style={s.newPlanText}>Reiniciar</Text>
+            <Text style={s.newPlanText}>Novo Plano</Text>
           </TouchableOpacity>
         </View>
 

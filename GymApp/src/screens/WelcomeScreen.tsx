@@ -30,6 +30,7 @@ const C = {
 
 const FEATURES = [
   { icon: '🤖', text: 'Plano anual gerado por IA' },
+  { icon: '🖼️', text: 'Importe seu plano por foto ou texto' },
   { icon: '❤️', text: 'Monitor de frequência cardíaca' },
   { icon: '⚡', text: 'Treinos rápidos personalizáveis' },
   { icon: '📊', text: 'Progresso e compartilhamento' },
@@ -109,7 +110,7 @@ export function WelcomeScreen({ navigation }: Props) {
           <TouchableOpacity
             style={s.ctaBtn}
             activeOpacity={0.85}
-            onPress={() => navigation.replace('Onboarding')}
+            onPress={() => navigation.replace('NewPlan')}
           >
             <Text style={s.ctaBtnText}>Começar Agora  →</Text>
           </TouchableOpacity>
