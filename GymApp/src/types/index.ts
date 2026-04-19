@@ -39,6 +39,7 @@ export interface Exercise {
   sets: number;
   reps: string;
   rest: string;
+  muscleGroups?: string[];
   notes?: string;
 }
 
@@ -152,7 +153,7 @@ export type RootStackParamList = {
     context?: { monthIndex: number; weekIndex: number; dayIndex: number };
   };
   WorkoutHistory: undefined;
+  MuscleFatigue: undefined;
   Chat: undefined;
   Settings: undefined;
 };
-

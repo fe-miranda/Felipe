@@ -12,6 +12,7 @@ import { ActiveWorkoutScreen } from '../screens/ActiveWorkoutScreen';
 import { WorkoutHistoryScreen } from '../screens/WorkoutHistoryScreen';
 import { ChatScreen } from '../screens/ChatScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
+import { MuscleFatigueScreen } from '../screens/MuscleFatigueScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -69,6 +70,11 @@ export function AppNavigator() {
           name="WorkoutHistory"
           component={WorkoutHistoryScreen}
           options={{ title: 'Histórico de Treinos' }}
+        />
+        <Stack.Screen
+          name="MuscleFatigue"
+          component={MuscleFatigueScreen}
+          options={{ title: 'Fadiga Muscular' }}
         />
         <Stack.Screen
           name="Chat"

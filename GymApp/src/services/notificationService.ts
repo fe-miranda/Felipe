@@ -4,6 +4,12 @@ const WORKOUT_CHANNEL_ID = 'workout';
 const WORKOUT_NOTIF_ID = 'workout-active';
 const REST_NOTIF_ID = 'rest-countdown';
 
+function fmtElapsed(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
 // Configure how notifications are presented when the app is in the foreground
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -52,7 +58,7 @@ export async function showWorkoutStartedNotification(workoutFocus: string): Prom
       identifier: WORKOUT_NOTIF_ID,
       content: {
         title: '💪 Treino em andamento',
-        body: workoutFocus,
+        body: `${workoutFocus} · 00:00`,
         sticky: true,
         data: { type: 'workout_active' },
       },
@@ -60,6 +66,30 @@ export async function showWorkoutStartedNotification(workoutFocus: string): Prom
     });
   } catch {
     // fail silently — notifications are a UX enhancement, not critical
+  }
+}
+
+/** Update workout notification elapsed time every ~30s while active. */
+export async function updateWorkoutElapsedNotification(
+  workoutFocus: string,
+  elapsedSeconds: number,
+): Promise<void> {
+  try {
+    const granted = await requestNotificationPermissions();
+    if (!granted) return;
+    await ensureWorkoutChannel();
+    await Notifications.scheduleNotificationAsync({
+      identifier: WORKOUT_NOTIF_ID,
+      content: {
+        title: '💪 Treino em andamento',
+        body: `${workoutFocus} · ${fmtElapsed(elapsedSeconds)}`,
+        sticky: true,
+        data: { type: 'workout_active' },
+      },
+      trigger: null,
+    });
+  } catch {
+    // fail silently
   }
 }
 

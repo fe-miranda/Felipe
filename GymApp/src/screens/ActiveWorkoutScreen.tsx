@@ -22,9 +22,10 @@ import { getExerciseAlternatives } from '../services/aiService';
 import { saveWorkout } from '../services/workoutHistoryService';
 import { useHeartRate } from '../hooks/useHeartRate';
 import { hrZoneColor, hrZoneLabel } from '../services/heartRateService';
-import { shareWorkoutCard } from '../services/shareService';
+import { shareWorkoutCard, shareWorkoutStory } from '../services/shareService';
 import {
   showWorkoutStartedNotification,
+  updateWorkoutElapsedNotification,
   scheduleRestEndNotification,
   cancelRestNotification,
   cancelAllWorkoutNotifications,
@@ -134,6 +135,14 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
       // Clean up all workout notifications when leaving the screen
       cancelAllWorkoutNotifications();
     };
+  }, [workout.focus]);
+
+  // Update lock-screen notification body every 30 seconds.
+  useEffect(() => {
+    const id = setInterval(() => {
+      updateWorkoutElapsedNotification(workout.focus, elapsedRef.current);
+    }, 30000);
+    return () => clearInterval(id);
   }, [workout.focus]);
 
   const startRest = useCallback((dur?: number) => {
@@ -261,10 +270,24 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
               [
                 { text: 'Agora não', onPress: () => navigation.navigate('WorkoutHistory') },
                 {
-                  text: 'Compartilhar 📤',
+                  text: 'Cartão Quadrado 📤',
                   onPress: async () => {
                     try {
                       await shareWorkoutCard({
+                        workout: log,
+                        heartRateSamples: hr.samples,
+                      });
+                    } catch {
+                      // ignore share errors
+                    }
+                    navigation.navigate('WorkoutHistory');
+                  },
+                },
+                {
+                  text: 'Story (vertical) 📸',
+                  onPress: async () => {
+                    try {
+                      await shareWorkoutStory({
                         workout: log,
                         heartRateSamples: hr.samples,
                       });

@@ -12,7 +12,11 @@ import { QuickWorkout } from '../types';
 
 const CAROUSEL_KEY = '@gymapp_carousel_selection';
 
-type SelectionMap = Record<string, number[]>; // serialisable form
+type WorkoutSelection = {
+  enabledIndices: number[];
+  muscleGroup: string | null;
+};
+type SelectionMap = Record<string, WorkoutSelection>; // serialisable form
 
 // ─── Persistence helpers ──────────────────────────────────────────────────────
 
@@ -20,7 +24,22 @@ async function loadSelectionMap(): Promise<SelectionMap> {
   try {
     const raw = await AsyncStorage.getItem(CAROUSEL_KEY);
     if (!raw) return {};
-    return JSON.parse(raw) as SelectionMap;
+    const parsed = JSON.parse(raw) as Record<string, number[] | WorkoutSelection>;
+    const normalized: SelectionMap = {};
+    for (const [workoutId, value] of Object.entries(parsed)) {
+      // Backward compatibility:
+      // before the 2026 muscle-group filter update, storage persisted only number[]
+      // (enabled exercise indices). Normalize that legacy format to the new shape.
+      if (Array.isArray(value)) {
+        normalized[workoutId] = { enabledIndices: value, muscleGroup: null };
+      } else if (value && Array.isArray(value.enabledIndices)) {
+        normalized[workoutId] = {
+          enabledIndices: value.enabledIndices,
+          muscleGroup: value.muscleGroup ?? null,
+        };
+      }
+    }
+    return normalized;
   } catch {
     return {};
   }
@@ -53,15 +72,16 @@ export function useCarouselCustomization(workouts: QuickWorkout[]) {
     if (!loaded || selectionMap[workoutId] === undefined) {
       return new Set(Array.from({ length: totalExercises }, (_, i) => i));
     }
-    return new Set(selectionMap[workoutId]);
+    return new Set(selectionMap[workoutId].enabledIndices);
   }, [selectionMap, loaded]);
 
   /** Toggle a single exercise on/off for a given workout. */
   const toggleExercise = useCallback((workoutId: string, exIdx: number, totalExercises: number): void => {
     setSelectionMap(prev => {
       // Initialise from default (all on) if not yet customised
-      const current = prev[workoutId] !== undefined
-        ? new Set(prev[workoutId])
+      const currentState = prev[workoutId];
+      const current = currentState !== undefined
+        ? new Set(currentState.enabledIndices)
         : new Set(Array.from({ length: totalExercises }, (_, i) => i));
 
       if (current.has(exIdx)) {
@@ -72,7 +92,13 @@ export function useCarouselCustomization(workouts: QuickWorkout[]) {
         current.add(exIdx);
       }
 
-      const next = { ...prev, [workoutId]: Array.from(current).sort((a, b) => a - b) };
+      const next = {
+        ...prev,
+        [workoutId]: {
+          enabledIndices: Array.from(current).sort((a, b) => a - b),
+          muscleGroup: null,
+        },
+      };
       saveSelectionMap(next); // async, fire-and-forget
       return next;
     });
@@ -83,6 +109,43 @@ export function useCarouselCustomization(workouts: QuickWorkout[]) {
     setSelectionMap(prev => {
       const next = { ...prev };
       delete next[workoutId];
+      saveSelectionMap(next);
+      return next;
+    });
+  }, []);
+
+  /** Returns selected muscle group filter for a workout. */
+  const getMuscleGroupFilter = useCallback((workoutId: string): string | null => {
+    return selectionMap[workoutId]?.muscleGroup ?? null;
+  }, [selectionMap]);
+
+  /**
+   * Apply muscle-group filter by enabling all matching exercises.
+   * Passing null clears the filter and restores all exercises.
+   */
+  const setMuscleGroupFilter = useCallback((workout: QuickWorkout, muscleGroup: string | null): void => {
+    setSelectionMap(prev => {
+      if (!muscleGroup) {
+        const next = { ...prev };
+        delete next[workout.id];
+        saveSelectionMap(next);
+        return next;
+      }
+
+      const enabled = workout.exercises
+        .map((ex, idx) => ({ ex, idx }))
+        .filter(({ ex }) => (ex.muscleGroups ?? []).includes(muscleGroup))
+        .map(({ idx }) => idx);
+
+      // If no match exists, keep all enabled to avoid empty workout states.
+      const enabledIndices = enabled.length > 0
+        ? enabled
+        : Array.from({ length: workout.exercises.length }, (_, i) => i);
+
+      const next = {
+        ...prev,
+        [workout.id]: { enabledIndices, muscleGroup },
+      };
       saveSelectionMap(next);
       return next;
     });
@@ -101,6 +164,8 @@ export function useCarouselCustomization(workouts: QuickWorkout[]) {
   return {
     loaded,
     getEnabledIndices,
+    getMuscleGroupFilter,
+    setMuscleGroupFilter,
     toggleExercise,
     resetSelection,
     buildCustomWorkout,
