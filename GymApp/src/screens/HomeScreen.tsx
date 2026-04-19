@@ -79,7 +79,7 @@ const QUICK_WORKOUTS: QuickWorkout[] = [
     color: '#7C3AED', description: 'Empurrar + Puxar em biset', tag: 'Biset',
     exercises: [
       { name: 'Supino Reto',       sets: 4, reps: '10', rest: '60s', notes: 'Biset c/ Remada', muscleGroups: ['Peito', 'Tríceps'] },
-      { name: 'Remada Curvada',    sets: 4, reps: '10', rest: '60s', notes: 'Biset c/ Supino', muscleGroups: ['Dorsal', 'Bíceps'] },
+      { name: 'Remada Curvada',    sets: 4, reps: '10', rest: '60s', notes: 'Biset c/ Supino', muscleGroups: ['Dorsal', 'Bíceps', 'Trapézio'] },
       { name: 'Desenvolvimento',   sets: 3, reps: '12', rest: '60s', notes: 'Biset c/ Puxada', muscleGroups: ['Ombro', 'Tríceps'] },
       { name: 'Puxada Frontal',    sets: 3, reps: '12', rest: '60s', notes: 'Biset c/ Desenvolvimento', muscleGroups: ['Dorsal', 'Bíceps'] },
     ],
@@ -106,10 +106,10 @@ const QUICK_WORKOUTS: QuickWorkout[] = [
     id: 'crossfit', name: 'CrossFit WOD', icon: '🏅', duration: 25,
     color: '#3B82F6', description: 'Condicionamento funcional intenso', tag: 'Funcional',
     exercises: [
-      { name: 'Thruster (barra)',  sets: 5, reps: '10', rest: '45s', muscleGroups: ['Ombro', 'Quadríceps'] },
-      { name: 'Pull-up',          sets: 5, reps: '8',  rest: '45s', muscleGroups: ['Dorsal', 'Bíceps'] },
-      { name: 'Box Jump',         sets: 4, reps: '12', rest: '30s', muscleGroups: ['Quadríceps', 'Panturrilha'] },
-      { name: 'Kettlebell Swing', sets: 4, reps: '15', rest: '30s', muscleGroups: ['Posterior', 'Glúteo'] },
+      { name: 'Thruster (barra)',  sets: 5, reps: '10', rest: '45s', muscleGroups: ['Ombro', 'Quadríceps', 'Glúteo'] },
+      { name: 'Pull-up',          sets: 5, reps: '8',  rest: '45s', muscleGroups: ['Dorsal', 'Bíceps', 'Antebraço'] },
+      { name: 'Box Jump',         sets: 4, reps: '12', rest: '30s', muscleGroups: ['Quadríceps', 'Panturrilha', 'Glúteo'] },
+      { name: 'Kettlebell Swing', sets: 4, reps: '15', rest: '30s', muscleGroups: ['Posterior', 'Glúteo', 'Core'] },
     ],
   },
   {

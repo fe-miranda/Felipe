@@ -99,9 +99,9 @@ export function computeMuscleFatigue(history: CompletedWorkout[], now = new Date
       const groups = EXERCISE_MUSCLE_MAP[ex.name];
       if (!groups || groups.length === 0) continue;
       const doneSets = ex.sets.filter((s) => s.done).length;
-      const seriesVolume = doneSets > 0 ? doneSets : ex.targetSets;
+      const setsCount = doneSets > 0 ? doneSets : ex.targetSets;
       for (const g of groups) {
-        scores[g] += seriesVolume * weight;
+        scores[g] += setsCount * weight;
         if (lastDate[g] === undefined || ts > lastDate[g]!) {
           lastDate[g] = ts;
         }

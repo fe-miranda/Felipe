@@ -270,7 +270,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
               [
                 { text: 'Agora não', onPress: () => navigation.navigate('WorkoutHistory') },
                 {
-                  text: 'Cartão Quadrado (1:1) 📤',
+                  text: 'Cartão Quadrado 📤',
                   onPress: async () => {
                     try {
                       await shareWorkoutCard({
