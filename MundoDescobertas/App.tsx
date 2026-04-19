@@ -38,6 +38,15 @@ const SHAPES: NonEmptyArray<Option> = [
 
 const randomItem = <T,>(list: NonEmptyArray<T>): T => list[Math.floor(Math.random() * list.length)];
 
+const shuffleList = <T,>(list: readonly T[]): T[] => {
+  const copy = [...list];
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const randomIndex = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[randomIndex]] = [copy[randomIndex], copy[i]];
+  }
+  return copy;
+};
+
 export default function App() {
   const [screen, setScreen] = useState<Screen>('home');
 
@@ -53,8 +62,8 @@ export default function App() {
   const [shapeScore, setShapeScore] = useState(0);
   const [shapeFeedback, setShapeFeedback] = useState('Toque na forma pedida.');
 
-  const animalOptions = useMemo(() => [...ANIMALS].sort(() => Math.random() - 0.5), [animalTarget]);
-  const shapeOptions = useMemo(() => [...SHAPES].sort(() => Math.random() - 0.5), [shapeTarget]);
+  const animalOptions = useMemo(() => shuffleList(ANIMALS), [animalTarget]);
+  const shapeOptions = useMemo(() => shuffleList(SHAPES), [shapeTarget]);
 
   const resetAndGoHome = () => {
     setScreen('home');
