@@ -10,9 +10,9 @@ import { WeekDetailScreen } from '../screens/WeekDetailScreen';
 import { WorkoutDetailScreen } from '../screens/WorkoutDetailScreen';
 import { ActiveWorkoutScreen } from '../screens/ActiveWorkoutScreen';
 import { WorkoutHistoryScreen } from '../screens/WorkoutHistoryScreen';
+import { MuscleFatigueScreen } from '../screens/MuscleFatigueScreen';
 import { ChatScreen } from '../screens/ChatScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
-import { MuscleFatigueScreen } from '../screens/MuscleFatigueScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 

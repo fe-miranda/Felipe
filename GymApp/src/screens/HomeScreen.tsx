@@ -1,25 +1,15 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  StyleSheet,
-  Alert,
-  Dimensions,
-  Modal,
+  View, Text, TouchableOpacity, ScrollView, StyleSheet,
+  Alert, Dimensions, Modal, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, QuickWorkout, WorkoutDay, CompletedWorkout } from '../types';
 import { usePlan } from '../hooks/usePlan';
-import { useHeartRate } from '../hooks/useHeartRate';
-import { useCarouselCustomization } from '../hooks/useCarouselCustomization';
-import { setRuntimeApiKey } from '../services/aiService';
+import { setRuntimeApiKey, getDailySuggestion, generateCustomWorkout, DailySuggestion } from '../services/aiService';
 import { loadHistory } from '../services/workoutHistoryService';
-import { hrZoneColor, hrZoneLabel } from '../services/heartRateService';
-import { shareWeeklyCard, buildWeeklyCardData } from '../services/shareService';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48 - 16) / 3;
@@ -67,71 +57,82 @@ const QUICK_WORKOUTS: QuickWorkout[] = [
   {
     id: 'hiit', name: 'HIIT Express', icon: '⚡', duration: 20,
     color: '#EF4444', description: 'Alta intensidade, queima máxima', tag: 'Queima Rápida',
+    muscleGroups: ['Quadríceps', 'Glúteo', 'Abdômen'],
     exercises: [
-      { name: 'Burpee',           sets: 4, reps: '10',  rest: '30s', muscleGroups: ['Peito', 'Quadríceps', 'Core'] },
-      { name: 'Mountain Climber', sets: 4, reps: '30s', rest: '20s', muscleGroups: ['Core', 'Ombro'] },
-      { name: 'Jump Squat',       sets: 3, reps: '15',  rest: '30s', muscleGroups: ['Quadríceps', 'Glúteo'] },
-      { name: 'High Knees',       sets: 3, reps: '30s', rest: '20s', muscleGroups: ['Quadríceps', 'Panturrilha'] },
+      { name: 'Burpee',           sets: 4, reps: '10',  rest: '30s' },
+      { name: 'Mountain Climber', sets: 4, reps: '30s', rest: '20s' },
+      { name: 'Jump Squat',       sets: 3, reps: '15',  rest: '30s' },
+      { name: 'High Knees',       sets: 3, reps: '30s', rest: '20s' },
     ],
   },
   {
     id: 'biset', name: 'Biset Força', icon: '🏋️', duration: 35,
     color: '#7C3AED', description: 'Empurrar + Puxar em biset', tag: 'Biset',
+    muscleGroups: ['Peito', 'Costas', 'Ombro'],
     exercises: [
-      { name: 'Supino Reto',       sets: 4, reps: '10', rest: '60s', notes: 'Biset c/ Remada', muscleGroups: ['Peito', 'Tríceps'] },
-      { name: 'Remada Curvada',    sets: 4, reps: '10', rest: '60s', notes: 'Biset c/ Supino', muscleGroups: ['Dorsal', 'Bíceps', 'Trapézio'] },
-      { name: 'Desenvolvimento',   sets: 3, reps: '12', rest: '60s', notes: 'Biset c/ Puxada', muscleGroups: ['Ombro', 'Tríceps'] },
-      { name: 'Puxada Frontal',    sets: 3, reps: '12', rest: '60s', notes: 'Biset c/ Desenvolvimento', muscleGroups: ['Dorsal', 'Bíceps'] },
+      { name: 'Supino Reto',       sets: 4, reps: '10', rest: '60s', notes: 'Biset c/ Remada' },
+      { name: 'Remada Curvada',    sets: 4, reps: '10', rest: '60s', notes: 'Biset c/ Supino' },
+      { name: 'Desenvolvimento',   sets: 3, reps: '12', rest: '60s', notes: 'Biset c/ Puxada' },
+      { name: 'Puxada Frontal',    sets: 3, reps: '12', rest: '60s', notes: 'Biset c/ Desenvolvimento' },
     ],
   },
   {
     id: 'pyramid', name: 'Pirâmide', icon: '📈', duration: 40,
     color: '#F59E0B', description: 'Progride a carga a cada série', tag: 'Pirâmide',
+    muscleGroups: ['Quadríceps', 'Glúteo', 'Posterior'],
     exercises: [
-      { name: 'Agachamento Livre', sets: 5, reps: '15/12/10/8/6', rest: '90s', notes: 'Aumente a carga a cada série', muscleGroups: ['Quadríceps', 'Glúteo'] },
-      { name: 'Leg Press',         sets: 4, reps: '15/12/10/8',   rest: '75s', notes: 'Pirâmide crescente', muscleGroups: ['Quadríceps', 'Glúteo'] },
-      { name: 'Cadeira Extensora', sets: 3, reps: '15/12/10',     rest: '60s', notes: 'Finalizador', muscleGroups: ['Quadríceps'] },
+      { name: 'Agachamento Livre', sets: 5, reps: '15/12/10/8/6', rest: '90s', notes: 'Aumente a carga a cada série' },
+      { name: 'Leg Press',         sets: 4, reps: '15/12/10/8',   rest: '75s', notes: 'Pirâmide crescente' },
+      { name: 'Cadeira Extensora', sets: 3, reps: '15/12/10',     rest: '60s', notes: 'Finalizador' },
     ],
   },
   {
     id: 'dropset', name: 'Dropset', icon: '📉', duration: 30,
     color: '#10B981', description: 'Reduza a carga sem parar', tag: 'Dropset',
+    muscleGroups: ['Bíceps', 'Tríceps', 'Ombro'],
     exercises: [
-      { name: 'Rosca Direta',   sets: 3, reps: '12+drop', rest: '90s', notes: 'Dropset: tire 20% da carga e continue', muscleGroups: ['Bíceps', 'Antebraço'] },
-      { name: 'Tríceps Pulley', sets: 3, reps: '12+drop', rest: '90s', notes: 'Dropset no mesmo cabo', muscleGroups: ['Tríceps'] },
-      { name: 'Elevação Lateral', sets: 3, reps: '15+drop', rest: '75s', notes: 'Dropset com halter', muscleGroups: ['Ombro', 'Trapézio'] },
+      { name: 'Rosca Direta',     sets: 3, reps: '12+drop', rest: '90s', notes: 'Dropset: tire 20% da carga e continue' },
+      { name: 'Tríceps Pulley',   sets: 3, reps: '12+drop', rest: '90s', notes: 'Dropset no mesmo cabo' },
+      { name: 'Elevação Lateral', sets: 3, reps: '15+drop', rest: '75s', notes: 'Dropset com halter' },
     ],
   },
   {
     id: 'crossfit', name: 'CrossFit WOD', icon: '🏅', duration: 25,
     color: '#3B82F6', description: 'Condicionamento funcional intenso', tag: 'Funcional',
+    muscleGroups: ['Quadríceps', 'Costas', 'Ombro'],
     exercises: [
-      { name: 'Thruster (barra)',  sets: 5, reps: '10', rest: '45s', muscleGroups: ['Ombro', 'Quadríceps', 'Glúteo'] },
-      { name: 'Pull-up',          sets: 5, reps: '8',  rest: '45s', muscleGroups: ['Dorsal', 'Bíceps', 'Antebraço'] },
-      { name: 'Box Jump',         sets: 4, reps: '12', rest: '30s', muscleGroups: ['Quadríceps', 'Panturrilha', 'Glúteo'] },
-      { name: 'Kettlebell Swing', sets: 4, reps: '15', rest: '30s', muscleGroups: ['Posterior', 'Glúteo', 'Core'] },
+      { name: 'Thruster (barra)',  sets: 5, reps: '10', rest: '45s' },
+      { name: 'Pull-up',          sets: 5, reps: '8',  rest: '45s' },
+      { name: 'Box Jump',         sets: 4, reps: '12', rest: '30s' },
+      { name: 'Kettlebell Swing', sets: 4, reps: '15', rest: '30s' },
     ],
   },
   {
     id: 'triset', name: 'Triset Core', icon: '🔥', duration: 20,
     color: '#EC4899', description: 'Triset para abdômen e core', tag: 'Triset',
+    muscleGroups: ['Abdômen'],
     exercises: [
-      { name: 'Prancha',         sets: 4, reps: '45s', rest: '0s',  notes: 'Triset 1/3', muscleGroups: ['Core'] },
-      { name: 'Abdominal Bici',  sets: 4, reps: '20',  rest: '0s',  notes: 'Triset 2/3', muscleGroups: ['Core'] },
-      { name: 'Russian Twist',   sets: 4, reps: '20',  rest: '60s', notes: 'Triset 3/3 — descanse aqui', muscleGroups: ['Core'] },
+      { name: 'Prancha',        sets: 4, reps: '45s', rest: '0s',  notes: 'Triset 1/3' },
+      { name: 'Abdominal Bici', sets: 4, reps: '20',  rest: '0s',  notes: 'Triset 2/3' },
+      { name: 'Russian Twist',  sets: 4, reps: '20',  rest: '60s', notes: 'Triset 3/3 — descanse aqui' },
     ],
   },
   {
-    id: 'mobility', name: 'Mobilidade & Flexibilidade', icon: '🧘', duration: 30,
-    color: '#22C55E', description: 'Alongamentos dinâmicos e mobilidade articular', tag: 'Mobilidade',
+    id: 'mobility', name: 'Mobilidade', icon: '🧘', duration: 30,
+    color: '#06B6D4', description: 'Alongamento + yoga dinâmica', tag: 'Mobilidade',
+    muscleGroups: ['Posterior', 'Quadríceps', 'Ombro'],
     exercises: [
-      { name: 'Alongamento de Quadril', sets: 3, reps: '45s', rest: '15s', muscleGroups: ['Glúteo', 'Adutor/Abdutor'] },
-      { name: 'Mobilidade Torácica', sets: 3, reps: '12', rest: '20s', muscleGroups: ['Dorsal', 'Trapézio'] },
-      { name: 'Alongamento de Isquiotibiais', sets: 3, reps: '40s', rest: '20s', muscleGroups: ['Posterior'] },
-      { name: 'Yoga Dinâmica (Flow)', sets: 2, reps: '6min', rest: '30s', muscleGroups: ['Core', 'Ombro'] },
+      { name: 'Alongamento Isquiotibiais', sets: 3, reps: '45s', rest: '15s' },
+      { name: 'Yoga: Cão Olhando p/ Baixo', sets: 3, reps: '45s', rest: '15s' },
+      { name: 'Hip Flexor Stretch',         sets: 3, reps: '45s', rest: '15s' },
+      { name: 'Abertura de Quadril (Pombo)', sets: 2, reps: '60s', rest: '20s' },
+      { name: 'Rotação de Ombro',           sets: 3, reps: '30s', rest: '15s' },
+      { name: 'Cat-Cow (Gato/Vaca)',        sets: 3, reps: '45s', rest: '10s' },
     ],
   },
 ];
+
+const ALL_MUSCLE_GROUPS = ['Todos', 'Peito', 'Costas', 'Ombro', 'Bíceps', 'Tríceps', 'Quadríceps', 'Posterior', 'Glúteo', 'Abdômen', 'Mobilidade'];
 
 function quickToWorkoutDay(q: QuickWorkout): WorkoutDay {
   return { dayOfWeek: 'Hoje', focus: q.name, duration: q.duration, exercises: q.exercises };
@@ -158,10 +159,16 @@ type Props = { navigation: NativeStackNavigationProp<RootStackParamList, 'Home'>
 export function HomeScreen({ navigation }: Props) {
   const { plan, loadStoredPlan, clearPlan } = usePlan();
   const [recentWorkouts, setRecentWorkouts] = useState<CompletedWorkout[]>([]);
-  const hr = useHeartRate();
-  const carousel = useCarouselCustomization(QUICK_WORKOUTS);
-  // id of the workout whose exercises are being customised (null = modal closed)
-  const [customiseId, setCustomiseId] = useState<string | null>(null);
+  const [quickFilter, setQuickFilter] = useState('Todos');
+  const [dailySuggestion, setDailySuggestion] = useState<DailySuggestion | null>(null);
+  const [loadingSuggestion, setLoadingSuggestion] = useState(false);
+  const [showCustomizer, setShowCustomizer] = useState(false);
+  const [custGroups, setCustGroups] = useState<string[]>([]);
+  const [custStrategy, setCustStrategy] = useState('');
+  const [custDuration, setCustDuration] = useState(30);
+  const [custEquipment, setCustEquipment] = useState('academia');
+  const [custLoading, setCustLoading] = useState(false);
+  const [custWorkout, setCustWorkout] = useState<WorkoutDay | null>(null);
 
   const reloadHistory = useCallback(async () => {
     const hist = await loadHistory();
@@ -173,6 +180,37 @@ export function HomeScreen({ navigation }: Props) {
     AsyncStorage.getItem(CUSTOM_KEY_STORAGE).then((k) => { if (k) setRuntimeApiKey(k); });
     reloadHistory();
   }, []);
+
+  useEffect(() => {
+    if (!plan) return;
+    setLoadingSuggestion(true);
+    getDailySuggestion(recentWorkouts, plan.userProfile)
+      .then(setDailySuggestion)
+      .catch(() => {})
+      .finally(() => setLoadingSuggestion(false));
+  }, [plan]);
+
+  const handleGenerateCustom = async () => {
+    if (custGroups.length === 0) {
+      Alert.alert('Selecione pelo menos um grupo muscular');
+      return;
+    }
+    setCustLoading(true);
+    try {
+      const w = await generateCustomWorkout({
+        muscleGroups: custGroups,
+        strategy: custStrategy || 'Normal',
+        duration: custDuration,
+        equipment: custEquipment,
+        profile: plan!.userProfile,
+      });
+      setCustWorkout(w);
+    } catch {
+      Alert.alert('Erro', 'Não foi possível gerar o treino. Verifique sua conexão.');
+    } finally {
+      setCustLoading(false);
+    }
+  };
 
   const handleClearPlan = () => {
     Alert.alert('Novo Plano', 'Seu plano atual será apagado. Continuar?', [
@@ -212,29 +250,9 @@ export function HomeScreen({ navigation }: Props) {
           <Text style={s.greeting}>{greeting()}, {p.name} 👋</Text>
           <Text style={s.greetingSub}>Seu plano de 12 meses está ativo</Text>
         </View>
-        <View style={s.topBarActions}>
-          {/* Heart-rate badge */}
-          <TouchableOpacity
-            style={[s.hrBadge, hr.status === 'connected' && { borderColor: hrZoneColor(hr.bpm) }]}
-            onPress={() => hr.status === 'connected' ? hr.disconnect() : hr.connect()}
-            testID="btn-heartrate"
-          >
-            <Text style={s.hrBadgeIcon}>❤️</Text>
-            {hr.status === 'connected' && hr.bpm !== null ? (
-              <Text style={[s.hrBadgeBpm, { color: hrZoneColor(hr.bpm) }]}>{hr.bpm}</Text>
-            ) : (
-              <Text style={s.hrBadgeIdle}>
-                {hr.status === 'scanning' || hr.status === 'connecting' ? '…' : '—'}
-              </Text>
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity style={s.iconBtn} onPress={() => navigation.navigate('Settings')} testID="btn-settings">
-            <Text style={s.iconBtnText}>⚙️</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={s.iconBtn} onPress={() => navigation.navigate('MuscleFatigue')} testID="btn-muscle-fatigue">
-            <Text style={s.iconBtnText}>🧍</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={s.iconBtn} onPress={() => navigation.navigate('Settings')} testID="btn-settings">
+          <Text style={s.iconBtnText}>⚙️</Text>
+        </TouchableOpacity>
       </View>
 
       {/* ── Hero goal card ── */}
@@ -293,138 +311,86 @@ export function HomeScreen({ navigation }: Props) {
         </View>
       </TouchableOpacity>
 
-      {/* ── Quick workouts ── */}
-      <View style={s.sectionHeaderRow}>
-        <Text style={s.sectionTitle}>⚡ Treinos Rápidos</Text>
-      </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.quickScroll} contentContainerStyle={s.quickContent}>
-        {QUICK_WORKOUTS.map((q) => {
-          const customised = carousel.buildCustomWorkout(q);
-          const enabledCount = carousel.getEnabledIndices(q.id, q.exercises.length).size;
-          return (
-            <TouchableOpacity
-              key={q.id}
-              style={[s.quickCard, { borderColor: `${q.color}40` }]}
-              activeOpacity={0.82}
-              onPress={() => navigation.navigate('ActiveWorkout', { workout: quickToWorkoutDay(customised) })}
-              onLongPress={() => setCustomiseId(q.id)}
-            >
-              <View style={[s.quickIconWrap, { backgroundColor: `${q.color}20` }]}>
-                <Text style={s.quickIcon}>{q.icon}</Text>
-              </View>
-              <View style={[s.quickTag, { backgroundColor: `${q.color}18` }]}>
-                <Text style={[s.quickTagText, { color: q.color }]}>{q.tag}</Text>
-              </View>
-              <Text style={s.quickName}>{q.name}</Text>
-              <Text style={s.quickDesc} numberOfLines={2}>{q.description}</Text>
-              <View style={s.quickFooter}>
-                <Text style={[s.quickDuration, { color: q.color }]}>⏱ {q.duration} min</Text>
-                <TouchableOpacity
-                  style={s.quickCustomBtn}
-                  onPress={() => setCustomiseId(q.id)}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Text style={s.quickCustomBtnText}>
-                    {enabledCount}/{q.exercises.length} ✎
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-
-      {/* ── Carousel customisation modal ── */}
-      {customiseId !== null && (() => {
-        const wk = QUICK_WORKOUTS.find(w => w.id === customiseId);
-        if (!wk) return null;
-        const enabled = carousel.getEnabledIndices(wk.id, wk.exercises.length);
-        const selectedGroup = carousel.getMuscleGroupFilter(wk.id);
-        const muscleGroups = Array.from(new Set(wk.exercises.flatMap(ex => ex.muscleGroups ?? [])));
-        return (
-          <Modal visible transparent animationType="slide" onRequestClose={() => setCustomiseId(null)}>
-            <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={() => setCustomiseId(null)}>
-              <View style={s.customiseSheet} onStartShouldSetResponder={() => true}>
-                <Text style={s.customiseTitle}>{wk.icon} {wk.name}</Text>
-                <Text style={s.customiseSubtitle}>Toque para ativar/desativar exercícios</Text>
-                {muscleGroups.length > 0 && (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.groupChipRow}>
-                    <TouchableOpacity
-                      style={[s.groupChip, selectedGroup === null && s.groupChipActive]}
-                      onPress={() => carousel.setMuscleGroupFilter(wk, null)}
-                    >
-                      <Text style={[s.groupChipText, selectedGroup === null && s.groupChipTextActive]}>Todos</Text>
-                    </TouchableOpacity>
-                    {muscleGroups.map((group) => (
-                      <TouchableOpacity
-                        key={group}
-                        style={[s.groupChip, selectedGroup === group && s.groupChipActive]}
-                        onPress={() => carousel.setMuscleGroupFilter(wk, group)}
-                      >
-                        <Text style={[s.groupChipText, selectedGroup === group && s.groupChipTextActive]}>{group}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                )}
-                {wk.exercises.map((ex, idx) => {
-                  const on = enabled.has(idx);
-                  return (
-                    <TouchableOpacity
-                      key={idx}
-                      style={[s.customiseRow, on && s.customiseRowOn]}
-                      onPress={() => carousel.toggleExercise(wk.id, idx, wk.exercises.length)}
-                    >
-                      <View style={[s.customiseCheck, on && { backgroundColor: wk.color }]}>
-                        <Text style={s.customiseCheckText}>{on ? '✓' : ''}</Text>
-                      </View>
-                      <View style={s.customiseExInfo}>
-                        <Text style={[s.customiseExName, !on && { color: C.text3 }]}>{ex.name}</Text>
-                        <Text style={s.customiseExMeta}>
-                          {ex.sets}×{ex.reps}
-                          {ex.muscleGroups?.length ? ` · ${ex.muscleGroups.join(' / ')}` : ''}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
-                <View style={s.customiseBtns}>
-                  <TouchableOpacity style={s.customiseReset} onPress={() => carousel.resetSelection(wk.id)}>
-                    <Text style={s.customiseResetText}>Restaurar padrão</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={s.customiseDone} onPress={() => setCustomiseId(null)}>
-                    <Text style={s.customiseDoneText}>OK</Text>
-                  </TouchableOpacity>
+      {/* ── Daily suggestion ── */}
+      {(loadingSuggestion || dailySuggestion) && (
+        <View style={s.suggestionCard}>
+          {loadingSuggestion ? (
+            <View style={s.suggestionLoading}>
+              <ActivityIndicator color={C.primaryLight} size="small" />
+              <Text style={s.suggestionLoadingText}>Buscando sugestão do dia…</Text>
+            </View>
+          ) : dailySuggestion ? (
+            <>
+              <View style={s.suggestionHeader}>
+                <Text style={s.suggestionIcon}>{dailySuggestion.icon}</Text>
+                <View style={s.suggestionHeaderText}>
+                  <Text style={s.suggestionLabel}>SUGESTÃO DO DIA</Text>
+                  <Text style={s.suggestionTitle}>{dailySuggestion.title}</Text>
                 </View>
               </View>
-            </TouchableOpacity>
-          </Modal>
-        );
-      })()}
+              <Text style={s.suggestionReason}>{dailySuggestion.reason}</Text>
+              <TouchableOpacity
+                style={s.suggestionBtn}
+                onPress={() => navigation.navigate('ActiveWorkout', { workout: dailySuggestion.workout })}
+              >
+                <Text style={s.suggestionBtnText}>▶  Iniciar Agora</Text>
+              </TouchableOpacity>
+            </>
+          ) : null}
+        </View>
+      )}
+
+      {/* ── Quick workouts ── */}
+      <View style={s.quickHeader}>
+        <Text style={[s.sectionTitle, { marginBottom: 0 }]}>⚡ Treinos Rápidos</Text>
+        <TouchableOpacity
+          style={s.customizerBtn}
+          onPress={() => { setCustWorkout(null); setCustGroups([]); setCustStrategy(''); setCustDuration(30); setCustEquipment('academia'); setShowCustomizer(true); }}
+        >
+          <Text style={s.customizerBtnText}>+ Personalizar</Text>
+        </TouchableOpacity>
+      </View>
+      {/* Muscle group filter chips */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.filterScroll} contentContainerStyle={s.filterContent}>
+        {ALL_MUSCLE_GROUPS.map((g) => (
+          <TouchableOpacity
+            key={g}
+            style={[s.filterChip, quickFilter === g && s.filterChipActive]}
+            onPress={() => setQuickFilter(g)}
+          >
+            <Text style={[s.filterChipText, quickFilter === g && s.filterChipTextActive]}>{g}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.quickScroll} contentContainerStyle={s.quickContent}>
+        {QUICK_WORKOUTS.filter(q =>
+          quickFilter === 'Todos' || q.muscleGroups.includes(quickFilter) || (quickFilter === 'Mobilidade' && q.id === 'mobility')
+        ).map((q) => (
+          <TouchableOpacity
+            key={q.id}
+            style={[s.quickCard, { borderColor: `${q.color}40` }]}
+            activeOpacity={0.82}
+            onPress={() => navigation.navigate('ActiveWorkout', { workout: quickToWorkoutDay(q) })}
+          >
+            <View style={[s.quickIconWrap, { backgroundColor: `${q.color}20` }]}>
+              <Text style={s.quickIcon}>{q.icon}</Text>
+            </View>
+            <View style={[s.quickTag, { backgroundColor: `${q.color}18` }]}>
+              <Text style={[s.quickTagText, { color: q.color }]}>{q.tag}</Text>
+            </View>
+            <Text style={s.quickName}>{q.name}</Text>
+            <Text style={s.quickDesc} numberOfLines={2}>{q.description}</Text>
+            <Text style={[s.quickDuration, { color: q.color }]}>⏱ {q.duration} min</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
 
       {/* ── Recent history ── */}
       <View style={s.historyHeader}>
         <Text style={s.sectionTitle}>📋 Histórico Recente</Text>
-        <View style={s.historyHeaderRight}>
-          <TouchableOpacity
-            onPress={async () => {
-              try {
-                const allWorkouts = await loadHistory();
-                const weekAgo = new Date();
-                weekAgo.setDate(weekAgo.getDate() - 7);
-                const weekWorkouts = allWorkouts.filter(w => new Date(w.date) >= weekAgo);
-                const cardData = buildWeeklyCardData(weekWorkouts, hr.bpm);
-                await shareWeeklyCard(cardData);
-              } catch {
-                Alert.alert('Compartilhar', 'Não foi possível compartilhar o resumo semanal.');
-              }
-            }}
-          >
-            <Text style={s.shareLink}>📤 Semana</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => navigation.navigate('WorkoutHistory')}>
-            <Text style={s.historyLink}>Ver tudo ›</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity onPress={() => navigation.navigate('WorkoutHistory')}>
+          <Text style={s.historyLink}>Ver tudo ›</Text>
+        </TouchableOpacity>
       </View>
       {recentWorkouts.length === 0 ? (
         <View style={s.historyEmpty}>
@@ -447,6 +413,16 @@ export function HomeScreen({ navigation }: Props) {
           );
         })
       )}
+
+      {/* ── Muscle fatigue link ── */}
+      <TouchableOpacity style={s.fatigueCard} onPress={() => navigation.navigate('MuscleFatigue')} activeOpacity={0.82}>
+        <Text style={s.fatigueIcon}>🔥</Text>
+        <View style={s.fatigueInfo}>
+          <Text style={s.fatigueTitle}>Fadiga Muscular</Text>
+          <Text style={s.fatigueSub}>Veja quais músculos precisam de descanso</Text>
+        </View>
+        <Text style={s.fatigueArrow}>›</Text>
+      </TouchableOpacity>
 
       {/* ── Month grid ── */}
       <Text style={[s.sectionTitle, { marginTop: 8 }]}>📅 Plano Anual</Text>
@@ -523,6 +499,118 @@ export function HomeScreen({ navigation }: Props) {
         </>
       )}
     </ScrollView>
+
+    {/* ── Customizer Modal ── */}
+    <Modal visible={showCustomizer} animationType="slide" transparent presentationStyle="overFullScreen">
+      <View style={s.modalOverlay}>
+        <View style={s.modalSheet}>
+          <View style={s.modalHeader}>
+            <Text style={s.modalTitle}>🎯 Personalizar Treino</Text>
+            <TouchableOpacity onPress={() => setShowCustomizer(false)}>
+              <Text style={s.modalClose}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {custWorkout ? (
+              <View style={s.custResult}>
+                <Text style={s.custResultTitle}>{custWorkout.focus}</Text>
+                <Text style={s.custResultSub}>{custWorkout.duration} min · {custWorkout.exercises.length} exercícios</Text>
+                {custWorkout.exercises.map((ex, i) => (
+                  <View key={i} style={s.custExRow}>
+                    <Text style={s.custExName}>{ex.name}</Text>
+                    <Text style={s.custExMeta}>{ex.sets}×{ex.reps}</Text>
+                  </View>
+                ))}
+                <TouchableOpacity
+                  style={s.custStartBtn}
+                  onPress={() => { setShowCustomizer(false); navigation.navigate('ActiveWorkout', { workout: custWorkout }); }}
+                >
+                  <Text style={s.custStartBtnText}>▶  Iniciar Treino</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={s.custRegenBtn} onPress={() => setCustWorkout(null)}>
+                  <Text style={s.custRegenBtnText}>↺  Gerar outro</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View>
+                <Text style={s.custSection}>Grupos Musculares</Text>
+                <View style={s.custPills}>
+                  {['Peito','Costas','Ombro','Bíceps','Tríceps','Pernas','Glúteo','Abdômen','Panturrilha'].map((g) => {
+                    const sel = custGroups.includes(g);
+                    return (
+                      <TouchableOpacity
+                        key={g}
+                        style={[s.custPill, sel && s.custPillActive]}
+                        onPress={() => setCustGroups(sel ? custGroups.filter(x => x !== g) : [...custGroups, g])}
+                      >
+                        <Text style={[s.custPillText, sel && s.custPillTextActive]}>{g}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <Text style={s.custSection}>Estratégia</Text>
+                <View style={s.custPills}>
+                  {['Normal','HIIT','Biset','Triset','Pirâmide','Dropset'].map((st) => {
+                    const sel = custStrategy === st;
+                    return (
+                      <TouchableOpacity
+                        key={st}
+                        style={[s.custPill, sel && s.custPillActive]}
+                        onPress={() => setCustStrategy(sel ? '' : st)}
+                      >
+                        <Text style={[s.custPillText, sel && s.custPillTextActive]}>{st}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <Text style={s.custSection}>Duração</Text>
+                <View style={s.custRow}>
+                  {[20, 30, 45, 60].map((d) => (
+                    <TouchableOpacity
+                      key={d}
+                      style={[s.custDurBtn, custDuration === d && s.custDurBtnActive]}
+                      onPress={() => setCustDuration(d)}
+                    >
+                      <Text style={[s.custDurText, custDuration === d && s.custDurTextActive]}>{d}min</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={s.custSection}>Equipamento</Text>
+                <View style={s.custPills}>
+                  {['academia','casa (sem equipamento)','halters apenas','calistenia'].map((eq) => {
+                    const sel = custEquipment === eq;
+                    return (
+                      <TouchableOpacity
+                        key={eq}
+                        style={[s.custPill, sel && s.custPillActive]}
+                        onPress={() => setCustEquipment(eq)}
+                      >
+                        <Text style={[s.custPillText, sel && s.custPillTextActive]}>{eq}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <TouchableOpacity
+                  style={[s.custGenBtn, custLoading && { opacity: 0.6 }]}
+                  onPress={handleGenerateCustom}
+                  disabled={custLoading}
+                >
+                  {custLoading ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={s.custGenBtnText}>🤖  Gerar Treino com IA</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
     </SafeAreaView>
   );
 }
@@ -644,6 +732,15 @@ const s = StyleSheet.create({
   tipText: { color: C.text2, fontSize: 14, lineHeight: 20, flex: 1 },
 
   // Quick workouts
+  quickHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  customizerBtn: { backgroundColor: C.primaryGlow, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(124,58,237,0.4)' },
+  customizerBtnText: { color: C.primaryLight, fontSize: 12, fontWeight: '700' },
+  filterScroll: { marginHorizontal: -16, marginBottom: 10 },
+  filterContent: { paddingHorizontal: 16, gap: 8 },
+  filterChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border },
+  filterChipActive: { backgroundColor: C.primaryGlow, borderColor: C.primary },
+  filterChipText: { color: C.text3, fontSize: 12, fontWeight: '600' },
+  filterChipTextActive: { color: C.primaryLight },
   quickScroll: { marginHorizontal: -16, marginBottom: 20 },
   quickContent: { paddingHorizontal: 16, gap: 10 },
   quickCard: {
@@ -657,29 +754,10 @@ const s = StyleSheet.create({
   quickName: { color: C.text1, fontSize: 14, fontWeight: '800' },
   quickDesc: { color: C.text3, fontSize: 11, lineHeight: 15 },
   quickDuration: { fontSize: 12, fontWeight: '700', marginTop: 2 },
-  quickFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 },
-  quickCustomBtn: { backgroundColor: C.elevated, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  quickCustomBtnText: { color: C.text3, fontSize: 10 },
-
-  // Section header row
-  sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-
-  // Heart rate badge (top bar)
-  topBarActions: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  hrBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: C.surface, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6,
-    borderWidth: 1, borderColor: C.border,
-  },
-  hrBadgeIcon: { fontSize: 14 },
-  hrBadgeBpm: { fontSize: 13, fontWeight: '700' },
-  hrBadgeIdle: { color: C.text3, fontSize: 13 },
 
   // History preview
   historyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  historyHeaderRight: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   historyLink: { color: C.primaryLight, fontSize: 13, fontWeight: '700' },
-  shareLink: { color: C.success, fontSize: 13, fontWeight: '700' },
   historyEmpty: { backgroundColor: C.surface, borderRadius: 14, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: C.border },
   historyEmptyText: { color: C.text3, fontSize: 13, textAlign: 'center', lineHeight: 19 },
   historyCard: {
@@ -694,44 +772,64 @@ const s = StyleSheet.create({
   historyCardDur: { color: C.primaryLight, fontSize: 13, fontWeight: '700' },
   historyCardSets: { color: C.text3, fontSize: 11, marginTop: 2 },
 
-  // Carousel customise modal
+  // Daily suggestion card
+  suggestionCard: {
+    backgroundColor: C.surface, borderRadius: 16, padding: 16, marginBottom: 16,
+    borderWidth: 1, borderColor: 'rgba(167,139,250,0.3)',
+  },
+  suggestionLoading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  suggestionLoadingText: { color: C.text3, fontSize: 13 },
+  suggestionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 12 },
+  suggestionIcon: { fontSize: 32 },
+  suggestionHeaderText: { flex: 1 },
+  suggestionLabel: { color: C.primaryLight, fontSize: 10, fontWeight: '700', letterSpacing: 1.2 },
+  suggestionTitle: { color: C.text1, fontSize: 16, fontWeight: '800', marginTop: 2 },
+  suggestionReason: { color: C.text2, fontSize: 13, lineHeight: 19, marginBottom: 12 },
+  suggestionBtn: { backgroundColor: C.primary, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
+  suggestionBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+
+  // Customizer modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  customiseSheet: {
+  modalSheet: {
     backgroundColor: C.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    padding: 24, gap: 12,
-    borderTopWidth: 1, borderColor: C.border,
+    padding: 20, maxHeight: '85%',
   },
-  customiseTitle: { color: C.text1, fontSize: 18, fontWeight: '800' },
-  customiseSubtitle: { color: C.text3, fontSize: 13, marginBottom: 4 },
-  groupChipRow: { gap: 8, paddingVertical: 2, marginBottom: 8 },
-  groupChip: {
-    backgroundColor: C.elevated,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: C.border,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  modalTitle: { color: C.text1, fontSize: 18, fontWeight: '800' },
+  modalClose: { color: C.text3, fontSize: 20, padding: 4 },
+  custSection: { color: C.text2, fontSize: 13, fontWeight: '700', marginBottom: 8, marginTop: 4 },
+  custPills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
+  custPill: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: C.elevated, borderWidth: 1, borderColor: C.border },
+  custPillActive: { backgroundColor: C.primaryGlow, borderColor: C.primary },
+  custPillText: { color: C.text2, fontSize: 13, fontWeight: '600' },
+  custPillTextActive: { color: C.primaryLight },
+  custRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+  custDurBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, backgroundColor: C.elevated, borderWidth: 1, borderColor: C.border, alignItems: 'center' },
+  custDurBtnActive: { backgroundColor: C.primaryGlow, borderColor: C.primary },
+  custDurText: { color: C.text2, fontSize: 14, fontWeight: '700' },
+  custDurTextActive: { color: C.primaryLight },
+  custGenBtn: { backgroundColor: C.primary, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 8, marginBottom: 20 },
+  custGenBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  custResult: { paddingBottom: 20 },
+  custResultTitle: { color: C.text1, fontSize: 20, fontWeight: '900', marginBottom: 4 },
+  custResultSub: { color: C.text3, fontSize: 13, marginBottom: 14 },
+  custExRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.border },
+  custExName: { color: C.text2, fontSize: 14, flex: 1 },
+  custExMeta: { color: C.primaryLight, fontSize: 13, fontWeight: '700' },
+  custStartBtn: { backgroundColor: C.primary, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 16 },
+  custStartBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  custRegenBtn: { borderRadius: 14, paddingVertical: 12, alignItems: 'center', marginTop: 8, borderWidth: 1, borderColor: C.border },
+  custRegenBtnText: { color: C.text2, fontSize: 14, fontWeight: '600' },
+
+  // Muscle fatigue card
+  fatigueCard: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: C.surface, borderRadius: 14, padding: 14,
+    marginBottom: 16, borderWidth: 1, borderColor: 'rgba(239,68,68,0.25)', gap: 12,
   },
-  groupChipActive: { borderColor: C.primary, backgroundColor: C.primaryGlow },
-  groupChipText: { color: C.text2, fontSize: 12, fontWeight: '600' },
-  groupChipTextActive: { color: C.primaryLight },
-  customiseRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: C.elevated, borderRadius: 12, padding: 12,
-    borderWidth: 1, borderColor: C.border,
-  },
-  customiseRowOn: { borderColor: 'rgba(124,58,237,0.4)' },
-  customiseCheck: {
-    width: 24, height: 24, borderRadius: 6, backgroundColor: C.border,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  customiseCheckText: { color: '#fff', fontSize: 13, fontWeight: '700' },
-  customiseExInfo: { flex: 1 },
-  customiseExName: { color: C.text1, fontSize: 14, fontWeight: '600' },
-  customiseExMeta: { color: C.text3, fontSize: 12, marginTop: 2 },
-  customiseBtns: { flexDirection: 'row', gap: 10, marginTop: 8 },
-  customiseReset: { flex: 1, backgroundColor: C.elevated, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: C.border },
-  customiseResetText: { color: C.text2, fontSize: 14, fontWeight: '600' },
-  customiseDone: { flex: 1, backgroundColor: C.primary, borderRadius: 12, padding: 12, alignItems: 'center' },
-  customiseDoneText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  fatigueIcon: { fontSize: 28 },
+  fatigueInfo: { flex: 1 },
+  fatigueTitle: { color: C.text1, fontWeight: '700', fontSize: 15 },
+  fatigueSub: { color: C.text3, fontSize: 12, marginTop: 2 },
+  fatigueArrow: { color: C.text3, fontSize: 22 },
 });

@@ -1,123 +1,180 @@
 import { CompletedWorkout } from '../types';
 
 export const MUSCLE_GROUPS = [
-  'Peito',
-  'Dorsal',
-  'Ombro',
-  'Trapézio',
-  'Bíceps',
-  'Tríceps',
-  'Antebraço',
-  'Core',
-  'Posterior',
-  'Glúteo',
-  'Quadríceps',
-  'Panturrilha',
-  'Adutor/Abdutor',
-] as const;
-
-export type MuscleGroup = typeof MUSCLE_GROUPS[number];
-export const FRONT_MUSCLE_GROUPS: MuscleGroup[] = [
-  'Peito', 'Ombro', 'Bíceps', 'Tríceps', 'Core', 'Quadríceps', 'Adutor/Abdutor', 'Panturrilha',
-];
-export const BACK_MUSCLE_GROUPS: MuscleGroup[] = [
-  'Dorsal', 'Trapézio', 'Antebraço', 'Posterior', 'Glúteo',
+  'Peito', 'Costas', 'Ombro', 'Trapézio', 'Bíceps', 'Tríceps',
+  'Quadríceps', 'Posterior', 'Glúteo', 'Panturrilha', 'Abdômen',
 ];
 
-export const EXERCISE_MUSCLE_MAP: Record<string, MuscleGroup[]> = {
-  'Supino Reto': ['Peito', 'Tríceps'],
-  'Remada Curvada': ['Dorsal', 'Bíceps', 'Trapézio'],
-  Desenvolvimento: ['Ombro', 'Tríceps'],
-  'Puxada Frontal': ['Dorsal', 'Bíceps'],
-  'Agachamento Livre': ['Quadríceps', 'Glúteo', 'Adutor/Abdutor'],
-  'Leg Press': ['Quadríceps', 'Glúteo'],
-  'Cadeira Extensora': ['Quadríceps'],
-  'Rosca Direta': ['Bíceps', 'Antebraço'],
-  'Tríceps Pulley': ['Tríceps'],
-  'Elevação Lateral': ['Ombro', 'Trapézio'],
-  'Thruster (barra)': ['Ombro', 'Quadríceps', 'Glúteo'],
-  'Pull-up': ['Dorsal', 'Bíceps', 'Antebraço'],
-  'Box Jump': ['Quadríceps', 'Panturrilha', 'Glúteo'],
-  'Kettlebell Swing': ['Posterior', 'Glúteo', 'Core'],
-  Prancha: ['Core'],
-  'Abdominal Bici': ['Core'],
-  'Russian Twist': ['Core'],
-  Burpee: ['Peito', 'Quadríceps', 'Core'],
-  'Mountain Climber': ['Core', 'Ombro'],
-  'Jump Squat': ['Quadríceps', 'Glúteo'],
-  'High Knees': ['Quadríceps', 'Panturrilha'],
-};
+// Maps exercise names (PT-BR, lowercase key for fuzzy matching) → primary muscles trained
+const EXERCISE_MUSCLE_MAP: [RegExp, string[]][] = [
+  // Peito
+  [/supino/i,           ['Peito', 'Tríceps', 'Ombro']],
+  [/crucifixo/i,        ['Peito']],
+  [/flexão|push.?up/i, ['Peito', 'Tríceps']],
+  [/pull.?over/i,       ['Peito', 'Costas']],
 
-export type MuscleFatigue = {
-  group: MuscleGroup;
-  fatigue: number; // 0-100
-  lastTrainedDays: number | null;
-};
+  // Costas
+  [/puxada/i,           ['Costas', 'Bíceps']],
+  [/remada/i,           ['Costas', 'Bíceps']],
+  [/levantamento terra|deadlift/i, ['Costas', 'Posterior', 'Glúteo']],
+  [/barra fixa|pull.?up|chin.?up/i, ['Costas', 'Bíceps']],
+  [/serrote|row/i,      ['Costas']],
 
-const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
-const LOOKBACK_DAYS = 7;
+  // Ombro
+  [/desenvolvimento|press.*ombro|militar/i, ['Ombro', 'Tríceps']],
+  [/elevação lateral/i, ['Ombro']],
+  [/elevação frontal/i, ['Ombro']],
+  [/arnold/i,           ['Ombro']],
+  [/encolhimento|shrug/i, ['Trapézio']],
 
-function clamp(v: number, min = 0, max = 100): number {
-  return Math.max(min, Math.min(max, v));
+  // Bíceps
+  [/rosca/i,            ['Bíceps']],
+
+  // Tríceps
+  [/tríceps|triceps|mergulho|dip/i, ['Tríceps']],
+  [/extensão.*tríceps|extensão.*braço/i, ['Tríceps']],
+
+  // Quadríceps / Pernas
+  [/agachamento|squat/i, ['Quadríceps', 'Glúteo', 'Posterior']],
+  [/leg press/i,         ['Quadríceps', 'Glúteo']],
+  [/cadeira extensora|leg extension/i, ['Quadríceps']],
+  [/hack squat/i,        ['Quadríceps', 'Glúteo']],
+  [/avanço|lunges?/i,    ['Quadríceps', 'Glúteo']],
+  [/búlgaro|bulgarian/i, ['Quadríceps', 'Glúteo']],
+  [/jump squat|box jump/i, ['Quadríceps', 'Glúteo']],
+  [/thruster/i,          ['Quadríceps', 'Ombro']],
+
+  // Posterior / Isquio
+  [/cadeira flexora|leg curl|mesa flexora/i, ['Posterior']],
+  [/stiff|peso morto romeno|rdl/i,           ['Posterior', 'Glúteo']],
+
+  // Glúteo
+  [/hip thrust|elevação pélvica|glúteo/i, ['Glúteo']],
+  [/abdução|abdutor/i,                     ['Glúteo']],
+
+  // Panturrilha
+  [/gêmeos|panturrilha|calf/i, ['Panturrilha']],
+
+  // Abdômen / Core
+  [/prancha|plank/i,         ['Abdômen']],
+  [/abdominal|crunch|sit.?up/i, ['Abdômen']],
+  [/russian twist/i,         ['Abdômen']],
+  [/elevação de perna/i,     ['Abdômen']],
+  [/mountain climber/i,      ['Abdômen', 'Ombro']],
+
+  // HIIT / Funcional
+  [/burpee/i,          ['Peito', 'Quadríceps', 'Abdômen']],
+  [/high knees/i,      ['Quadríceps']],
+  [/kettlebell swing/i, ['Glúteo', 'Posterior', 'Costas']],
+];
+
+function musclesForExercise(name: string): string[] {
+  for (const [pattern, muscles] of EXERCISE_MUSCLE_MAP) {
+    if (pattern.test(name)) return muscles;
+  }
+  return []; // unmapped
 }
 
-function recencyWeight(daysAgo: number): number {
-  if (daysAgo <= 1) return 1;
-  if (daysAgo === 2) return 0.85;
-  if (daysAgo === 3) return 0.7;
-  if (daysAgo === 4) return 0.55;
-  if (daysAgo === 5) return 0.4;
-  if (daysAgo === 6) return 0.25;
-  return 0.1;
+export interface FatigueScore {
+  group: string;
+  score: number;           // 0–100
+  lastDaysAgo: number | null; // days since last workout that trained this group
+  totalSets: number;       // sets in last 7 days
 }
 
-export function computeMuscleFatigue(history: CompletedWorkout[], now = new Date()): MuscleFatigue[] {
-  /**
-   * Fatigue score model:
-   * - Looks at completed workouts in the last 7 days.
-   * - Adds volume as completed sets (or target sets if not marked as done).
-   * - Applies a recency weight (yesterday weighs more than 6-7 days ago).
-   * - Normalizes all muscle totals to a 0-100 scale where 100 is the highest
-   *   relative fatigue among groups in the selected period.
-   */
-  const scores: Record<MuscleGroup, number> = Object.fromEntries(
-    MUSCLE_GROUPS.map((g) => [g, 0]),
-  ) as Record<MuscleGroup, number>;
-  const lastDate: Partial<Record<MuscleGroup, number>> = {};
+export function calculateFatigue(history: CompletedWorkout[]): FatigueScore[] {
+  const now = Date.now();
+  const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+  const recent = history.filter(w => now - new Date(w.date).getTime() <= SEVEN_DAYS_MS);
 
-  const nowTs = now.getTime();
-  const lookbackStart = nowTs - LOOKBACK_DAYS * MILLISECONDS_PER_DAY;
+  const setsPerGroup: Record<string, number> = {};
+  const lastTrainedMs: Record<string, number> = {};
 
-  for (const workout of history) {
-    const ts = new Date(workout.date).getTime();
-    if (Number.isNaN(ts) || ts < lookbackStart || ts > nowTs) continue;
-
-    const daysAgo = Math.floor((nowTs - ts) / MILLISECONDS_PER_DAY);
-    const weight = recencyWeight(daysAgo);
-
+  for (const workout of recent) {
+    const workoutTs = new Date(workout.date).getTime();
     for (const ex of workout.exercises) {
-      const groups = EXERCISE_MUSCLE_MAP[ex.name];
-      if (!groups || groups.length === 0) continue;
-      const doneSets = ex.sets.filter((s) => s.done).length;
-      const setsCount = doneSets > 0 ? doneSets : ex.targetSets;
-      for (const g of groups) {
-        scores[g] += setsCount * weight;
-        if (lastDate[g] === undefined || ts > lastDate[g]!) {
-          lastDate[g] = ts;
+      const muscles = musclesForExercise(ex.name);
+      const doneSets = ex.sets.filter(s => s.done).length || ex.targetSets;
+      for (const muscle of muscles) {
+        // Recency weight: more recent = higher weight (0.14 for 7d ago → 1.0 for today)
+        const daysAgo = (now - workoutTs) / (24 * 60 * 60 * 1000);
+        const recencyWeight = Math.max(0.1, 1 - daysAgo / 8);
+        setsPerGroup[muscle] = (setsPerGroup[muscle] ?? 0) + doneSets * recencyWeight;
+        if (!lastTrainedMs[muscle] || workoutTs > lastTrainedMs[muscle]) {
+          lastTrainedMs[muscle] = workoutTs;
         }
       }
     }
   }
 
-  const maxScore = Math.max(1, ...Object.values(scores));
+  // Max plausible weighted sets in 7 days to normalize score: ~30 (5 sets × 6 days)
+  const NORMALIZATION = 30;
 
   return MUSCLE_GROUPS.map((group) => {
-    const ts = lastDate[group];
-    const lastTrainedDays = ts !== undefined ? Math.floor((nowTs - ts) / MILLISECONDS_PER_DAY) : null;
-    return {
-      group,
-      fatigue: clamp(Math.round((scores[group] / maxScore) * 100)),
-      lastTrainedDays,
-    };
+    const weighted = setsPerGroup[group] ?? 0;
+    const score = Math.min(100, Math.round((weighted / NORMALIZATION) * 100));
+    const lastMs = lastTrainedMs[group];
+    const lastDaysAgo = lastMs
+      ? Math.round((now - lastMs) / (24 * 60 * 60 * 1000))
+      : null;
+    return { group, score, lastDaysAgo, totalSets: Math.round(weighted) };
+  });
+}
+
+export function fatigueColor(score: number): string {
+  if (score < 34) return '#10B981'; // green — recovered
+  if (score < 67) return '#F59E0B'; // yellow — moderate
+  return '#EF4444';                  // red — fatigued
+}
+
+export function fatigueLabel(score: number): string {
+  if (score < 34) return 'Recuperado';
+  if (score < 67) return 'Moderado';
+  return 'Fatigado';
+}
+
+export interface MuscleFatigueEntry {
+  group: string;
+  fatigue: number;
+  lastTrainedDays: number | null;
+}
+
+export function computeMuscleFatigue(
+  history: CompletedWorkout[],
+  now: Date = new Date(),
+): MuscleFatigueEntry[] {
+  const nowMs = now.getTime();
+  const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+  const recent = history.filter(w => nowMs - new Date(w.date).getTime() <= SEVEN_DAYS_MS);
+
+  const setsPerGroup: Record<string, number> = {};
+  const lastTrainedMs: Record<string, number> = {};
+
+  for (const workout of recent) {
+    const workoutTs = new Date(workout.date).getTime();
+    for (const ex of workout.exercises) {
+      const muscles = musclesForExercise(ex.name);
+      const doneSets = ex.sets.filter(s => s.done).length || ex.targetSets;
+      for (const muscle of muscles) {
+        const daysAgo = (nowMs - workoutTs) / (24 * 60 * 60 * 1000);
+        const recencyWeight = Math.max(0.1, 1 - daysAgo / 8);
+        setsPerGroup[muscle] = (setsPerGroup[muscle] ?? 0) + doneSets * recencyWeight;
+        if (!lastTrainedMs[muscle] || workoutTs > lastTrainedMs[muscle]) {
+          lastTrainedMs[muscle] = workoutTs;
+        }
+      }
+    }
+  }
+
+  const NORMALIZATION = 30;
+
+  return MUSCLE_GROUPS.map((group) => {
+    const weighted = setsPerGroup[group] ?? 0;
+    const fatigue = Math.min(100, Math.round((weighted / NORMALIZATION) * 100));
+    const lastMs = lastTrainedMs[group];
+    const lastTrainedDays = lastMs
+      ? Math.round((nowMs - lastMs) / (24 * 60 * 60 * 1000))
+      : null;
+    return { group, fatigue, lastTrainedDays };
   });
 }

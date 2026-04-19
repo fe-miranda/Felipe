@@ -1,35 +1,24 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  StyleSheet,
-  Modal,
-  Alert,
-  Vibration,
-  KeyboardAvoidingView,
-  Platform,
-  AppState,
-  AppStateStatus,
+  View, Text, TextInput, TouchableOpacity, ScrollView,
+  StyleSheet, Modal, Alert, Vibration, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import ViewShot, { captureRef } from 'react-native-view-shot';
+import * as Sharing from 'expo-sharing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList, ExerciseLog, SetLog, CompletedWorkout } from '../types';
 import { getExerciseAlternatives } from '../services/aiService';
 import { saveWorkout } from '../services/workoutHistoryService';
-import { useHeartRate } from '../hooks/useHeartRate';
-import { hrZoneColor, hrZoneLabel } from '../services/heartRateService';
-import { shareWorkoutCard, shareWorkoutStory } from '../services/shareService';
 import {
-  showWorkoutStartedNotification,
-  updateWorkoutElapsedNotification,
-  scheduleRestEndNotification,
-  cancelRestNotification,
-  cancelAllWorkoutNotifications,
+  setupNotifications, scheduleRestEndNotification, cancelRestNotification,
+  startWorkoutNotification, updateWorkoutNotification, stopWorkoutNotification,
+  setRestActionCallback,
 } from '../services/notificationService';
+import { WorkoutSummaryCard } from '../components/WorkoutSummaryCard';
+import { WorkoutStoryCard } from '../components/WorkoutStoryCard';
+import * as MediaLibrary from 'expo-media-library';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'ActiveWorkout'>;
@@ -39,136 +28,119 @@ type Props = {
 const C = {
   bg: '#07070F', surface: '#0F0F1A', elevated: '#161625', border: '#1E1E30',
   primary: '#7C3AED', primaryLight: '#A78BFA', primaryGlow: 'rgba(124,58,237,0.15)',
-  success: '#10B981', warning: '#F59E0B',
+  success: '#10B981', warning: '#F59E0B', danger: '#EF4444',
   text1: '#F1F5F9', text2: '#94A3B8', text3: '#475569',
 };
 
 function pad2(n: number) { return String(n).padStart(2, '0'); }
 function fmtTime(s: number) { return `${pad2(Math.floor(s / 60))}:${pad2(s % 60)}`; }
 
-function buildExerciseLogs(workout: Props['route']['params']['workout']): ExerciseLog[] {
+function buildLogs(workout: Props['route']['params']['workout']): ExerciseLog[] {
   return workout.exercises.map(ex => ({
     name: ex.name,
     targetSets: ex.sets,
     targetReps: ex.reps,
     rest: ex.rest,
-    sets: Array.from<SetLog>({ length: ex.sets }, () => ({ load: '', reps: '', done: false })),
+    sets: Array.from({ length: ex.sets }, (): SetLog => ({ load: '', reps: '', done: false })),
   }));
 }
 
 export function ActiveWorkoutScreen({ navigation, route }: Props) {
   const { workout, context } = route.params;
   const insets = useSafeAreaInsets();
-  const hr = useHeartRate();
+  const shareRef = useRef<View>(null);
+  const storyRef = useRef<View>(null);
 
-  // ── Timer state ──
-  // Elapsed time is derived from a stored start timestamp so it remains
-  // accurate when the app goes to the background (screen locked, etc.).
-  const workoutStartRef = useRef<number>(Date.now());    // epoch ms when workout started
-  const [elapsed, setElapsed] = useState(0);             // seconds, recomputed from timestamp
-
-  // Rest countdown — tracked via the deadline timestamp so background time counts.
+  // ── Timer ──
+  const [elapsed, setElapsed] = useState(0);
   const [restActive, setRestActive] = useState(false);
-  const restDeadlineRef = useRef<number | null>(null);   // epoch ms when rest should end
   const [restRemaining, setRestRemaining] = useState(0);
   const [restDuration, setRestDuration] = useState(90);
   const [showRestConfig, setShowRestConfig] = useState(false);
   const [restInput, setRestInput] = useState('90');
 
-  // ── Exercise state ──
-  const [exercises, setExercises] = useState<ExerciseLog[]>(() => buildExerciseLogs(workout));
+  // ── Exercises ──
+  const [exercises, setExercises] = useState<ExerciseLog[]>(() => buildLogs(workout));
 
-  // ── Substitution state ──
+  // ── Substitution ──
   const [showAlts, setShowAlts] = useState(false);
   const [selectedExIdx, setSelectedExIdx] = useState<number | null>(null);
   const [alternatives, setAlternatives] = useState<string[]>([]);
   const [loadingAlts, setLoadingAlts] = useState(false);
 
+  // ── HR input ──
+  const [hrBpm, setHrBpm] = useState('');
+  const [showHrModal, setShowHrModal] = useState(false);
+
+  // ── Share / finish ──
+  const [savedWorkout, setSavedWorkout] = useState<CompletedWorkout | null>(null);
+  const [showShare, setShowShare] = useState(false);
+  const [sharing, setSharing] = useState(false);
+
   const elapsedRef = useRef(0);
   elapsedRef.current = elapsed;
 
-  // ── Tick function — recalculates both timers from timestamps ──────────────
-  const tick = useCallback(() => {
-    const nowMs = Date.now();
+  // Keep a stable ref so the notification callback always calls the latest startRest
+  const startRestRef = useRef<() => void>(() => {});
 
-    // Elapsed stopwatch
-    const elapsedSec = Math.floor((nowMs - workoutStartRef.current) / 1000);
-    setElapsed(elapsedSec);
-
-    // Rest countdown
-    if (restDeadlineRef.current !== null) {
-      const remaining = Math.ceil((restDeadlineRef.current - nowMs) / 1000);
-      if (remaining <= 0) {
-        restDeadlineRef.current = null;
-        setRestActive(false);
-        setRestRemaining(0);
-        Vibration.vibrate([0, 300, 150, 300, 150, 500]);
-      } else {
-        setRestRemaining(remaining);
-      }
-    }
+  // Stopwatch
+  useEffect(() => {
+    const id = setInterval(() => setElapsed(e => e + 1), 1000);
+    return () => clearInterval(id);
   }, []);
 
-  // Stopwatch — ticks every second while screen is foregrounded.
-  // On resume from background, tick() immediately resynchronises from timestamps.
+  // Update workout notification every 10s
   useEffect(() => {
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [tick]);
+    if (elapsed > 0 && elapsed % 10 === 0) {
+      updateWorkoutNotification(elapsed);
+    }
+  }, [elapsed]);
 
-  // AppState listener — resync timers immediately when app returns to foreground.
+  // Rest countdown
   useEffect(() => {
-    const handleAppState = (nextState: AppStateStatus) => {
-      if (nextState === 'active') {
-        tick();
-      }
-    };
-    const sub = AppState.addEventListener('change', handleAppState);
-    return () => sub.remove();
-  }, [tick]);
-
-  // Show a persistent notification when the workout starts so the user
-  // can see it on the lock screen / notification shade.
-  useEffect(() => {
-    showWorkoutStartedNotification(workout.focus);
-    return () => {
-      // Clean up all workout notifications when leaving the screen
-      cancelAllWorkoutNotifications();
-    };
-  }, [workout.focus]);
-
-  // Update lock-screen notification body every 30 seconds.
-  useEffect(() => {
+    if (!restActive || restRemaining <= 0) return;
     const id = setInterval(() => {
-      updateWorkoutElapsedNotification(workout.focus, elapsedRef.current);
-    }, 30000);
+      setRestRemaining(r => {
+        if (r <= 1) {
+          setRestActive(false);
+          cancelRestNotification();
+          Vibration.vibrate([0, 300, 150, 300, 150, 500]);
+          return 0;
+        }
+        return r - 1;
+      });
+    }, 1000);
     return () => clearInterval(id);
-  }, [workout.focus]);
+  }, [restActive, restRemaining]);
 
   const startRest = useCallback((dur?: number) => {
     const d = dur ?? restDuration;
-    restDeadlineRef.current = Date.now() + d * 1000;
     setRestRemaining(d);
     setRestActive(true);
-    // Schedule a notification that fires when the rest period ends
-    scheduleRestEndNotification(d, workout.focus);
-  }, [restDuration, workout.focus]);
+    scheduleRestEndNotification(d);
+  }, [restDuration]);
+
+  // Keep ref in sync and register notification callback
+  startRestRef.current = startRest;
+  useEffect(() => {
+    setupNotifications().then(() => startWorkoutNotification(0));
+    setRestActionCallback(() => startRestRef.current());
+    return () => { stopWorkoutNotification(); setRestActionCallback(null); };
+  }, []);
 
   const stopRest = useCallback(() => {
-    restDeadlineRef.current = null;
     setRestActive(false);
     setRestRemaining(0);
-    // User ended rest early — cancel the pending notification
     cancelRestNotification();
   }, []);
 
   const applyRestConfig = useCallback(() => {
-    const parsed = parseInt(restInput, 10);
-    if (!isNaN(parsed) && parsed >= 10 && parsed <= 600) {
-      setRestDuration(parsed);
+    const v = parseInt(restInput, 10);
+    if (!isNaN(v) && v >= 10 && v <= 600) {
+      setRestDuration(v);
       setShowRestConfig(false);
     } else {
-      Alert.alert('Valor inválido', 'Digite um tempo entre 10 e 600 segundos.');
+      Alert.alert('Inválido', 'Digite entre 10 e 600 segundos.');
     }
   }, [restInput]);
 
@@ -201,13 +173,11 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
     setShowAlts(true);
     try {
       const alts = await getExerciseAlternatives(
-        exercises[exIdx].name,
-        workout.focus,
-        exercises.map(e => e.name),
+        exercises[exIdx].name, workout.focus, exercises.map(e => e.name),
       );
-      setAlternatives(alts.length ? alts : ['Exercício Alternativo 1', 'Exercício Alternativo 2', 'Exercício Alternativo 3']);
+      setAlternatives(alts.length ? alts : ['Alternativa 1', 'Alternativa 2', 'Alternativa 3']);
     } catch {
-      setAlternatives(['Exercício Alternativo 1', 'Exercício Alternativo 2', 'Exercício Alternativo 3']);
+      setAlternatives(['Alternativa 1', 'Alternativa 2', 'Alternativa 3']);
     } finally {
       setLoadingAlts(false);
     }
@@ -218,8 +188,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
     setExercises(prev => {
       const next = [...prev];
       next[selectedExIdx] = {
-        ...next[selectedExIdx],
-        name,
+        ...next[selectedExIdx], name,
         sets: next[selectedExIdx].sets.map(s => ({ ...s, done: false })),
       };
       return next;
@@ -229,15 +198,8 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
 
   const confirmExit = useCallback(() => {
     Alert.alert('Sair do treino', 'O progresso não será salvo. Deseja sair?', [
-      { text: 'Continuar treino', style: 'cancel' },
-      {
-        text: 'Sair',
-        style: 'destructive',
-        onPress: () => {
-          cancelAllWorkoutNotifications();
-          navigation.goBack();
-        },
-      },
+      { text: 'Continuar', style: 'cancel' },
+      { text: 'Sair', style: 'destructive', onPress: () => { stopWorkoutNotification(); navigation.goBack(); } },
     ]);
   }, [navigation]);
 
@@ -246,12 +208,13 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
     const total = exercises.reduce((a, e) => a + e.sets.length, 0);
     Alert.alert(
       'Finalizar Treino',
-      `${done}/${total} séries concluídas.\nDeseja salvar no histórico?`,
+      `${done}/${total} séries concluídas.\nSalvar no histórico?`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
-          text: 'Salvar Treino',
+          text: 'Salvar',
           onPress: async () => {
+            stopWorkoutNotification();
             const log: CompletedWorkout = {
               id: String(Date.now()),
               date: new Date().toISOString(),
@@ -262,59 +225,54 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
               ...context,
             };
             await saveWorkout(log);
-            cancelAllWorkoutNotifications();
-            // Offer to share the workout card
-            Alert.alert(
-              'Treino Salvo! 🎉',
-              'Quer compartilhar seu resultado?',
-              [
-                { text: 'Agora não', onPress: () => navigation.navigate('WorkoutHistory') },
-                {
-                  text: 'Cartão Quadrado 📤',
-                  onPress: async () => {
-                    try {
-                      await shareWorkoutCard({
-                        workout: log,
-                        heartRateSamples: hr.samples,
-                      });
-                    } catch {
-                      // ignore share errors
-                    }
-                    navigation.navigate('WorkoutHistory');
-                  },
-                },
-                {
-                  text: 'Story (vertical) 📸',
-                  onPress: async () => {
-                    try {
-                      await shareWorkoutStory({
-                        workout: log,
-                        heartRateSamples: hr.samples,
-                      });
-                    } catch {
-                      // ignore share errors
-                    }
-                    navigation.navigate('WorkoutHistory');
-                  },
-                },
-              ],
-            );
+            setSavedWorkout(log);
+            setShowShare(true);
           },
         },
       ],
     );
-  }, [exercises, workout, context, navigation, hr.samples]);
+  }, [exercises, workout, context]);
+
+  const handleShare = useCallback(async () => {
+    if (!shareRef.current) return;
+    setSharing(true);
+    try {
+      const uri = await captureRef(shareRef, { format: 'png', quality: 0.95 });
+      await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: 'Compartilhar treino' });
+    } catch {
+      Alert.alert('Erro', 'Não foi possível compartilhar. Tente novamente.');
+    } finally {
+      setSharing(false);
+    }
+  }, []);
+
+  const handleShareStory = useCallback(async () => {
+    if (!storyRef.current) return;
+    setSharing(true);
+    try {
+      const uri = await captureRef(storyRef, { format: 'png', quality: 0.95 });
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status === 'granted') {
+        await MediaLibrary.saveToLibraryAsync(uri);
+        Alert.alert('Salvo!', 'Story salvo na galeria. Abra o Instagram e cole nos Stories!', [{ text: 'OK' }]);
+      }
+      await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: 'Compartilhar Story' });
+    } catch {
+      Alert.alert('Erro', 'Não foi possível gerar o story. Tente novamente.');
+    } finally {
+      setSharing(false);
+    }
+  }, []);
 
   const doneCount = exercises.reduce((a, e) => a + e.sets.filter(s => s.done).length, 0);
   const totalSets = exercises.reduce((a, e) => a + e.sets.length, 0);
   const progress = totalSets > 0 ? doneCount / totalSets : 0;
+  const avgHr = hrBpm ? parseInt(hrBpm, 10) : undefined;
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: C.bg }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      {/* ── Sticky header ── */}
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: C.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+
+      {/* ── Header ── */}
       <View style={[s.header, { paddingTop: insets.top + 8 }]}>
         <View style={s.headerRow}>
           <TouchableOpacity onPress={confirmExit} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
@@ -324,50 +282,33 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
             <Text style={s.headerTitle} numberOfLines={1}>{workout.focus}</Text>
             <Text style={s.headerSub}>{workout.dayOfWeek}</Text>
           </View>
+          {/* HR badge */}
+          <TouchableOpacity style={s.hrBadge} onPress={() => setShowHrModal(true)}>
+            <Text style={s.hrBadgeText}>❤️ {hrBpm || '—'}</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={s.finishBtn} onPress={finishWorkout}>
             <Text style={s.finishBtnText}>Finalizar</Text>
           </TouchableOpacity>
         </View>
 
-        {/* ── Timer + progress bar ── */}
+        {/* Timer bar */}
         <View style={s.timerBar}>
           <View style={s.elapsed}>
             <Text style={s.timerLabel}>TEMPO</Text>
             <Text style={s.timerValue}>{fmtTime(elapsed)}</Text>
           </View>
 
-          {/* Heart-rate badge */}
-          <TouchableOpacity
-            style={[s.hrBadge, hr.status === 'connected' && { borderColor: hrZoneColor(hr.bpm) }]}
-            onPress={() => hr.status === 'connected' ? hr.disconnect() : hr.connect()}
-          >
-            <Text style={s.hrBadgeIcon}>❤️</Text>
-            {hr.status === 'connected' && hr.bpm !== null ? (
-              <View>
-                <Text style={[s.hrBadgeBpm, { color: hrZoneColor(hr.bpm) }]}>{hr.bpm} bpm</Text>
-                <Text style={[s.hrBadgeZone, { color: hrZoneColor(hr.bpm) }]}>{hrZoneLabel(hr.bpm)}</Text>
-              </View>
-            ) : (
-              <Text style={s.hrBadgeIdle}>
-                {hr.status === 'scanning' || hr.status === 'connecting' ? 'Conectando…' : 'Conectar'}
-              </Text>
-            )}
-          </TouchableOpacity>
-
           {restActive ? (
             <TouchableOpacity style={s.restActive} onPress={stopRest} activeOpacity={0.8}>
-              <Text style={s.restActiveLabel}>DESCANSO — toque para cancelar</Text>
+              <Text style={s.restActiveLabel}>DESCANSO · toque para cancelar</Text>
               <Text style={s.restActiveValue}>{fmtTime(restRemaining)}</Text>
             </TouchableOpacity>
           ) : (
             <View style={s.restIdleRow}>
-              <TouchableOpacity style={s.restBtn} onPress={() => startRest()} activeOpacity={0.8}>
+              <TouchableOpacity style={s.restBtn} onPress={() => startRest()}>
                 <Text style={s.restBtnText}>⏸  {fmtTime(restDuration)}</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={s.restCfgBtn}
-                onPress={() => { setRestInput(String(restDuration)); setShowRestConfig(true); }}
-              >
+              <TouchableOpacity style={s.restCfgBtn} onPress={() => { setRestInput(String(restDuration)); setShowRestConfig(true); }}>
                 <Text style={s.restCfgIcon}>⚙</Text>
               </TouchableOpacity>
             </View>
@@ -383,11 +324,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
       </View>
 
       {/* ── Exercise list ── */}
-      <ScrollView
-        style={s.scroll}
-        contentContainerStyle={[s.scrollContent, { paddingBottom: insets.bottom + 24 }]}
-        keyboardShouldPersistTaps="handled"
-      >
+      <ScrollView style={s.scroll} contentContainerStyle={[s.scrollContent, { paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled">
         {exercises.map((ex, exIdx) => {
           const allDone = ex.sets.every(s => s.done);
           return (
@@ -398,14 +335,13 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
                 </View>
                 <View style={s.exMeta}>
                   <Text style={s.exName}>{ex.name}</Text>
-                  <Text style={s.exTarget}>{ex.targetSets} séries × {ex.targetReps} · {ex.rest}</Text>
+                  <Text style={s.exTarget}>{ex.targetSets}×{ex.targetReps} · {ex.rest}</Text>
                 </View>
                 <TouchableOpacity style={s.subBtn} onPress={() => openAlternatives(exIdx)}>
                   <Text style={s.subBtnText}>↺</Text>
                 </TouchableOpacity>
               </View>
 
-              {/* Column headers */}
               <View style={s.setHeaderRow}>
                 <Text style={[s.setHeaderCell, { flex: 0.4 }]}>Série</Text>
                 <Text style={[s.setHeaderCell, { flex: 1 }]}>Carga (kg)</Text>
@@ -418,23 +354,15 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
                   <Text style={[s.setNum, { flex: 0.4 }]}>{setIdx + 1}</Text>
                   <TextInput
                     style={[s.setInput, { flex: 1 }]}
-                    value={set.load}
-                    onChangeText={v => updateSet(exIdx, setIdx, 'load', v)}
-                    placeholder="—"
-                    placeholderTextColor={C.text3}
-                    keyboardType="decimal-pad"
-                    editable={!set.done}
-                    selectTextOnFocus
+                    value={set.load} onChangeText={v => updateSet(exIdx, setIdx, 'load', v)}
+                    placeholder="—" placeholderTextColor={C.text3}
+                    keyboardType="decimal-pad" editable={!set.done} selectTextOnFocus
                   />
                   <TextInput
                     style={[s.setInput, { flex: 1 }]}
-                    value={set.reps}
-                    onChangeText={v => updateSet(exIdx, setIdx, 'reps', v)}
-                    placeholder={ex.targetReps}
-                    placeholderTextColor={C.text3}
-                    keyboardType="decimal-pad"
-                    editable={!set.done}
-                    selectTextOnFocus
+                    value={set.reps} onChangeText={v => updateSet(exIdx, setIdx, 'reps', v)}
+                    placeholder={ex.targetReps} placeholderTextColor={C.text3}
+                    keyboardType="decimal-pad" editable={!set.done} selectTextOnFocus
                   />
                   <TouchableOpacity
                     style={[s.doneCheck, { flex: 0.6 }, set.done && s.doneCheckActive]}
@@ -461,21 +389,14 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
           <View style={s.cfgBox} onStartShouldSetResponder={() => true}>
             <Text style={s.cfgTitle}>Tempo de Descanso</Text>
             <TextInput
-              style={s.cfgInput}
-              value={restInput}
-              onChangeText={setRestInput}
-              keyboardType="numeric"
-              autoFocus
-              selectTextOnFocus
+              style={s.cfgInput} value={restInput} onChangeText={setRestInput}
+              keyboardType="numeric" autoFocus selectTextOnFocus
             />
             <Text style={s.cfgHint}>segundos (10 – 600)</Text>
             <View style={s.presetRow}>
               {[30, 60, 90, 120].map(v => (
-                <TouchableOpacity
-                  key={v}
-                  style={[s.preset, restDuration === v && s.presetActive]}
-                  onPress={() => { setRestInput(String(v)); setRestDuration(v); setShowRestConfig(false); }}
-                >
+                <TouchableOpacity key={v} style={[s.preset, restDuration === v && s.presetActive]}
+                  onPress={() => { setRestInput(String(v)); setRestDuration(v); setShowRestConfig(false); }}>
                   <Text style={[s.presetText, restDuration === v && s.presetTextActive]}>{v}s</Text>
                 </TouchableOpacity>
               ))}
@@ -487,211 +408,182 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
         </TouchableOpacity>
       </Modal>
 
+      {/* ── HR input modal ── */}
+      <Modal visible={showHrModal} transparent animationType="fade">
+        <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setShowHrModal(false)}>
+          <View style={s.cfgBox} onStartShouldSetResponder={() => true}>
+            <Text style={s.cfgTitle}>❤️ Frequência Cardíaca</Text>
+            <TextInput
+              style={s.cfgInput} value={hrBpm} onChangeText={setHrBpm}
+              placeholder="Ex: 145" placeholderTextColor={C.text3}
+              keyboardType="numeric" autoFocus selectTextOnFocus
+            />
+            <Text style={s.cfgHint}>BPM médio do treino</Text>
+            <TouchableOpacity style={s.cfgApply} onPress={() => setShowHrModal(false)}>
+              <Text style={s.cfgApplyText}>Salvar</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       {/* ── Alternatives bottom sheet ── */}
       <Modal visible={showAlts} transparent animationType="slide">
         <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setShowAlts(false)}>
-          <View
-            style={[s.altSheet, { paddingBottom: insets.bottom + 16 }]}
-            onStartShouldSetResponder={() => true}
-          >
+          <View style={[s.altSheet, { paddingBottom: insets.bottom + 16 }]} onStartShouldSetResponder={() => true}>
             <View style={s.altHandle} />
             <Text style={s.altTitle}>Substituir Exercício</Text>
-            {selectedExIdx !== null && (
-              <Text style={s.altCurrent}>Atual: {exercises[selectedExIdx]?.name}</Text>
-            )}
+            {selectedExIdx !== null && <Text style={s.altCurrent}>Atual: {exercises[selectedExIdx]?.name}</Text>}
             {loadingAlts ? (
               <Text style={s.altLoading}>Buscando alternativas com IA...</Text>
-            ) : (
-              alternatives.map((alt, i) => (
-                <TouchableOpacity key={i} style={s.altRow} onPress={() => substituteExercise(alt)}>
-                  <View style={s.altNumBadge}>
-                    <Text style={s.altNum}>{i + 1}</Text>
-                  </View>
-                  <Text style={s.altName}>{alt}</Text>
-                  <Text style={s.altArrow}>›</Text>
-                </TouchableOpacity>
-              ))
-            )}
+            ) : alternatives.map((alt, i) => (
+              <TouchableOpacity key={i} style={s.altRow} onPress={() => substituteExercise(alt)}>
+                <View style={s.altNumBadge}><Text style={s.altNum}>{i + 1}</Text></View>
+                <Text style={s.altName}>{alt}</Text>
+                <Text style={s.altArrow}>›</Text>
+              </TouchableOpacity>
+            ))}
             <TouchableOpacity style={s.altCancel} onPress={() => setShowAlts(false)}>
               <Text style={s.altCancelText}>Cancelar</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* ── Share modal ── */}
+      <Modal visible={showShare} transparent animationType="slide">
+        <View style={[s.shareOverlay, { paddingBottom: insets.bottom + 16 }]}>
+          <Text style={s.shareTitle}>🏆 Treino Salvo!</Text>
+          <Text style={s.shareSub}>Escolha como compartilhar</Text>
+
+          {/* Hidden capture refs (rendered off-screen but still measured) */}
+          <View style={s.hiddenCaptures}>
+            <ViewShot ref={shareRef} options={{ format: 'png', quality: 0.95 }}>
+              {savedWorkout && <WorkoutSummaryCard workout={savedWorkout} avgHeartRate={avgHr} />}
+            </ViewShot>
+            <ViewShot ref={storyRef} options={{ format: 'png', quality: 0.95 }}>
+              {savedWorkout && <WorkoutStoryCard workout={savedWorkout} avgHeartRate={avgHr} />}
+            </ViewShot>
+          </View>
+
+          {/* Preview card */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.shareCardWrap}>
+            {savedWorkout && <WorkoutSummaryCard workout={savedWorkout} avgHeartRate={avgHr} />}
+          </ScrollView>
+
+          <View style={s.shareBtns}>
+            <TouchableOpacity style={s.shareBtn} onPress={handleShare} disabled={sharing}>
+              <Text style={s.shareBtnText}>{sharing ? 'Gerando...' : '📤 Post / WhatsApp'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[s.shareBtn, s.shareBtnStory]} onPress={handleShareStory} disabled={sharing}>
+              <Text style={s.shareBtnText}>{sharing ? 'Gerando...' : '📱 Story Instagram (9:16)'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={s.shareSkip}
+              onPress={() => { setShowShare(false); navigation.navigate('WorkoutHistory'); }}
+            >
+              <Text style={s.shareSkipText}>Ver histórico →</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
 
 const s = StyleSheet.create({
-  // Header
-  header: {
-    backgroundColor: C.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-  },
-  headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 10 },
+  header: { backgroundColor: C.surface, borderBottomWidth: 1, borderBottomColor: C.border, paddingHorizontal: 16, paddingBottom: 12 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 8 },
   exitBtn: { color: C.text2, fontSize: 18, padding: 4 },
   headerCenter: { flex: 1, alignItems: 'center' },
-  headerTitle: { color: C.text1, fontSize: 16, fontWeight: '800' },
-  headerSub: { color: C.text3, fontSize: 12, marginTop: 1 },
-  finishBtn: { backgroundColor: C.success, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 10 },
+  headerTitle: { color: C.text1, fontSize: 15, fontWeight: '800' },
+  headerSub: { color: C.text3, fontSize: 11, marginTop: 1 },
+  hrBadge: { backgroundColor: 'rgba(239,68,68,0.12)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5, borderWidth: 1, borderColor: 'rgba(239,68,68,0.3)' },
+  hrBadgeText: { color: '#EF4444', fontSize: 11, fontWeight: '700' },
+  finishBtn: { backgroundColor: C.success, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 },
   finishBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 
-  // Timer bar
   timerBar: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  elapsed: { alignItems: 'center', minWidth: 64 },
+  elapsed: { alignItems: 'center', minWidth: 60 },
   timerLabel: { color: C.text3, fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
-  timerValue: { color: C.text1, fontSize: 24, fontWeight: '900' },
-
-  restActive: {
-    flex: 1, alignItems: 'center',
-    backgroundColor: 'rgba(245,158,11,0.15)',
-    borderRadius: 12, padding: 8,
-    borderWidth: 1, borderColor: 'rgba(245,158,11,0.4)',
-  },
+  timerValue: { color: C.text1, fontSize: 22, fontWeight: '900' },
+  restActive: { flex: 1, alignItems: 'center', backgroundColor: 'rgba(245,158,11,0.15)', borderRadius: 12, padding: 8, borderWidth: 1, borderColor: 'rgba(245,158,11,0.4)' },
   restActiveLabel: { color: C.warning, fontSize: 9, fontWeight: '600' },
-  restActiveValue: { color: C.warning, fontSize: 26, fontWeight: '900' },
-
+  restActiveValue: { color: C.warning, fontSize: 24, fontWeight: '900' },
   restIdleRow: { flex: 1, flexDirection: 'row', gap: 6 },
-  restBtn: {
-    flex: 1, backgroundColor: C.elevated, borderRadius: 10,
-    alignItems: 'center', paddingVertical: 9,
-    borderWidth: 1, borderColor: C.border,
-  },
-  restBtnText: { color: C.text2, fontSize: 14, fontWeight: '700' },
-  restCfgBtn: {
-    width: 38, backgroundColor: C.elevated, borderRadius: 10,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: C.border,
-  },
+  restBtn: { flex: 1, backgroundColor: C.elevated, borderRadius: 10, alignItems: 'center', paddingVertical: 9, borderWidth: 1, borderColor: C.border },
+  restBtnText: { color: C.text2, fontSize: 13, fontWeight: '700' },
+  restCfgBtn: { width: 36, backgroundColor: C.elevated, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border },
   restCfgIcon: { color: C.text3, fontSize: 16 },
-
-  progressWrap: { alignItems: 'center', minWidth: 46 },
-  progressLabel: { color: C.primaryLight, fontSize: 12, fontWeight: '700', marginBottom: 4 },
-  progressTrack: { width: 38, height: 4, backgroundColor: C.elevated, borderRadius: 2, overflow: 'hidden' },
+  progressWrap: { alignItems: 'center', minWidth: 44 },
+  progressLabel: { color: C.primaryLight, fontSize: 11, fontWeight: '700', marginBottom: 4 },
+  progressTrack: { width: 36, height: 4, backgroundColor: C.elevated, borderRadius: 2, overflow: 'hidden' },
   progressFill: { height: 4, backgroundColor: C.primary, borderRadius: 2 },
 
-  // Scroll
   scroll: { flex: 1, backgroundColor: C.bg },
   scrollContent: { padding: 16, gap: 12 },
 
-  // Exercise card
-  exCard: {
-    backgroundColor: C.surface, borderRadius: 16,
-    padding: 14, borderWidth: 1, borderColor: C.border,
-  },
+  exCard: { backgroundColor: C.surface, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: C.border },
   exCardDone: { borderColor: `${C.success}50`, backgroundColor: 'rgba(16,185,129,0.04)' },
   exHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 10 },
-  exBadge: {
-    width: 32, height: 32, borderRadius: 10,
-    backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center',
-  },
+  exBadge: { width: 32, height: 32, borderRadius: 10, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' },
   exBadgeDone: { backgroundColor: C.success },
   exBadgeText: { color: '#fff', fontWeight: '800', fontSize: 14 },
   exMeta: { flex: 1 },
   exName: { color: C.text1, fontWeight: '700', fontSize: 15 },
   exTarget: { color: C.text3, fontSize: 12, marginTop: 2 },
-  subBtn: {
-    width: 36, height: 36, borderRadius: 10,
-    backgroundColor: C.elevated, borderWidth: 1, borderColor: C.border,
-    alignItems: 'center', justifyContent: 'center',
-  },
+  subBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: C.elevated, borderWidth: 1, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },
   subBtnText: { color: C.primaryLight, fontSize: 20, fontWeight: '700' },
 
   setHeaderRow: { flexDirection: 'row', paddingHorizontal: 2, marginBottom: 2 },
   setHeaderCell: { color: C.text3, fontSize: 10, fontWeight: '700', textAlign: 'center', letterSpacing: 0.3 },
-
   setRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 3, borderRadius: 8, paddingHorizontal: 2 },
   setRowDone: { backgroundColor: 'rgba(16,185,129,0.07)' },
   setNum: { color: C.text3, fontSize: 13, fontWeight: '700', textAlign: 'center' },
-  setInput: {
-    backgroundColor: C.elevated, borderRadius: 8, height: 38,
-    textAlign: 'center', color: C.text1, fontSize: 15, fontWeight: '700',
-    borderWidth: 1, borderColor: C.border,
-  },
-  doneCheck: {
-    height: 38, borderRadius: 8,
-    backgroundColor: C.elevated, borderWidth: 1, borderColor: C.border,
-    alignItems: 'center', justifyContent: 'center',
-  },
+  setInput: { backgroundColor: C.elevated, borderRadius: 8, height: 38, textAlign: 'center', color: C.text1, fontSize: 15, fontWeight: '700', borderWidth: 1, borderColor: C.border },
+  doneCheck: { height: 38, borderRadius: 8, backgroundColor: C.elevated, borderWidth: 1, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },
   doneCheckActive: { backgroundColor: C.success, borderColor: C.success },
   doneCheckText: { color: C.text3, fontSize: 16, fontWeight: '700' },
   doneCheckTextActive: { color: '#fff' },
 
-  finishBig: {
-    backgroundColor: C.primary, borderRadius: 16, paddingVertical: 16,
-    alignItems: 'center', marginTop: 8,
-    shadowColor: C.primary, shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4, shadowRadius: 12, elevation: 8,
-  },
+  finishBig: { backgroundColor: C.primary, borderRadius: 16, paddingVertical: 16, alignItems: 'center', marginTop: 8, shadowColor: C.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 8 },
   finishBigText: { color: '#fff', fontSize: 16, fontWeight: '800' },
 
-  // Modals shared
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.72)', justifyContent: 'center', alignItems: 'center' },
 
-  // Rest config
-  cfgBox: {
-    backgroundColor: C.surface, borderRadius: 20, padding: 24,
-    width: '82%', borderWidth: 1, borderColor: C.border,
-  },
+  cfgBox: { backgroundColor: C.surface, borderRadius: 20, padding: 24, width: '82%', borderWidth: 1, borderColor: C.border },
   cfgTitle: { color: C.text1, fontSize: 18, fontWeight: '800', marginBottom: 16, textAlign: 'center' },
-  cfgInput: {
-    backgroundColor: C.elevated, borderRadius: 12, padding: 14,
-    color: C.text1, fontSize: 32, fontWeight: '900', textAlign: 'center',
-    borderWidth: 1, borderColor: C.border,
-  },
+  cfgInput: { backgroundColor: C.elevated, borderRadius: 12, padding: 14, color: C.text1, fontSize: 32, fontWeight: '900', textAlign: 'center', borderWidth: 1, borderColor: C.border },
   cfgHint: { color: C.text3, fontSize: 12, textAlign: 'center', marginTop: 6, marginBottom: 14 },
   presetRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
-  preset: {
-    flex: 1, backgroundColor: C.elevated, borderRadius: 10,
-    paddingVertical: 10, alignItems: 'center',
-    borderWidth: 1, borderColor: C.border,
-  },
+  preset: { flex: 1, backgroundColor: C.elevated, borderRadius: 10, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: C.border },
   presetActive: { backgroundColor: C.primaryGlow, borderColor: C.primary },
   presetText: { color: C.text2, fontWeight: '700', fontSize: 15 },
   presetTextActive: { color: C.primaryLight },
   cfgApply: { backgroundColor: C.primary, borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
   cfgApplyText: { color: '#fff', fontWeight: '700', fontSize: 16 },
 
-  // Timer bar — heart rate badge
-  hrBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: C.elevated, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6,
-    borderWidth: 1, borderColor: C.border,
-  },
-  hrBadgeIcon: { fontSize: 14 },
-  hrBadgeBpm: { fontSize: 14, fontWeight: '900' },
-  hrBadgeZone: { fontSize: 9, fontWeight: '600', marginTop: 1 },
-  hrBadgeIdle: { color: C.text3, fontSize: 12 },
-
-  // Alternatives sheet
-  altSheet: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: C.surface,
-    borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    padding: 20,
-    borderWidth: 1, borderColor: C.border,
-  },
-  altHandle: {
-    width: 36, height: 4, backgroundColor: C.border,
-    borderRadius: 2, alignSelf: 'center', marginBottom: 16,
-  },
+  altSheet: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: C.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, borderWidth: 1, borderColor: C.border },
+  altHandle: { width: 36, height: 4, backgroundColor: C.border, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
   altTitle: { color: C.text1, fontSize: 18, fontWeight: '800', marginBottom: 4 },
   altCurrent: { color: C.text3, fontSize: 13, marginBottom: 16 },
   altLoading: { color: C.text2, fontSize: 15, textAlign: 'center', paddingVertical: 28 },
-  altRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.border,
-  },
-  altNumBadge: {
-    width: 28, height: 28, borderRadius: 8,
-    backgroundColor: C.primaryGlow, alignItems: 'center', justifyContent: 'center',
-  },
+  altRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.border },
+  altNumBadge: { width: 28, height: 28, borderRadius: 8, backgroundColor: C.primaryGlow, alignItems: 'center', justifyContent: 'center' },
   altNum: { color: C.primaryLight, fontWeight: '800', fontSize: 13 },
   altName: { flex: 1, color: C.text1, fontSize: 15, fontWeight: '600' },
   altArrow: { color: C.text3, fontSize: 22 },
   altCancel: { marginTop: 14, paddingVertical: 12, alignItems: 'center' },
   altCancelText: { color: C.text3, fontSize: 15 },
+
+  shareOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: C.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: C.border },
+  shareTitle: { color: C.text1, fontSize: 22, fontWeight: '900', textAlign: 'center' },
+  shareSub: { color: C.text3, fontSize: 13, textAlign: 'center', marginTop: 4, marginBottom: 16 },
+  hiddenCaptures: { position: 'absolute', left: -9999, top: 0, opacity: 0 },
+  shareCardWrap: { paddingHorizontal: 4, paddingBottom: 16 },
+  shareBtns: { gap: 10 },
+  shareBtn: { backgroundColor: C.primary, borderRadius: 14, paddingVertical: 14, alignItems: 'center', shadowColor: C.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 10, elevation: 6 },
+  shareBtnStory: { backgroundColor: '#EC4899' },
+  shareBtnText: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  shareSkip: { alignItems: 'center', paddingVertical: 10 },
+  shareSkipText: { color: C.primaryLight, fontSize: 14, fontWeight: '600' },
 });

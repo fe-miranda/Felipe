@@ -258,7 +258,7 @@ describe('generatePlanOverview', () => {
 
   it('throws on API error', async () => {
     (global.fetch as jest.Mock).mockResolvedValueOnce(groqError(401, 'Invalid API Key'));
-    await expect(generatePlanOverview(mockProfile)).rejects.toThrow('Invalid API Key');
+    await expect(generatePlanOverview(mockProfile)).rejects.toThrow('Chave de API inválida');
   });
 });
 
@@ -327,7 +327,7 @@ describe('generateMonthDetail', () => {
 
   it('throws on API error', async () => {
     (global.fetch as jest.Mock).mockResolvedValueOnce(groqError(429, 'RATE_LIMIT'));
-    await expect(generateMonthDetail(mockMonthBlock, mockProfile, 'Ganhar massa')).rejects.toThrow('RATE_LIMIT');
+    await expect(generateMonthDetail(mockMonthBlock, mockProfile, 'Ganhar massa')).rejects.toThrow('Limite de uso');
   });
 });
 
@@ -370,7 +370,7 @@ describe('generateAnnualPlan', () => {
 
   it('throws on API error', async () => {
     (global.fetch as jest.Mock).mockResolvedValueOnce(groqError(401, 'Unauthorized'));
-    await expect(generateAnnualPlan(mockProfile)).rejects.toThrow('Unauthorized');
+    await expect(generateAnnualPlan(mockProfile)).rejects.toThrow('Chave de API inválida');
   });
 
   it('extracts JSON embedded in surrounding text', async () => {
@@ -434,7 +434,7 @@ describe('chatAboutPlan', () => {
 
   it('throws on API error', async () => {
     (global.fetch as jest.Mock).mockResolvedValueOnce(groqError(429, 'RATE_LIMIT'));
-    await expect(chatAboutPlan('Oi', mockAnnualPlan, [])).rejects.toThrow('RATE_LIMIT');
+    await expect(chatAboutPlan('Oi', mockAnnualPlan, [])).rejects.toThrow('Limite de uso');
   });
 
   it('includes injuries in system prompt', async () => {

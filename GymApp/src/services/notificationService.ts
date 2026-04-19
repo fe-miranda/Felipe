@@ -1,159 +1,124 @@
 import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
 
-const WORKOUT_CHANNEL_ID = 'workout';
-const WORKOUT_NOTIF_ID = 'workout-active';
-const REST_NOTIF_ID = 'rest-countdown';
-
-function fmtElapsed(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-}
-
-// Configure how notifications are presented when the app is in the foreground
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
-    shouldPlaySound: false,
+    shouldPlaySound: true,
     shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
-/** Request notification permissions. Returns true if granted. */
-export async function requestNotificationPermissions(): Promise<boolean> {
-  try {
-    const { status: existing } = await Notifications.getPermissionsAsync();
-    if (existing === 'granted') return true;
-    const { status } = await Notifications.requestPermissionsAsync();
-    return status === 'granted';
-  } catch {
-    return false;
-  }
+const WORKOUT_NOTIF_ID = 'gymapp-workout-active';
+const REST_CATEGORY_ID = 'workout-active';
+
+let _restNotifId: string | null = null;
+let _restActionCb: (() => void) | null = null;
+let _responseListener: Notifications.EventSubscription | null = null;
+
+function fmtElapsed(seconds: number): string {
+  const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+  const s = (seconds % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
 }
 
-/** Create Android notification channel for workout alerts. */
-async function ensureWorkoutChannel(): Promise<void> {
-  try {
-    await Notifications.setNotificationChannelAsync(WORKOUT_CHANNEL_ID, {
-      name: 'Treino',
+export function setRestActionCallback(cb: (() => void) | null): void {
+  _restActionCb = cb;
+}
+
+export async function setupNotifications(): Promise<void> {
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('rest-timer', {
+      name: 'Timer de Descanso',
       importance: Notifications.AndroidImportance.HIGH,
       vibrationPattern: [0, 250, 250, 250],
       sound: 'default',
     });
-  } catch {
-    // not on Android or channel already exists — ignore
-  }
-}
-
-/**
- * Show a persistent "workout in progress" notification.
- * Call this when the user starts a workout session.
- */
-export async function showWorkoutStartedNotification(workoutFocus: string): Promise<void> {
-  try {
-    const granted = await requestNotificationPermissions();
-    if (!granted) return;
-    await ensureWorkoutChannel();
-    await Notifications.scheduleNotificationAsync({
-      identifier: WORKOUT_NOTIF_ID,
-      content: {
-        title: '💪 Treino em andamento',
-        body: `${workoutFocus} · 00:00`,
-        sticky: true,
-        data: { type: 'workout_active' },
-      },
-      trigger: null, // immediate
+    await Notifications.setNotificationChannelAsync('workout-active', {
+      name: 'Treino Ativo',
+      importance: Notifications.AndroidImportance.LOW,
+      sound: null,
+      vibrationPattern: [0],
     });
-  } catch {
-    // fail silently — notifications are a UX enhancement, not critical
+  }
+
+  await Notifications.requestPermissionsAsync();
+
+  await Notifications.setNotificationCategoryAsync(REST_CATEGORY_ID, [
+    {
+      identifier: 'START_REST',
+      buttonTitle: '⏸ Descansar',
+      options: { opensAppToForeground: true },
+    },
+  ]);
+
+  if (!_responseListener) {
+    _responseListener = Notifications.addNotificationResponseReceivedListener((response) => {
+      if (response.actionIdentifier === 'START_REST' && _restActionCb) {
+        _restActionCb();
+      }
+    });
   }
 }
 
-/** Update workout notification elapsed time every ~30s while active. */
-export async function updateWorkoutElapsedNotification(
-  workoutFocus: string,
-  elapsedSeconds: number,
-): Promise<void> {
+export async function startWorkoutNotification(elapsedSeconds: number = 0): Promise<void> {
   try {
-    const granted = await requestNotificationPermissions();
-    if (!granted) return;
-    await ensureWorkoutChannel();
     await Notifications.scheduleNotificationAsync({
       identifier: WORKOUT_NOTIF_ID,
       content: {
-        title: '💪 Treino em andamento',
-        body: `${workoutFocus} · ${fmtElapsed(elapsedSeconds)}`,
-        sticky: true,
-        data: { type: 'workout_active' },
+        title: `💪 Treino em andamento — ${fmtElapsed(elapsedSeconds)}`,
+        body: 'Toque para voltar ao app • Botão Descansar disponível',
+        sound: undefined,
+        categoryIdentifier: REST_CATEGORY_ID,
+        data: { type: 'workout-active' },
       },
       trigger: null,
     });
   } catch {
-    // fail silently
+    // Notifications not available — fail silently
   }
 }
 
-/**
- * Schedule a notification that fires when the rest period ends.
- * Also shows an immediate "resting" notification so the user can
- * see the countdown on the lock screen.
- *
- * @param restSeconds  Duration of the rest period in seconds.
- * @param workoutFocus Name of the current workout focus (used for context).
- */
-export async function scheduleRestEndNotification(
-  restSeconds: number,
-  workoutFocus: string,
-): Promise<void> {
+export async function updateWorkoutNotification(elapsedSeconds: number): Promise<void> {
   try {
-    const granted = await requestNotificationPermissions();
-    if (!granted) return;
-    await ensureWorkoutChannel();
+    await Notifications.dismissNotificationAsync(WORKOUT_NOTIF_ID);
+  } catch {}
+  await startWorkoutNotification(elapsedSeconds);
+}
 
-    // Cancel any previous rest notification first
-    await Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
+export async function stopWorkoutNotification(): Promise<void> {
+  try {
+    await Notifications.cancelScheduledNotificationAsync(WORKOUT_NOTIF_ID);
+    await Notifications.dismissNotificationAsync(WORKOUT_NOTIF_ID);
+  } catch {}
+}
 
-    // Schedule the "rest over" alert to fire when the countdown hits zero
-    await Notifications.scheduleNotificationAsync({
-      identifier: REST_NOTIF_ID,
+export async function scheduleRestEndNotification(seconds: number): Promise<void> {
+  await cancelRestNotification();
+  try {
+    _restNotifId = await Notifications.scheduleNotificationAsync({
       content: {
-        title: '⏰ Descanso terminado!',
-        body: `Hora da próxima série — ${workoutFocus}`,
+        title: '⏰ Descansou!',
+        body: 'Hora de voltar ao treino 💪',
         sound: 'default',
-        data: { type: 'rest_end' },
+        data: { type: 'rest-end' },
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-        seconds: restSeconds,
+        seconds: Math.max(1, Math.round(seconds)),
+        repeats: false,
       },
     });
   } catch {
-    // fail silently
+    // Notifications not available — fail silently
   }
 }
 
-/**
- * Cancel the pending rest-end notification (e.g. user ended rest early).
- */
 export async function cancelRestNotification(): Promise<void> {
-  try {
-    await Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID);
-    await Notifications.dismissNotificationAsync(REST_NOTIF_ID);
-  } catch {
-    // ignore if notification doesn't exist
-  }
-}
-
-/**
- * Cancel all workout-related notifications.
- * Call this when the workout is finished or abandoned.
- */
-export async function cancelAllWorkoutNotifications(): Promise<void> {
-  try {
-    await Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID).catch(() => {});
-    await Notifications.cancelScheduledNotificationAsync(WORKOUT_NOTIF_ID).catch(() => {});
-    await Notifications.dismissAllNotificationsAsync();
-  } catch {
-    // fail silently
+  if (_restNotifId) {
+    try { await Notifications.cancelScheduledNotificationAsync(_restNotifId); } catch {}
+    _restNotifId = null;
   }
 }

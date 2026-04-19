@@ -109,6 +109,7 @@ export interface QuickWorkout {
   description: string;
   tag: string;
   exercises: Exercise[];
+  muscleGroups: string[];
 }
 
 // ─── Heart rate ──────────────────────────────────────────────────────────────

@@ -19,7 +19,6 @@ const C = {
 };
 
 const PLAN_KEY = '@gymapp_plan';
-const CUSTOM_KEY_STORAGE = '@gymapp_custom_apikey';
 
 const SUGGESTIONS = [
   { icon: '📊', text: 'Como está meu progresso?' },
@@ -29,37 +28,33 @@ const SUGGESTIONS = [
   { icon: '⚡', text: 'Treino extra esta semana' },
 ];
 
+function friendlyAiError(err: any): string {
+  const msg: string = err?.message || '';
+  if (msg.includes('inválida') || msg.includes('expirada') || msg.includes('401') || msg.includes('403'))
+    return '🔑 Chave de API inválida ou expirada. Vá em Configurações para atualizar sua chave Groq.';
+  if (msg.includes('Limite') || msg.includes('429'))
+    return '⏳ Limite de uso atingido. Aguarde alguns minutos ou configure sua própria chave Groq.';
+  if (msg.includes('esgotado') || msg.includes('Sem conexão'))
+    return '🌐 ' + msg;
+  if (msg.includes('indisponível'))
+    return '⚠️ ' + msg;
+  return `❌ ${msg || 'Erro desconhecido. Tente novamente.'}`;
+}
+
 export function ChatScreen({ navigation }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<AnnualPlan | null>(null);
   const [planLoading, setPlanLoading] = useState(true);
-  const [hasCustomKey, setHasCustomKey] = useState(false);
   const listRef = useRef<FlatList>(null);
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
-    AsyncStorage.getItem(PLAN_KEY)
-      .then((stored) => {
-        try {
-          if (stored) setPlan(JSON.parse(stored));
-        } catch {
-          // malformed data — leave plan as null
-        }
-      })
-      .catch(() => {
-        // storage read failed — leave plan as null
-      })
-      .finally(() => {
-        setPlanLoading(false);
-      });
-  }, []);
-
-  useEffect(() => {
-    AsyncStorage.getItem(CUSTOM_KEY_STORAGE)
-      .then((k) => setHasCustomKey(Boolean(k?.trim())))
-      .catch(() => setHasCustomKey(false));
+    AsyncStorage.getItem(PLAN_KEY).then((stored) => {
+      if (stored) setPlan(JSON.parse(stored));
+      setPlanLoading(false);
+    });
   }, []);
 
   const sendMessage = async (text?: string) => {
@@ -74,7 +69,7 @@ export function ChatScreen({ navigation }: Props) {
       const reply = await chatAboutPlan(msg, plan, messages);
       setMessages([...updated, { role: 'model', text: reply }]);
     } catch (err: any) {
-      setMessages([...updated, { role: 'model', text: `Erro: ${err.message || 'Tente novamente.'}` }]);
+      setMessages([...updated, { role: 'model', text: friendlyAiError(err) }]);
     } finally {
       setLoading(false);
     }
@@ -103,7 +98,7 @@ export function ChatScreen({ navigation }: Props) {
   if (planLoading) {
     return (
       <View style={s.emptyWrap}>
-        <ActivityIndicator size="large" color={C.primary} />
+        <ActivityIndicator color="#7C3AED" size="large" />
         <Text style={s.emptyText}>Carregando plano...</Text>
       </View>
     );
@@ -114,6 +109,10 @@ export function ChatScreen({ navigation }: Props) {
       <View style={s.emptyWrap}>
         <Text style={s.emptyIcon}>⚠️</Text>
         <Text style={s.emptyText}>Nenhum plano encontrado.</Text>
+        <Text style={s.emptyHint}>Crie seu plano personalizado para usar o Coach IA.</Text>
+        <TouchableOpacity style={s.ctaBtn} onPress={() => navigation.replace('Onboarding' as any)}>
+          <Text style={s.ctaBtnText}>Criar meu plano</Text>
+        </TouchableOpacity>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={s.backLink}>Voltar</Text>
         </TouchableOpacity>
@@ -132,14 +131,6 @@ export function ChatScreen({ navigation }: Props) {
       {/* ── Welcome + suggestions ── */}
       {showWelcome && (
         <View style={s.welcomeWrap}>
-          {!hasCustomKey && (
-            <View style={s.keyWarning}>
-              <Text style={s.keyWarningText}>Usando chave padrão da IA. Para evitar limites de uso, configure sua própria chave.</Text>
-              <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
-                <Text style={s.keyWarningLink}>Ir para Configurações</Text>
-              </TouchableOpacity>
-            </View>
-          )}
           <View style={s.welcomeAvatarWrap}>
             <Text style={s.welcomeAvatar}>🤖</Text>
           </View>
@@ -215,23 +206,15 @@ export function ChatScreen({ navigation }: Props) {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
 
-  emptyWrap: { flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  emptyWrap: { flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 32 },
   emptyIcon: { fontSize: 48 },
-  emptyText: { color: C.text2, fontSize: 16 },
+  emptyText: { color: C.text2, fontSize: 16, textAlign: 'center' },
+  emptyHint: { color: C.text3, fontSize: 13, textAlign: 'center' },
+  ctaBtn: { backgroundColor: C.primary, paddingHorizontal: 28, paddingVertical: 12, borderRadius: 12, marginTop: 4 },
+  ctaBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   backLink: { color: C.primary, fontSize: 15, fontWeight: '600' },
 
   welcomeWrap: { padding: 20, paddingBottom: 0, alignItems: 'center' },
-  keyWarning: {
-    width: '100%',
-    backgroundColor: 'rgba(245,158,11,0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(245,158,11,0.4)',
-    borderRadius: 12,
-    padding: 10,
-    marginBottom: 12,
-  },
-  keyWarningText: { color: '#FCD34D', fontSize: 12, marginBottom: 4 },
-  keyWarningLink: { color: C.primaryLight, fontSize: 12, fontWeight: '700' },
   welcomeAvatarWrap: {
     width: 64, height: 64, borderRadius: 32,
     backgroundColor: C.primaryGlow, alignItems: 'center', justifyContent: 'center',

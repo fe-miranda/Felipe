@@ -1,33 +1,12 @@
-const SchedulableTriggerInputTypes = {
-  TIME_INTERVAL: 'timeInterval',
-  DATE: 'date',
-  CALENDAR: 'calendar',
-  DAILY: 'daily',
-  WEEKLY: 'weekly',
-  MONTHLY: 'monthly',
-  YEARLY: 'yearly',
-};
-
-const AndroidImportance = {
-  DEFAULT: 3,
-  HIGH: 4,
-  LOW: 2,
-  MAX: 5,
-  MIN: 1,
-  NONE: 0,
-  UNSPECIFIED: -1000,
-};
+const AndroidImportance = { HIGH: 5, DEFAULT: 3, LOW: 2, MIN: 1, MAX: 5 };
+const SchedulableTriggerInputTypes = { TIME_INTERVAL: 'timeInterval', DATE: 'date' };
 
 module.exports = {
-  SchedulableTriggerInputTypes,
-  AndroidImportance,
   setNotificationHandler: jest.fn(),
-  getPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
-  requestPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
   setNotificationChannelAsync: jest.fn().mockResolvedValue(null),
+  requestPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
   scheduleNotificationAsync: jest.fn().mockResolvedValue('mock-notification-id'),
   cancelScheduledNotificationAsync: jest.fn().mockResolvedValue(undefined),
-  cancelAllScheduledNotificationsAsync: jest.fn().mockResolvedValue(undefined),
-  dismissNotificationAsync: jest.fn().mockResolvedValue(undefined),
-  dismissAllNotificationsAsync: jest.fn().mockResolvedValue(undefined),
+  AndroidImportance,
+  SchedulableTriggerInputTypes,
 };

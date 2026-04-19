@@ -1,4 +1,4 @@
-import { UserProfile, AnnualPlan, MonthlyBlock, WeeklyPlan, WorkoutDay, PlanDuration } from '../types';
+import { UserProfile, AnnualPlan, MonthlyBlock, WeeklyPlan, WorkoutDay, PlanDuration, CompletedWorkout } from '../types';
 
 const GROQ_MODEL = 'llama-3.3-70b-versatile';
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
@@ -96,43 +96,43 @@ export function expandToWeeks(template: {
 
 // ─── HTTP layer ──────────────────────────────────────────────────────────────
 
-/** Fetch with timeout to prevent infinite loading */
-async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number = 30000): Promise<Response> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+const TIMEOUT_MS = 45_000;
 
-  try {
-    const response = await fetch(url, { ...options, signal: controller.signal });
-    clearTimeout(timeoutId);
-    return response;
-  } catch (error: any) {
-    clearTimeout(timeoutId);
-    if (error.name === 'AbortError') {
-      throw new Error('Tempo limite excedido. Verifique sua conexão e tente novamente.');
-    }
-    throw error;
+function friendlyError(status: number): string | null {
+  switch (status) {
+    case 401: case 403: return 'Chave de API inválida ou expirada. Configure sua chave Groq em Configurações.';
+    case 429: return 'Limite de uso atingido. Aguarde alguns minutos ou configure sua própria chave Groq.';
+    case 500: case 502: case 503: return 'Servidor da IA indisponível. Tente novamente em instantes.';
+    default: return null;
   }
 }
 
 async function groqPost(messages: object[], maxTokens: number): Promise<string> {
-  const response = await fetchWithTimeout(GROQ_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${getApiKey()}`,
-    },
-    body: JSON.stringify({ model: GROQ_MODEL, messages, max_tokens: maxTokens, temperature: 0.7 }),
-  }, 45000); // 45 second timeout for plan generation
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(GROQ_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${getApiKey()}`,
+      },
+      body: JSON.stringify({ model: GROQ_MODEL, messages, max_tokens: maxTokens, temperature: 0.7 }),
+      signal: controller.signal,
+    });
+  } catch (err: any) {
+    clearTimeout(timer);
+    if (err.name === 'AbortError') throw new Error('Tempo esgotado. Verifique sua conexão e tente novamente.');
+    throw new Error('Sem conexão. Verifique sua internet e tente novamente.');
+  }
+  clearTimeout(timer);
 
   if (!response.ok) {
-    let msg = `Erro ${response.status}`;
-    try { const e = await response.json(); msg = e.error?.message || msg; } catch {}
-    if (response.status === 401) {
-      throw new Error(`${msg} — Chave de API inválida ou expirada. Acesse Configurações para atualizar sua chave Groq.`);
-    }
-    if (response.status === 429) {
-      throw new Error(`${msg} — Limite de uso da API atingido. Aguarde alguns minutos ou configure sua própria chave em Configurações.`);
-    }
+    const msg = friendlyError(response.status)
+      ?? (() => { try { return (response.json() as any)?.error?.message; } catch { return null; } })()
+      ?? `Erro ${response.status}`;
     throw new Error(msg);
   }
 
@@ -332,4 +332,87 @@ export async function chatAboutPlan(
 
   const reply = await groqPost(messages, 512);
   return reply || 'Não consegui gerar uma resposta. Tente novamente.';
+}
+
+// ─── Daily suggestion ────────────────────────────────────────────────────────
+
+export interface DailySuggestion {
+  title: string;
+  reason: string;
+  icon: string;
+  workout: WorkoutDay;
+}
+
+export async function getDailySuggestion(
+  history: CompletedWorkout[],
+  profile: UserProfile,
+): Promise<DailySuggestion> {
+  const recentFoci = history.slice(0, 5).map(w => w.focus).join(', ') || 'nenhum';
+  const strength = profile.workoutDuration - profile.cardioMinutes;
+  const exCount = Math.max(3, Math.min(6, Math.floor(strength / 10)));
+
+  const prompt =
+    `User: ${profile.fitnessLevel}, goal: ${profile.goal}, ${profile.daysPerWeek}d/week.\n` +
+    `Recent workouts: ${recentFoci}.\n` +
+    `Suggest today's workout. Avoid recently trained muscles. ${exCount} exercises.\n` +
+    `JSON only, PT-BR:\n` +
+    `{"title":"Costas e Bíceps","reason":"Não treinou em 3 dias","icon":"💪",` +
+    `"focus":"Costas","exercises":[{"name":"Puxada Frontal","sets":4,"reps":"10-12","rest":"90s"}]}`;
+
+  const raw = await groqPost([{ role: 'user', content: prompt }], 500);
+  try {
+    const data = extractJson(raw);
+    return {
+      title: data.title ?? 'Treino do Dia',
+      reason: data.reason ?? 'Baseado no seu perfil',
+      icon: data.icon ?? '💪',
+      workout: {
+        dayOfWeek: 'Hoje',
+        focus: data.focus ?? data.title ?? 'Treino Livre',
+        duration: profile.workoutDuration,
+        exercises: Array.isArray(data.exercises) ? data.exercises : [],
+      },
+    };
+  } catch {
+    return {
+      title: 'Treino Livre',
+      reason: 'Baseado no seu perfil e histórico',
+      icon: '⚡',
+      workout: { dayOfWeek: 'Hoje', focus: 'Treino Livre', duration: profile.workoutDuration, exercises: [] },
+    };
+  }
+}
+
+// ─── Custom workout generator ─────────────────────────────────────────────────
+
+export interface CustomWorkoutParams {
+  muscleGroups: string[];
+  strategy: string;
+  duration: number;
+  equipment: string;
+  profile: UserProfile;
+}
+
+export async function generateCustomWorkout(params: CustomWorkoutParams): Promise<WorkoutDay> {
+  const { muscleGroups, strategy, duration, equipment, profile } = params;
+  const strength = duration - Math.min(duration * 0.25, profile.cardioMinutes);
+  const exCount = Math.max(3, Math.min(8, Math.floor(strength / 8)));
+
+  const prompt =
+    `Create a ${strategy} workout for: ${muscleGroups.join(' + ')}.\n` +
+    `Equipment: ${equipment}. Duration: ${duration}min. ${exCount} exercises.\n` +
+    `User: ${profile.fitnessLevel}, ${profile.goal}.\n` +
+    `JSON only, PT-BR:\n` +
+    `{"focus":"Peito + Tríceps","exercises":[{"name":"Supino Reto","sets":4,"reps":"10-12","rest":"90s","notes":"Principal"}]}`;
+
+  const raw = await groqPost([{ role: 'user', content: prompt }], 700);
+  const data = extractJson(raw);
+
+  return {
+    dayOfWeek: 'Hoje',
+    focus: data.focus ?? muscleGroups.join(' + '),
+    duration,
+    exercises: Array.isArray(data.exercises) ? data.exercises : [],
+    notes: `${strategy} · ${equipment}`,
+  };
 }
