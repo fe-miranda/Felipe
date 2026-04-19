@@ -1,10 +1,18 @@
-name: Build Android APK
+name: Build GymApp Android APK
 
 on:
   push:
     branches:
-      - claude/create-new-app-enSnZ
       - main
+    paths:
+      - 'GymApp/**'
+      - '.github/workflows/build-apk.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'GymApp/**'
+      - '.github/workflows/build-apk.yml'
   workflow_dispatch:
 
 jobs:
@@ -36,26 +44,6 @@ jobs:
       - name: Generate native Android project
         working-directory: GymApp
         run: npx expo prebuild --platform android --clean
-
-      - name: Fix hermesCommand for RN 0.81 (hermes-compiler package not available until RN 0.83+)
-        working-directory: GymApp/android
-        run: |
-          python3 << 'EOF'
-          import re
-          with open('app/build.gradle', 'r') as f:
-              content = f.read()
-          # Expo 55 template references 'hermes-compiler' which doesn't exist in RN 0.81.x.
-          # Replace with the bundled hermesc path inside the react-native package.
-          content = re.sub(
-              r"hermesCommand = new File\(\[.*?hermes-compiler.*?\]\.execute\(null, rootDir\)\.text\.trim\(\)\)\.getParentFile\(\)\.getAbsolutePath\(\) \+ \"/hermesc/%OS-BIN%/hermesc\"",
-              'hermesCommand = new File(["node", "--print", "require.resolve(\'react-native/package.json\')"].execute(null, rootDir).text.trim()).getParentFile().getAbsoluteFile().toString() + "/sdks/hermesc/%OS-BIN%/hermesc"',
-              content,
-              flags=re.DOTALL
-          )
-          with open('app/build.gradle', 'w') as f:
-              f.write(content)
-          print("Patched hermesCommand in app/build.gradle")
-          EOF
 
       - name: Pin Gradle to 8.13 (Gradle 9 removed APIs used in build.gradle)
         working-directory: GymApp/android
