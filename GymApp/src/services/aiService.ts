@@ -96,15 +96,33 @@ export function expandToWeeks(template: {
 
 // ─── HTTP layer ──────────────────────────────────────────────────────────────
 
+/** Fetch with timeout to prevent infinite loading */
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number = 30000): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error('Tempo limite excedido. Verifique sua conexão e tente novamente.');
+    }
+    throw error;
+  }
+}
+
 async function groqPost(messages: object[], maxTokens: number): Promise<string> {
-  const response = await fetch(GROQ_URL, {
+  const response = await fetchWithTimeout(GROQ_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${getApiKey()}`,
     },
     body: JSON.stringify({ model: GROQ_MODEL, messages, max_tokens: maxTokens, temperature: 0.7 }),
-  });
+  }, 45000); // 45 second timeout for plan generation
 
   if (!response.ok) {
     let msg = `Erro ${response.status}`;
