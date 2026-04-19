@@ -42,7 +42,7 @@ jobs:
 
       - name: TypeScript check
         working-directory: MundoDescobertas
-        run: npm run test
+        run: npm run typecheck
 
       # ── 4. Generate native Android project ───────────────────────────────
       # expo prebuild converts the managed Expo project into a bare React

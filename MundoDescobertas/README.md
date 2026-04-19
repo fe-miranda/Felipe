@@ -22,7 +22,7 @@ npm start
 
 ```bash
 cd MundoDescobertas
-npm test
+npm run typecheck
 ```
 
 ## 📦 Baixar APK pelo GitHub Actions (Artifacts)
