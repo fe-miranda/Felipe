@@ -11,6 +11,8 @@ import {
   Vibration,
   KeyboardAvoidingView,
   Platform,
+  AppState,
+  AppStateStatus,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -18,6 +20,9 @@ import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList, ExerciseLog, SetLog, CompletedWorkout } from '../types';
 import { getExerciseAlternatives } from '../services/aiService';
 import { saveWorkout } from '../services/workoutHistoryService';
+import { useHeartRate } from '../hooks/useHeartRate';
+import { hrZoneColor, hrZoneLabel } from '../services/heartRateService';
+import { shareWorkoutCard } from '../services/shareService';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'ActiveWorkout'>;
@@ -47,10 +52,17 @@ function buildExerciseLogs(workout: Props['route']['params']['workout']): Exerci
 export function ActiveWorkoutScreen({ navigation, route }: Props) {
   const { workout, context } = route.params;
   const insets = useSafeAreaInsets();
+  const hr = useHeartRate();
 
   // ── Timer state ──
-  const [elapsed, setElapsed] = useState(0);
+  // Elapsed time is derived from a stored start timestamp so it remains
+  // accurate when the app goes to the background (screen locked, etc.).
+  const workoutStartRef = useRef<number>(Date.now());    // epoch ms when workout started
+  const [elapsed, setElapsed] = useState(0);             // seconds, recomputed from timestamp
+
+  // Rest countdown — tracked via the deadline timestamp so background time counts.
   const [restActive, setRestActive] = useState(false);
+  const restDeadlineRef = useRef<number | null>(null);   // epoch ms when rest should end
   const [restRemaining, setRestRemaining] = useState(0);
   const [restDuration, setRestDuration] = useState(90);
   const [showRestConfig, setShowRestConfig] = useState(false);
@@ -68,35 +80,55 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   const elapsedRef = useRef(0);
   elapsedRef.current = elapsed;
 
-  // Stopwatch — always counting
-  useEffect(() => {
-    const id = setInterval(() => setElapsed(e => e + 1), 1000);
-    return () => clearInterval(id);
+  // ── Tick function — recalculates both timers from timestamps ──────────────
+  const tick = useCallback(() => {
+    const nowMs = Date.now();
+
+    // Elapsed stopwatch
+    const elapsedSec = Math.floor((nowMs - workoutStartRef.current) / 1000);
+    setElapsed(elapsedSec);
+
+    // Rest countdown
+    if (restDeadlineRef.current !== null) {
+      const remaining = Math.ceil((restDeadlineRef.current - nowMs) / 1000);
+      if (remaining <= 0) {
+        restDeadlineRef.current = null;
+        setRestActive(false);
+        setRestRemaining(0);
+        Vibration.vibrate([0, 300, 150, 300, 150, 500]);
+      } else {
+        setRestRemaining(remaining);
+      }
+    }
   }, []);
 
-  // Rest countdown — only when active
+  // Stopwatch — ticks every second while screen is foregrounded.
+  // On resume from background, tick() immediately resynchronises from timestamps.
   useEffect(() => {
-    if (!restActive || restRemaining <= 0) return;
-    const id = setInterval(() => {
-      setRestRemaining(r => {
-        if (r <= 1) {
-          setRestActive(false);
-          Vibration.vibrate([0, 300, 150, 300, 150, 500]);
-          return 0;
-        }
-        return r - 1;
-      });
-    }, 1000);
+    const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [restActive, restRemaining]);
+  }, [tick]);
+
+  // AppState listener — resync timers immediately when app returns to foreground.
+  useEffect(() => {
+    const handleAppState = (nextState: AppStateStatus) => {
+      if (nextState === 'active') {
+        tick();
+      }
+    };
+    const sub = AppState.addEventListener('change', handleAppState);
+    return () => sub.remove();
+  }, [tick]);
 
   const startRest = useCallback((dur?: number) => {
     const d = dur ?? restDuration;
+    restDeadlineRef.current = Date.now() + d * 1000;
     setRestRemaining(d);
     setRestActive(true);
   }, [restDuration]);
 
   const stopRest = useCallback(() => {
+    restDeadlineRef.current = null;
     setRestActive(false);
     setRestRemaining(0);
   }, []);
@@ -194,12 +226,33 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
               ...context,
             };
             await saveWorkout(log);
-            navigation.navigate('WorkoutHistory');
+            // Offer to share the workout card
+            Alert.alert(
+              'Treino Salvo! 🎉',
+              'Quer compartilhar seu resultado?',
+              [
+                { text: 'Agora não', onPress: () => navigation.navigate('WorkoutHistory') },
+                {
+                  text: 'Compartilhar 📤',
+                  onPress: async () => {
+                    try {
+                      await shareWorkoutCard({
+                        workout: log,
+                        heartRateSamples: hr.samples,
+                      });
+                    } catch {
+                      // ignore share errors
+                    }
+                    navigation.navigate('WorkoutHistory');
+                  },
+                },
+              ],
+            );
           },
         },
       ],
     );
-  }, [exercises, workout, context, navigation]);
+  }, [exercises, workout, context, navigation, hr.samples]);
 
   const doneCount = exercises.reduce((a, e) => a + e.sets.filter(s => s.done).length, 0);
   const totalSets = exercises.reduce((a, e) => a + e.sets.length, 0);
@@ -231,6 +284,24 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
             <Text style={s.timerLabel}>TEMPO</Text>
             <Text style={s.timerValue}>{fmtTime(elapsed)}</Text>
           </View>
+
+          {/* Heart-rate badge */}
+          <TouchableOpacity
+            style={[s.hrBadge, hr.status === 'connected' && { borderColor: hrZoneColor(hr.bpm) }]}
+            onPress={() => hr.status === 'connected' ? hr.disconnect() : hr.connect()}
+          >
+            <Text style={s.hrBadgeIcon}>❤️</Text>
+            {hr.status === 'connected' && hr.bpm !== null ? (
+              <View>
+                <Text style={[s.hrBadgeBpm, { color: hrZoneColor(hr.bpm) }]}>{hr.bpm} bpm</Text>
+                <Text style={[s.hrBadgeZone, { color: hrZoneColor(hr.bpm) }]}>{hrZoneLabel(hr.bpm)}</Text>
+              </View>
+            ) : (
+              <Text style={s.hrBadgeIdle}>
+                {hr.status === 'scanning' || hr.status === 'connecting' ? 'Conectando…' : 'Conectar'}
+              </Text>
+            )}
+          </TouchableOpacity>
 
           {restActive ? (
             <TouchableOpacity style={s.restActive} onPress={stopRest} activeOpacity={0.8}>
@@ -532,6 +603,17 @@ const s = StyleSheet.create({
   presetTextActive: { color: C.primaryLight },
   cfgApply: { backgroundColor: C.primary, borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
   cfgApplyText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+
+  // Timer bar — heart rate badge
+  hrBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: C.elevated, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6,
+    borderWidth: 1, borderColor: C.border,
+  },
+  hrBadgeIcon: { fontSize: 14 },
+  hrBadgeBpm: { fontSize: 14, fontWeight: '900' },
+  hrBadgeZone: { fontSize: 9, fontWeight: '600', marginTop: 1 },
+  hrBadgeIdle: { color: C.text3, fontSize: 12 },
 
   // Alternatives sheet
   altSheet: {

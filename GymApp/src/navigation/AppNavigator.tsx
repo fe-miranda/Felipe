@@ -2,6 +2,7 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types';
+import { WelcomeScreen } from '../screens/WelcomeScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { HomeScreen } from '../screens/HomeScreen';
 import { MonthDetailScreen } from '../screens/MonthDetailScreen';
@@ -18,7 +19,7 @@ export function AppNavigator() {
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName="Onboarding"
+        initialRouteName="Welcome"
         screenOptions={{
           headerStyle: { backgroundColor: '#1a1a24' },
           headerTintColor: '#fff',
@@ -27,6 +28,11 @@ export function AppNavigator() {
           contentStyle: { backgroundColor: '#0f0f14' },
         }}
       >
+        <Stack.Screen
+          name="Welcome"
+          component={WelcomeScreen}
+          options={{ headerShown: false }}
+        />
         <Stack.Screen
           name="Onboarding"
           component={OnboardingScreen}

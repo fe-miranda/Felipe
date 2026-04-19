@@ -7,14 +7,19 @@ import {
   StyleSheet,
   Alert,
   Dimensions,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, QuickWorkout, WorkoutDay, CompletedWorkout } from '../types';
 import { usePlan } from '../hooks/usePlan';
+import { useHeartRate } from '../hooks/useHeartRate';
+import { useCarouselCustomization } from '../hooks/useCarouselCustomization';
 import { setRuntimeApiKey } from '../services/aiService';
 import { loadHistory } from '../services/workoutHistoryService';
+import { hrZoneColor, hrZoneLabel } from '../services/heartRateService';
+import { shareWeeklyCard, buildWeeklyCardData } from '../services/shareService';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48 - 16) / 3;
@@ -143,6 +148,10 @@ type Props = { navigation: NativeStackNavigationProp<RootStackParamList, 'Home'>
 export function HomeScreen({ navigation }: Props) {
   const { plan, loadStoredPlan, clearPlan } = usePlan();
   const [recentWorkouts, setRecentWorkouts] = useState<CompletedWorkout[]>([]);
+  const hr = useHeartRate();
+  const carousel = useCarouselCustomization(QUICK_WORKOUTS);
+  // id of the workout whose exercises are being customised (null = modal closed)
+  const [customiseId, setCustomiseId] = useState<string | null>(null);
 
   const reloadHistory = useCallback(async () => {
     const hist = await loadHistory();
@@ -193,9 +202,26 @@ export function HomeScreen({ navigation }: Props) {
           <Text style={s.greeting}>{greeting()}, {p.name} 👋</Text>
           <Text style={s.greetingSub}>Seu plano de 12 meses está ativo</Text>
         </View>
-        <TouchableOpacity style={s.iconBtn} onPress={() => navigation.navigate('Settings')} testID="btn-settings">
-          <Text style={s.iconBtnText}>⚙️</Text>
-        </TouchableOpacity>
+        <View style={s.topBarActions}>
+          {/* Heart-rate badge */}
+          <TouchableOpacity
+            style={[s.hrBadge, hr.status === 'connected' && { borderColor: hrZoneColor(hr.bpm) }]}
+            onPress={() => hr.status === 'connected' ? hr.disconnect() : hr.connect()}
+            testID="btn-heartrate"
+          >
+            <Text style={s.hrBadgeIcon}>❤️</Text>
+            {hr.status === 'connected' && hr.bpm !== null ? (
+              <Text style={[s.hrBadgeBpm, { color: hrZoneColor(hr.bpm) }]}>{hr.bpm}</Text>
+            ) : (
+              <Text style={s.hrBadgeIdle}>
+                {hr.status === 'scanning' || hr.status === 'connecting' ? '…' : '—'}
+              </Text>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity style={s.iconBtn} onPress={() => navigation.navigate('Settings')} testID="btn-settings">
+            <Text style={s.iconBtnText}>⚙️</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* ── Hero goal card ── */}
@@ -255,34 +281,113 @@ export function HomeScreen({ navigation }: Props) {
       </TouchableOpacity>
 
       {/* ── Quick workouts ── */}
-      <Text style={s.sectionTitle}>⚡ Treinos Rápidos</Text>
+      <View style={s.sectionHeaderRow}>
+        <Text style={s.sectionTitle}>⚡ Treinos Rápidos</Text>
+      </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.quickScroll} contentContainerStyle={s.quickContent}>
-        {QUICK_WORKOUTS.map((q) => (
-          <TouchableOpacity
-            key={q.id}
-            style={[s.quickCard, { borderColor: `${q.color}40` }]}
-            activeOpacity={0.82}
-            onPress={() => navigation.navigate('ActiveWorkout', { workout: quickToWorkoutDay(q) })}
-          >
-            <View style={[s.quickIconWrap, { backgroundColor: `${q.color}20` }]}>
-              <Text style={s.quickIcon}>{q.icon}</Text>
-            </View>
-            <View style={[s.quickTag, { backgroundColor: `${q.color}18` }]}>
-              <Text style={[s.quickTagText, { color: q.color }]}>{q.tag}</Text>
-            </View>
-            <Text style={s.quickName}>{q.name}</Text>
-            <Text style={s.quickDesc} numberOfLines={2}>{q.description}</Text>
-            <Text style={[s.quickDuration, { color: q.color }]}>⏱ {q.duration} min</Text>
-          </TouchableOpacity>
-        ))}
+        {QUICK_WORKOUTS.map((q) => {
+          const customised = carousel.buildCustomWorkout(q);
+          const enabledCount = carousel.getEnabledIndices(q.id, q.exercises.length).size;
+          return (
+            <TouchableOpacity
+              key={q.id}
+              style={[s.quickCard, { borderColor: `${q.color}40` }]}
+              activeOpacity={0.82}
+              onPress={() => navigation.navigate('ActiveWorkout', { workout: quickToWorkoutDay(customised) })}
+              onLongPress={() => setCustomiseId(q.id)}
+            >
+              <View style={[s.quickIconWrap, { backgroundColor: `${q.color}20` }]}>
+                <Text style={s.quickIcon}>{q.icon}</Text>
+              </View>
+              <View style={[s.quickTag, { backgroundColor: `${q.color}18` }]}>
+                <Text style={[s.quickTagText, { color: q.color }]}>{q.tag}</Text>
+              </View>
+              <Text style={s.quickName}>{q.name}</Text>
+              <Text style={s.quickDesc} numberOfLines={2}>{q.description}</Text>
+              <View style={s.quickFooter}>
+                <Text style={[s.quickDuration, { color: q.color }]}>⏱ {q.duration} min</Text>
+                <TouchableOpacity
+                  style={s.quickCustomBtn}
+                  onPress={() => setCustomiseId(q.id)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={s.quickCustomBtnText}>
+                    {enabledCount}/{q.exercises.length} ✎
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
+
+      {/* ── Carousel customisation modal ── */}
+      {customiseId !== null && (() => {
+        const wk = QUICK_WORKOUTS.find(w => w.id === customiseId);
+        if (!wk) return null;
+        const enabled = carousel.getEnabledIndices(wk.id, wk.exercises.length);
+        return (
+          <Modal visible transparent animationType="slide" onRequestClose={() => setCustomiseId(null)}>
+            <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={() => setCustomiseId(null)}>
+              <View style={s.customiseSheet} onStartShouldSetResponder={() => true}>
+                <Text style={s.customiseTitle}>{wk.icon} {wk.name}</Text>
+                <Text style={s.customiseSubtitle}>Toque para ativar/desativar exercícios</Text>
+                {wk.exercises.map((ex, idx) => {
+                  const on = enabled.has(idx);
+                  return (
+                    <TouchableOpacity
+                      key={idx}
+                      style={[s.customiseRow, on && s.customiseRowOn]}
+                      onPress={() => carousel.toggleExercise(wk.id, idx, wk.exercises.length)}
+                    >
+                      <View style={[s.customiseCheck, on && { backgroundColor: wk.color }]}>
+                        <Text style={s.customiseCheckText}>{on ? '✓' : ''}</Text>
+                      </View>
+                      <View style={s.customiseExInfo}>
+                        <Text style={[s.customiseExName, !on && { color: C.text3 }]}>{ex.name}</Text>
+                        <Text style={s.customiseExMeta}>{ex.sets}×{ex.reps}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+                <View style={s.customiseBtns}>
+                  <TouchableOpacity style={s.customiseReset} onPress={() => carousel.resetSelection(wk.id)}>
+                    <Text style={s.customiseResetText}>Restaurar padrão</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={s.customiseDone} onPress={() => setCustomiseId(null)}>
+                    <Text style={s.customiseDoneText}>OK</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableOpacity>
+          </Modal>
+        );
+      })()}
 
       {/* ── Recent history ── */}
       <View style={s.historyHeader}>
         <Text style={s.sectionTitle}>📋 Histórico Recente</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('WorkoutHistory')}>
-          <Text style={s.historyLink}>Ver tudo ›</Text>
-        </TouchableOpacity>
+        <View style={s.historyHeaderRight}>
+          <TouchableOpacity
+            onPress={async () => {
+              try {
+                const allWorkouts = await loadHistory();
+                const weekAgo = new Date();
+                weekAgo.setDate(weekAgo.getDate() - 7);
+                const weekWorkouts = allWorkouts.filter(w => new Date(w.date) >= weekAgo);
+                const cardData = buildWeeklyCardData(weekWorkouts, hr.bpm);
+                await shareWeeklyCard(cardData);
+              } catch {
+                Alert.alert('Compartilhar', 'Não foi possível compartilhar o resumo semanal.');
+              }
+            }}
+          >
+            <Text style={s.shareLink}>📤 Semana</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('WorkoutHistory')}>
+            <Text style={s.historyLink}>Ver tudo ›</Text>
+          </TouchableOpacity>
+        </View>
       </View>
       {recentWorkouts.length === 0 ? (
         <View style={s.historyEmpty}>
@@ -515,10 +620,29 @@ const s = StyleSheet.create({
   quickName: { color: C.text1, fontSize: 14, fontWeight: '800' },
   quickDesc: { color: C.text3, fontSize: 11, lineHeight: 15 },
   quickDuration: { fontSize: 12, fontWeight: '700', marginTop: 2 },
+  quickFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 },
+  quickCustomBtn: { backgroundColor: C.elevated, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  quickCustomBtnText: { color: C.text3, fontSize: 10 },
+
+  // Section header row
+  sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+
+  // Heart rate badge (top bar)
+  topBarActions: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  hrBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: C.surface, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6,
+    borderWidth: 1, borderColor: C.border,
+  },
+  hrBadgeIcon: { fontSize: 14 },
+  hrBadgeBpm: { fontSize: 13, fontWeight: '700' },
+  hrBadgeIdle: { color: C.text3, fontSize: 13 },
 
   // History preview
   historyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  historyHeaderRight: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   historyLink: { color: C.primaryLight, fontSize: 13, fontWeight: '700' },
+  shareLink: { color: C.success, fontSize: 13, fontWeight: '700' },
   historyEmpty: { backgroundColor: C.surface, borderRadius: 14, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: C.border },
   historyEmptyText: { color: C.text3, fontSize: 13, textAlign: 'center', lineHeight: 19 },
   historyCard: {
@@ -532,4 +656,33 @@ const s = StyleSheet.create({
   historyCardRight: { alignItems: 'flex-end' },
   historyCardDur: { color: C.primaryLight, fontSize: 13, fontWeight: '700' },
   historyCardSets: { color: C.text3, fontSize: 11, marginTop: 2 },
+
+  // Carousel customise modal
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
+  customiseSheet: {
+    backgroundColor: C.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: 24, gap: 12,
+    borderTopWidth: 1, borderColor: C.border,
+  },
+  customiseTitle: { color: C.text1, fontSize: 18, fontWeight: '800' },
+  customiseSubtitle: { color: C.text3, fontSize: 13, marginBottom: 4 },
+  customiseRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: C.elevated, borderRadius: 12, padding: 12,
+    borderWidth: 1, borderColor: C.border,
+  },
+  customiseRowOn: { borderColor: 'rgba(124,58,237,0.4)' },
+  customiseCheck: {
+    width: 24, height: 24, borderRadius: 6, backgroundColor: C.border,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  customiseCheckText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  customiseExInfo: { flex: 1 },
+  customiseExName: { color: C.text1, fontSize: 14, fontWeight: '600' },
+  customiseExMeta: { color: C.text3, fontSize: 12, marginTop: 2 },
+  customiseBtns: { flexDirection: 'row', gap: 10, marginTop: 8 },
+  customiseReset: { flex: 1, backgroundColor: C.elevated, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: C.border },
+  customiseResetText: { color: C.text2, fontSize: 14, fontWeight: '600' },
+  customiseDone: { flex: 1, backgroundColor: C.primary, borderRadius: 12, padding: 12, alignItems: 'center' },
+  customiseDoneText: { color: '#fff', fontSize: 14, fontWeight: '700' },
 });
