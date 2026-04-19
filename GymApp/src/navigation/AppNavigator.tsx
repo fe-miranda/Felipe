@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types';
 import { WelcomeScreen } from '../screens/WelcomeScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
+import { NewPlanScreen } from '../screens/NewPlanScreen';
 import { HomeScreen } from '../screens/HomeScreen';
 import { MonthDetailScreen } from '../screens/MonthDetailScreen';
 import { WeekDetailScreen } from '../screens/WeekDetailScreen';
@@ -37,6 +38,11 @@ export function AppNavigator() {
         <Stack.Screen
           name="Onboarding"
           component={OnboardingScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="NewPlan"
+          component={NewPlanScreen}
           options={{ headerShown: false }}
         />
         <Stack.Screen

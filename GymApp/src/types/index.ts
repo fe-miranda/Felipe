@@ -145,6 +145,7 @@ export interface CarouselSelectionState {
 export type RootStackParamList = {
   Welcome: undefined;
   Onboarding: undefined;
+  NewPlan: undefined;
   Home: undefined;
   MonthDetail: { monthIndex: number };
   WeekDetail: { monthIndex: number; weekIndex: number };

@@ -1,6 +1,7 @@
 import { UserProfile, AnnualPlan, MonthlyBlock, WeeklyPlan, WorkoutDay, PlanDuration, CompletedWorkout } from '../types';
 
 const GROQ_MODEL = 'llama-3.3-70b-versatile';
+const GROQ_VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 // Default key — users can override in Settings with their own Groq key
@@ -120,6 +121,58 @@ async function groqPost(messages: object[], maxTokens: number): Promise<string> 
         Authorization: `Bearer ${getApiKey()}`,
       },
       body: JSON.stringify({ model: GROQ_MODEL, messages, max_tokens: maxTokens, temperature: 0.7 }),
+      signal: controller.signal,
+    });
+  } catch (err: any) {
+    clearTimeout(timer);
+    if (err.name === 'AbortError') throw new Error('Tempo esgotado. Verifique sua conexão e tente novamente.');
+    throw new Error('Sem conexão. Verifique sua internet e tente novamente.');
+  }
+  clearTimeout(timer);
+
+  if (!response.ok) {
+    const msg = friendlyError(response.status)
+      ?? (() => { try { return (response.json() as any)?.error?.message; } catch { return null; } })()
+      ?? `Erro ${response.status}`;
+    throw new Error(msg);
+  }
+
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content ?? '';
+}
+
+async function groqVisionPost(
+  base64Images: { data: string; mimeType: string }[],
+  textPrompt: string,
+  maxTokens: number,
+): Promise<string> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+  const imageContent = base64Images.map((img) => ({
+    type: 'image_url',
+    image_url: { url: `data:${img.mimeType};base64,${img.data}` },
+  }));
+
+  const messages = [
+    {
+      role: 'user',
+      content: [
+        ...imageContent,
+        { type: 'text', text: textPrompt },
+      ],
+    },
+  ];
+
+  let response: Response;
+  try {
+    response = await fetch(GROQ_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${getApiKey()}`,
+      },
+      body: JSON.stringify({ model: GROQ_VISION_MODEL, messages, max_tokens: maxTokens, temperature: 0.4 }),
       signal: controller.signal,
     });
   } catch (err: any) {
@@ -414,5 +467,99 @@ export async function generateCustomWorkout(params: CustomWorkoutParams): Promis
     duration,
     exercises: Array.isArray(data.exercises) ? data.exercises : [],
     notes: `${strategy} · ${equipment}`,
+  };
+}
+
+// ─── Import plan from text ────────────────────────────────────────────────────
+
+const IMPORT_PLAN_PROMPT_SUFFIX =
+  `\nConvert the workout plan above into this exact JSON structure (PT-BR labels), no markdown:\n` +
+  `{"overallGoal":"..","months":[{"month":1,"monthName":"Janeiro","focus":"..","description":"..","progressIndicators":[".."],"weeks":[{"week":1,"theme":"..","weeklyGoals":[".."],"days":[{"dayOfWeek":"Segunda","focus":"..","duration":60,"exercises":[{"name":"Supino Reto","sets":4,"reps":"10-12","rest":"90s"}]}]}]}],"nutritionTips":[".."],"recoveryTips":[".."]}\n` +
+  `Rules: group days into weeks (4 weeks per month), keep all exercises exactly as described, fill missing fields with reasonable defaults.`;
+
+export async function importPlanFromText(
+  planText: string,
+  userName: string = 'Usuário',
+): Promise<AnnualPlan> {
+  const prompt = `Workout plan to import:\n\n${planText}${IMPORT_PLAN_PROMPT_SUFFIX}`;
+  const raw = await groqPost([{ role: 'user', content: prompt }], 3000);
+  const data = extractJson(raw);
+  return _buildImportedPlan(data, userName);
+}
+
+// ─── Import plan from images ──────────────────────────────────────────────────
+
+export async function importPlanFromImages(
+  images: { data: string; mimeType: string }[],
+  userName: string = 'Usuário',
+): Promise<AnnualPlan> {
+  if (images.length === 0) throw new Error('Nenhuma imagem fornecida.');
+
+  if (images.length === 1) {
+    // Single image: send directly with vision model
+    const raw = await groqVisionPost(
+      images,
+      `Extract all workout exercises, sets, reps and rest times visible in the image.${IMPORT_PLAN_PROMPT_SUFFIX}`,
+      3000,
+    );
+    const data = extractJson(raw);
+    return _buildImportedPlan(data, userName);
+  }
+
+  // Multiple images: extract text from each image first, then combine and convert
+  const extractPromises = images.map((img) =>
+    groqVisionPost(
+      [img],
+      'Extract all workout text visible in this image. Return only the raw text, no JSON.',
+      800,
+    ),
+  );
+  const texts = await Promise.all(extractPromises);
+  const combined = texts.join('\n\n---\n\n');
+  return importPlanFromText(combined, userName);
+}
+
+function _buildImportedPlan(data: any, userName: string): AnnualPlan {
+  const months: MonthlyBlock[] = (data.months ?? data.monthlyBlocks ?? []).map((m: any) => ({
+    month: m.month ?? 1,
+    monthName: m.monthName ?? `Mês ${m.month ?? 1}`,
+    focus: m.focus ?? 'Treino',
+    description: m.description ?? '',
+    progressIndicators: m.progressIndicators ?? [],
+    weeks: (m.weeks ?? []).map((w: any) => ({
+      week: w.week ?? 1,
+      theme: w.theme ?? '',
+      weeklyGoals: w.weeklyGoals ?? [],
+      days: (w.days ?? []).map((d: any) => ({
+        dayOfWeek: d.dayOfWeek ?? 'Segunda',
+        focus: d.focus ?? '',
+        duration: d.duration ?? 60,
+        exercises: Array.isArray(d.exercises) ? d.exercises : [],
+        notes: d.notes,
+      })),
+    })),
+  }));
+
+  return {
+    userId: userName,
+    createdAt: new Date().toISOString(),
+    totalMonths: months.length || 1,
+    overallGoal: data.overallGoal ?? 'Plano importado',
+    monthlyBlocks: months,
+    nutritionTips: data.nutritionTips ?? [],
+    recoveryTips: data.recoveryTips ?? [],
+    userProfile: {
+      name: userName,
+      age: 25,
+      weight: 70,
+      height: 170,
+      gender: 'male',
+      fitnessLevel: 'intermediate',
+      goal: 'general_fitness',
+      daysPerWeek: 3,
+      workoutDuration: 60,
+      cardioMinutes: 10,
+      planDuration: 'monthly',
+    },
   };
 }
