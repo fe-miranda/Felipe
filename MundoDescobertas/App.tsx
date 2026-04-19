@@ -36,7 +36,7 @@ const SHAPES: NonEmptyArray<Option> = [
   { id: 'star', label: 'Estrela', emoji: '⭐' },
 ];
 
-const randomItem = <T,>(list: NonEmptyArray<T>): T => list[Math.floor(Math.random() * list.length)];
+const pickRandomItem = <T,>(list: NonEmptyArray<T>): T => list[Math.floor(Math.random() * list.length)];
 
 const shuffleList = <T,>(list: readonly T[]): T[] => {
   const copy = [...list];
@@ -50,15 +50,15 @@ const shuffleList = <T,>(list: readonly T[]): T[] => {
 export default function App() {
   const [screen, setScreen] = useState<Screen>('home');
 
-  const [colorTarget, setColorTarget] = useState<Option>(randomItem(COLORS));
+  const [colorTarget, setColorTarget] = useState<Option>(pickRandomItem(COLORS));
   const [colorScore, setColorScore] = useState(0);
   const [colorFeedback, setColorFeedback] = useState('Toque na cor pedida.');
 
-  const [animalTarget, setAnimalTarget] = useState<Option>(randomItem(ANIMALS));
+  const [animalTarget, setAnimalTarget] = useState<Option>(pickRandomItem(ANIMALS));
   const [animalScore, setAnimalScore] = useState(0);
   const [animalFeedback, setAnimalFeedback] = useState('Escolha o bichinho certo.');
 
-  const [shapeTarget, setShapeTarget] = useState<Option>(randomItem(SHAPES));
+  const [shapeTarget, setShapeTarget] = useState<Option>(pickRandomItem(SHAPES));
   const [shapeScore, setShapeScore] = useState(0);
   const [shapeFeedback, setShapeFeedback] = useState('Toque na forma pedida.');
 
@@ -67,9 +67,9 @@ export default function App() {
 
   const resetAndGoHome = () => {
     setScreen('home');
-    setColorTarget(randomItem(COLORS));
-    setAnimalTarget(randomItem(ANIMALS));
-    setShapeTarget(randomItem(SHAPES));
+    setColorTarget(pickRandomItem(COLORS));
+    setAnimalTarget(pickRandomItem(ANIMALS));
+    setShapeTarget(pickRandomItem(SHAPES));
     setColorFeedback('Toque na cor pedida.');
     setAnimalFeedback('Escolha o bichinho certo.');
     setShapeFeedback('Toque na forma pedida.');
@@ -79,7 +79,7 @@ export default function App() {
     if (item.id === colorTarget.id) {
       setColorScore((value) => value + 1);
       setColorFeedback(`Muito bem! ${item.label}!`);
-      setColorTarget(randomItem(COLORS));
+      setColorTarget(pickRandomItem(COLORS));
       return;
     }
 
@@ -90,7 +90,7 @@ export default function App() {
     if (item.id === animalTarget.id) {
       setAnimalScore((value) => value + 1);
       setAnimalFeedback(`${item.emoji} ${item.extra}`);
-      setAnimalTarget(randomItem(ANIMALS));
+      setAnimalTarget(pickRandomItem(ANIMALS));
       return;
     }
 
@@ -101,7 +101,7 @@ export default function App() {
     if (item.id === shapeTarget.id) {
       setShapeScore((value) => value + 1);
       setShapeFeedback(`Boa! ${item.label}!`);
-      setShapeTarget(randomItem(SHAPES));
+      setShapeTarget(pickRandomItem(SHAPES));
       return;
     }
 

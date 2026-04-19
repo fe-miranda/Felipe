@@ -13,7 +13,7 @@ Jogo educativo mobile para crianças a partir de 3 anos, feito do zero com **Exp
 ## ▶️ Rodar localmente
 
 ```bash
-cd /home/runner/work/Felipe/Felipe/MundoDescobertas
+cd MundoDescobertas
 npm install
 npm start
 ```
@@ -21,7 +21,7 @@ npm start
 ## 🧪 Validar projeto
 
 ```bash
-cd /home/runner/work/Felipe/Felipe/MundoDescobertas
+cd MundoDescobertas
 npm test
 ```
 
@@ -31,4 +31,3 @@ npm test
 2. Execute o workflow **Build APK — Mundo das Descobertas** (ou use um run automático do push).
 3. Ao finalizar, vá em **Artifacts**.
 4. Baixe o arquivo `mundo-das-descobertas-v<run_number>.apk`.
-
