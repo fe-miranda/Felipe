@@ -23,6 +23,12 @@ import { saveWorkout } from '../services/workoutHistoryService';
 import { useHeartRate } from '../hooks/useHeartRate';
 import { hrZoneColor, hrZoneLabel } from '../services/heartRateService';
 import { shareWorkoutCard } from '../services/shareService';
+import {
+  showWorkoutStartedNotification,
+  scheduleRestEndNotification,
+  cancelRestNotification,
+  cancelAllWorkoutNotifications,
+} from '../services/notificationService';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'ActiveWorkout'>;
@@ -120,17 +126,31 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
     return () => sub.remove();
   }, [tick]);
 
+  // Show a persistent notification when the workout starts so the user
+  // can see it on the lock screen / notification shade.
+  useEffect(() => {
+    showWorkoutStartedNotification(workout.focus);
+    return () => {
+      // Clean up all workout notifications when leaving the screen
+      cancelAllWorkoutNotifications();
+    };
+  }, [workout.focus]);
+
   const startRest = useCallback((dur?: number) => {
     const d = dur ?? restDuration;
     restDeadlineRef.current = Date.now() + d * 1000;
     setRestRemaining(d);
     setRestActive(true);
-  }, [restDuration]);
+    // Schedule a notification that fires when the rest period ends
+    scheduleRestEndNotification(d, workout.focus);
+  }, [restDuration, workout.focus]);
 
   const stopRest = useCallback(() => {
     restDeadlineRef.current = null;
     setRestActive(false);
     setRestRemaining(0);
+    // User ended rest early — cancel the pending notification
+    cancelRestNotification();
   }, []);
 
   const applyRestConfig = useCallback(() => {
@@ -201,7 +221,14 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   const confirmExit = useCallback(() => {
     Alert.alert('Sair do treino', 'O progresso não será salvo. Deseja sair?', [
       { text: 'Continuar treino', style: 'cancel' },
-      { text: 'Sair', style: 'destructive', onPress: () => navigation.goBack() },
+      {
+        text: 'Sair',
+        style: 'destructive',
+        onPress: () => {
+          cancelAllWorkoutNotifications();
+          navigation.goBack();
+        },
+      },
     ]);
   }, [navigation]);
 
@@ -226,6 +253,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
               ...context,
             };
             await saveWorkout(log);
+            cancelAllWorkoutNotifications();
             // Offer to share the workout card
             Alert.alert(
               'Treino Salvo! 🎉',
