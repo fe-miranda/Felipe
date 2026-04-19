@@ -4,34 +4,32 @@
     "slug": "mundo-das-descobertas",
     "version": "1.0.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "dark",
-    "newArchEnabled": false,
-    "android": {
-      "adaptiveIcon": {
-        "backgroundColor": "#1a1a2e"
-      },
-      "package": "com.mundodescobertas.app",
-      "versionCode": 3,
-      "permissions": []
+    "scheme": "mundo-descobertas",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.mundodescobertas.app"
+      "bundleIdentifier": "com.felipe.mundodescobertas"
     },
-    "plugins": [
-      [
-        "expo-build-properties",
-        {
-          "android": {
-            "kotlinVersion": "1.9.25"
-          }
-        }
-      ]
-    ],
-    "extra": {
-      "eas": {
-        "projectId": "94d8ed3e-d9cd-4a6e-a7cc-0456ee20626c"
-      }
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.felipe.mundodescobertas",
+      "versionCode": 1,
+      "permissions": [],
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
     }
   }
 }
