@@ -94,7 +94,7 @@ export function OnboardingScreen({ navigation }: Props) {
       const key = await AsyncStorage.getItem('@gymapp_custom_apikey');
       if (key) setRuntimeApiKey(key);
     })();
-  }, []);
+  }, [loadStoredPlan, navigation]);
 
   const handleGenerate = async () => {
     if (!name.trim() || !age || !weight || !height) {
