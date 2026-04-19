@@ -1,6 +1,7 @@
 import { Share } from 'react-native';
 import {
   shareWorkoutCard,
+  shareWorkoutStory,
   shareWeeklyCard,
   buildWeeklyCardData,
   WeeklyCardData,
@@ -141,6 +142,22 @@ describe('shareWorkoutCard', () => {
 
     const callArg = print.printToFileAsync.mock.calls[0][0];
     expect(callArg.html).toContain('150'); // avg of 140+160
+  });
+});
+
+describe('shareWorkoutStory', () => {
+  it('generates a vertical story card with 1080x1920 output', async () => {
+    const print = require('expo-print');
+
+    await shareWorkoutStory({ workout: mockWorkout });
+
+    expect(print.printToFileAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        width: 1080,
+        height: 1920,
+        html: expect.stringContaining('STORY DE TREINO'),
+      }),
+    );
   });
 });
 

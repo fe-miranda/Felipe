@@ -14,8 +14,8 @@ const mockWorkouts: QuickWorkout[] = [
     tag: 'Queima Rápida',
     exercises: [
       { name: 'Burpee', sets: 4, reps: '10', rest: '30s' },
-      { name: 'Mountain Climber', sets: 4, reps: '30s', rest: '20s' },
-      { name: 'Jump Squat', sets: 3, reps: '15', rest: '30s' },
+      { name: 'Mountain Climber', sets: 4, reps: '30s', rest: '20s', muscleGroups: ['Core'] },
+      { name: 'Jump Squat', sets: 3, reps: '15', rest: '30s', muscleGroups: ['Quadríceps'] },
     ],
   },
   {
@@ -28,7 +28,7 @@ const mockWorkouts: QuickWorkout[] = [
     tag: 'Core',
     exercises: [
       { name: 'Prancha', sets: 4, reps: '45s', rest: '0s' },
-      { name: 'Abdominal', sets: 4, reps: '20', rest: '0s' },
+      { name: 'Abdominal', sets: 4, reps: '20', rest: '0s', muscleGroups: ['Core'] },
     ],
   },
 ];
@@ -161,5 +161,20 @@ describe('useCarouselCustomization — persistence', () => {
     const enabled = result.current.getEnabledIndices('hiit', 3);
     expect(enabled).toEqual(new Set([0, 2]));
     expect(enabled.has(1)).toBe(false);
+  });
+});
+
+describe('useCarouselCustomization — muscle group filter', () => {
+  it('filters workout by selected muscle group and persists selection', async () => {
+    const { result } = renderHook(() => useCarouselCustomization(mockWorkouts));
+    await act(async () => {});
+
+    act(() => {
+      result.current.setMuscleGroupFilter(mockWorkouts[0], 'Core');
+    });
+
+    const enabled = result.current.getEnabledIndices('hiit', 3);
+    expect(enabled).toEqual(new Set([1]));
+    expect(result.current.getMuscleGroupFilter('hiit')).toBe('Core');
   });
 });

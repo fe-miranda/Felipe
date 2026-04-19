@@ -68,57 +68,67 @@ const QUICK_WORKOUTS: QuickWorkout[] = [
     id: 'hiit', name: 'HIIT Express', icon: '⚡', duration: 20,
     color: '#EF4444', description: 'Alta intensidade, queima máxima', tag: 'Queima Rápida',
     exercises: [
-      { name: 'Burpee',           sets: 4, reps: '10',  rest: '30s' },
-      { name: 'Mountain Climber', sets: 4, reps: '30s', rest: '20s' },
-      { name: 'Jump Squat',       sets: 3, reps: '15',  rest: '30s' },
-      { name: 'High Knees',       sets: 3, reps: '30s', rest: '20s' },
+      { name: 'Burpee',           sets: 4, reps: '10',  rest: '30s', muscleGroups: ['Corpo Inteiro', 'Cardio'] },
+      { name: 'Mountain Climber', sets: 4, reps: '30s', rest: '20s', muscleGroups: ['Core', 'Cardio'] },
+      { name: 'Jump Squat',       sets: 3, reps: '15',  rest: '30s', muscleGroups: ['Quadríceps', 'Glúteo'] },
+      { name: 'High Knees',       sets: 3, reps: '30s', rest: '20s', muscleGroups: ['Cardio', 'Panturrilha'] },
     ],
   },
   {
     id: 'biset', name: 'Biset Força', icon: '🏋️', duration: 35,
     color: '#7C3AED', description: 'Empurrar + Puxar em biset', tag: 'Biset',
     exercises: [
-      { name: 'Supino Reto',       sets: 4, reps: '10', rest: '60s', notes: 'Biset c/ Remada' },
-      { name: 'Remada Curvada',    sets: 4, reps: '10', rest: '60s', notes: 'Biset c/ Supino' },
-      { name: 'Desenvolvimento',   sets: 3, reps: '12', rest: '60s', notes: 'Biset c/ Puxada' },
-      { name: 'Puxada Frontal',    sets: 3, reps: '12', rest: '60s', notes: 'Biset c/ Desenvolvimento' },
+      { name: 'Supino Reto',       sets: 4, reps: '10', rest: '60s', notes: 'Biset c/ Remada', muscleGroups: ['Peito', 'Tríceps'] },
+      { name: 'Remada Curvada',    sets: 4, reps: '10', rest: '60s', notes: 'Biset c/ Supino', muscleGroups: ['Dorsal', 'Bíceps'] },
+      { name: 'Desenvolvimento',   sets: 3, reps: '12', rest: '60s', notes: 'Biset c/ Puxada', muscleGroups: ['Ombro', 'Tríceps'] },
+      { name: 'Puxada Frontal',    sets: 3, reps: '12', rest: '60s', notes: 'Biset c/ Desenvolvimento', muscleGroups: ['Dorsal', 'Bíceps'] },
     ],
   },
   {
     id: 'pyramid', name: 'Pirâmide', icon: '📈', duration: 40,
     color: '#F59E0B', description: 'Progride a carga a cada série', tag: 'Pirâmide',
     exercises: [
-      { name: 'Agachamento Livre', sets: 5, reps: '15/12/10/8/6', rest: '90s', notes: 'Aumente a carga a cada série' },
-      { name: 'Leg Press',         sets: 4, reps: '15/12/10/8',   rest: '75s', notes: 'Pirâmide crescente' },
-      { name: 'Cadeira Extensora', sets: 3, reps: '15/12/10',     rest: '60s', notes: 'Finalizador' },
+      { name: 'Agachamento Livre', sets: 5, reps: '15/12/10/8/6', rest: '90s', notes: 'Aumente a carga a cada série', muscleGroups: ['Quadríceps', 'Glúteo'] },
+      { name: 'Leg Press',         sets: 4, reps: '15/12/10/8',   rest: '75s', notes: 'Pirâmide crescente', muscleGroups: ['Quadríceps', 'Glúteo'] },
+      { name: 'Cadeira Extensora', sets: 3, reps: '15/12/10',     rest: '60s', notes: 'Finalizador', muscleGroups: ['Quadríceps'] },
     ],
   },
   {
     id: 'dropset', name: 'Dropset', icon: '📉', duration: 30,
     color: '#10B981', description: 'Reduza a carga sem parar', tag: 'Dropset',
     exercises: [
-      { name: 'Rosca Direta',   sets: 3, reps: '12+drop', rest: '90s', notes: 'Dropset: tire 20% da carga e continue' },
-      { name: 'Tríceps Pulley', sets: 3, reps: '12+drop', rest: '90s', notes: 'Dropset no mesmo cabo' },
-      { name: 'Elevação Lateral', sets: 3, reps: '15+drop', rest: '75s', notes: 'Dropset com halter' },
+      { name: 'Rosca Direta',   sets: 3, reps: '12+drop', rest: '90s', notes: 'Dropset: tire 20% da carga e continue', muscleGroups: ['Bíceps', 'Antebraço'] },
+      { name: 'Tríceps Pulley', sets: 3, reps: '12+drop', rest: '90s', notes: 'Dropset no mesmo cabo', muscleGroups: ['Tríceps'] },
+      { name: 'Elevação Lateral', sets: 3, reps: '15+drop', rest: '75s', notes: 'Dropset com halter', muscleGroups: ['Ombro', 'Trapézio'] },
     ],
   },
   {
     id: 'crossfit', name: 'CrossFit WOD', icon: '🏅', duration: 25,
     color: '#3B82F6', description: 'Condicionamento funcional intenso', tag: 'Funcional',
     exercises: [
-      { name: 'Thruster (barra)',  sets: 5, reps: '10', rest: '45s' },
-      { name: 'Pull-up',          sets: 5, reps: '8',  rest: '45s' },
-      { name: 'Box Jump',         sets: 4, reps: '12', rest: '30s' },
-      { name: 'Kettlebell Swing', sets: 4, reps: '15', rest: '30s' },
+      { name: 'Thruster (barra)',  sets: 5, reps: '10', rest: '45s', muscleGroups: ['Ombro', 'Quadríceps'] },
+      { name: 'Pull-up',          sets: 5, reps: '8',  rest: '45s', muscleGroups: ['Dorsal', 'Bíceps'] },
+      { name: 'Box Jump',         sets: 4, reps: '12', rest: '30s', muscleGroups: ['Quadríceps', 'Panturrilha'] },
+      { name: 'Kettlebell Swing', sets: 4, reps: '15', rest: '30s', muscleGroups: ['Posterior', 'Glúteo'] },
     ],
   },
   {
     id: 'triset', name: 'Triset Core', icon: '🔥', duration: 20,
     color: '#EC4899', description: 'Triset para abdômen e core', tag: 'Triset',
     exercises: [
-      { name: 'Prancha',         sets: 4, reps: '45s', rest: '0s',  notes: 'Triset 1/3' },
-      { name: 'Abdominal Bici',  sets: 4, reps: '20',  rest: '0s',  notes: 'Triset 2/3' },
-      { name: 'Russian Twist',   sets: 4, reps: '20',  rest: '60s', notes: 'Triset 3/3 — descanse aqui' },
+      { name: 'Prancha',         sets: 4, reps: '45s', rest: '0s',  notes: 'Triset 1/3', muscleGroups: ['Core'] },
+      { name: 'Abdominal Bici',  sets: 4, reps: '20',  rest: '0s',  notes: 'Triset 2/3', muscleGroups: ['Core'] },
+      { name: 'Russian Twist',   sets: 4, reps: '20',  rest: '60s', notes: 'Triset 3/3 — descanse aqui', muscleGroups: ['Core'] },
+    ],
+  },
+  {
+    id: 'mobility', name: 'Mobilidade & Flexibilidade', icon: '🧘', duration: 30,
+    color: '#22C55E', description: 'Alongamentos dinâmicos e mobilidade articular', tag: 'Mobilidade',
+    exercises: [
+      { name: 'Alongamento de Quadril', sets: 3, reps: '45s', rest: '15s', muscleGroups: ['Mobilidade', 'Glúteo'] },
+      { name: 'Mobilidade Torácica', sets: 3, reps: '12', rest: '20s', muscleGroups: ['Mobilidade', 'Dorsal'] },
+      { name: 'Alongamento de Isquiotibiais', sets: 3, reps: '40s', rest: '20s', muscleGroups: ['Mobilidade', 'Posterior'] },
+      { name: 'Yoga Dinâmica (Flow)', sets: 2, reps: '6min', rest: '30s', muscleGroups: ['Mobilidade', 'Core'] },
     ],
   },
 ];
@@ -220,6 +230,9 @@ export function HomeScreen({ navigation }: Props) {
           </TouchableOpacity>
           <TouchableOpacity style={s.iconBtn} onPress={() => navigation.navigate('Settings')} testID="btn-settings">
             <Text style={s.iconBtnText}>⚙️</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.iconBtn} onPress={() => navigation.navigate('MuscleFatigue')} testID="btn-muscle-fatigue">
+            <Text style={s.iconBtnText}>🧍</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -326,12 +339,33 @@ export function HomeScreen({ navigation }: Props) {
         const wk = QUICK_WORKOUTS.find(w => w.id === customiseId);
         if (!wk) return null;
         const enabled = carousel.getEnabledIndices(wk.id, wk.exercises.length);
+        const selectedGroup = carousel.getMuscleGroupFilter(wk.id);
+        const muscleGroups = Array.from(new Set(wk.exercises.flatMap(ex => ex.muscleGroups ?? [])));
         return (
           <Modal visible transparent animationType="slide" onRequestClose={() => setCustomiseId(null)}>
             <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={() => setCustomiseId(null)}>
               <View style={s.customiseSheet} onStartShouldSetResponder={() => true}>
                 <Text style={s.customiseTitle}>{wk.icon} {wk.name}</Text>
                 <Text style={s.customiseSubtitle}>Toque para ativar/desativar exercícios</Text>
+                {muscleGroups.length > 0 && (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.groupChipRow}>
+                    <TouchableOpacity
+                      style={[s.groupChip, selectedGroup === null && s.groupChipActive]}
+                      onPress={() => carousel.setMuscleGroupFilter(wk, null)}
+                    >
+                      <Text style={[s.groupChipText, selectedGroup === null && s.groupChipTextActive]}>Todos</Text>
+                    </TouchableOpacity>
+                    {muscleGroups.map((group) => (
+                      <TouchableOpacity
+                        key={group}
+                        style={[s.groupChip, selectedGroup === group && s.groupChipActive]}
+                        onPress={() => carousel.setMuscleGroupFilter(wk, group)}
+                      >
+                        <Text style={[s.groupChipText, selectedGroup === group && s.groupChipTextActive]}>{group}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                )}
                 {wk.exercises.map((ex, idx) => {
                   const on = enabled.has(idx);
                   return (
@@ -345,7 +379,10 @@ export function HomeScreen({ navigation }: Props) {
                       </View>
                       <View style={s.customiseExInfo}>
                         <Text style={[s.customiseExName, !on && { color: C.text3 }]}>{ex.name}</Text>
-                        <Text style={s.customiseExMeta}>{ex.sets}×{ex.reps}</Text>
+                        <Text style={s.customiseExMeta}>
+                          {ex.sets}×{ex.reps}
+                          {ex.muscleGroups?.length ? ` · ${ex.muscleGroups.join(' / ')}` : ''}
+                        </Text>
                       </View>
                     </TouchableOpacity>
                   );
@@ -666,6 +703,18 @@ const s = StyleSheet.create({
   },
   customiseTitle: { color: C.text1, fontSize: 18, fontWeight: '800' },
   customiseSubtitle: { color: C.text3, fontSize: 13, marginBottom: 4 },
+  groupChipRow: { gap: 8, paddingVertical: 2, marginBottom: 8 },
+  groupChip: {
+    backgroundColor: C.elevated,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: C.border,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  groupChipActive: { borderColor: C.primary, backgroundColor: C.primaryGlow },
+  groupChipText: { color: C.text2, fontSize: 12, fontWeight: '600' },
+  groupChipTextActive: { color: C.primaryLight },
   customiseRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     backgroundColor: C.elevated, borderRadius: 12, padding: 12,

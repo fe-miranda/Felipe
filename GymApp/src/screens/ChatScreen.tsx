@@ -19,6 +19,7 @@ const C = {
 };
 
 const PLAN_KEY = '@gymapp_plan';
+const CUSTOM_KEY_STORAGE = '@gymapp_custom_apikey';
 
 const SUGGESTIONS = [
   { icon: '📊', text: 'Como está meu progresso?' },
@@ -34,6 +35,7 @@ export function ChatScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<AnnualPlan | null>(null);
   const [planLoading, setPlanLoading] = useState(true);
+  const [hasCustomKey, setHasCustomKey] = useState(false);
   const listRef = useRef<FlatList>(null);
   const insets = useSafeAreaInsets();
 
@@ -52,6 +54,12 @@ export function ChatScreen({ navigation }: Props) {
       .finally(() => {
         setPlanLoading(false);
       });
+  }, []);
+
+  useEffect(() => {
+    AsyncStorage.getItem(CUSTOM_KEY_STORAGE)
+      .then((k) => setHasCustomKey(Boolean(k?.trim())))
+      .catch(() => setHasCustomKey(false));
   }, []);
 
   const sendMessage = async (text?: string) => {
@@ -124,6 +132,14 @@ export function ChatScreen({ navigation }: Props) {
       {/* ── Welcome + suggestions ── */}
       {showWelcome && (
         <View style={s.welcomeWrap}>
+          {!hasCustomKey && (
+            <View style={s.keyWarning}>
+              <Text style={s.keyWarningText}>Usando chave padrão da IA. Para evitar limite, configure sua chave.</Text>
+              <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
+                <Text style={s.keyWarningLink}>Ir para Configurações</Text>
+              </TouchableOpacity>
+            </View>
+          )}
           <View style={s.welcomeAvatarWrap}>
             <Text style={s.welcomeAvatar}>🤖</Text>
           </View>
@@ -205,6 +221,17 @@ const s = StyleSheet.create({
   backLink: { color: C.primary, fontSize: 15, fontWeight: '600' },
 
   welcomeWrap: { padding: 20, paddingBottom: 0, alignItems: 'center' },
+  keyWarning: {
+    width: '100%',
+    backgroundColor: 'rgba(245,158,11,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(245,158,11,0.4)',
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 12,
+  },
+  keyWarningText: { color: '#FCD34D', fontSize: 12, marginBottom: 4 },
+  keyWarningLink: { color: C.primaryLight, fontSize: 12, fontWeight: '700' },
   welcomeAvatarWrap: {
     width: 64, height: 64, borderRadius: 32,
     backgroundColor: C.primaryGlow, alignItems: 'center', justifyContent: 'center',

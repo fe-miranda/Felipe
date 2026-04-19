@@ -22,9 +22,10 @@ import { getExerciseAlternatives } from '../services/aiService';
 import { saveWorkout } from '../services/workoutHistoryService';
 import { useHeartRate } from '../hooks/useHeartRate';
 import { hrZoneColor, hrZoneLabel } from '../services/heartRateService';
-import { shareWorkoutCard } from '../services/shareService';
+import { shareWorkoutCard, shareWorkoutStory } from '../services/shareService';
 import {
   showWorkoutStartedNotification,
+  updateWorkoutElapsedNotification,
   scheduleRestEndNotification,
   cancelRestNotification,
   cancelAllWorkoutNotifications,
@@ -135,6 +136,12 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
       cancelAllWorkoutNotifications();
     };
   }, [workout.focus]);
+
+  // Update lock-screen notification body periodically with elapsed time.
+  useEffect(() => {
+    if (elapsed === 0 || elapsed % 30 !== 0) return;
+    updateWorkoutElapsedNotification(workout.focus, elapsed);
+  }, [elapsed, workout.focus]);
 
   const startRest = useCallback((dur?: number) => {
     const d = dur ?? restDuration;
@@ -261,10 +268,24 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
               [
                 { text: 'Agora não', onPress: () => navigation.navigate('WorkoutHistory') },
                 {
-                  text: 'Compartilhar 📤',
+                  text: 'Post (quadrado) 📤',
                   onPress: async () => {
                     try {
                       await shareWorkoutCard({
+                        workout: log,
+                        heartRateSamples: hr.samples,
+                      });
+                    } catch {
+                      // ignore share errors
+                    }
+                    navigation.navigate('WorkoutHistory');
+                  },
+                },
+                {
+                  text: 'Story (vertical) 📸',
+                  onPress: async () => {
+                    try {
+                      await shareWorkoutStory({
                         workout: log,
                         heartRateSamples: hr.samples,
                       });

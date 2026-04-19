@@ -198,6 +198,59 @@ function buildWorkoutCardHtml(data: WorkoutCardData): string {
 </html>`;
 }
 
+function buildWorkoutStoryHtml(data: WorkoutCardData): string {
+  const { workout } = data;
+  const doneSets = workout.exercises.reduce((a, e) => a + e.sets.filter(s => s.done).length, 0);
+  const totalSets = workout.exercises.reduce((a, e) => a + e.sets.length, 0);
+  const progress = totalSets > 0 ? Math.round((doneSets / totalSets) * 100) : 0;
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    width: 1080px; height: 1920px;
+    background: linear-gradient(160deg, ${THEME.bg}, ${THEME.surface});
+    color: ${THEME.text1};
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    padding: 120px 80px;
+    display: flex; flex-direction: column;
+  }
+  .tag { color: ${THEME.primaryLight}; font-size: 40px; font-weight: 800; margin-bottom: 30px; }
+  .title { font-size: 84px; font-weight: 900; line-height: 1.1; margin-bottom: 24px; }
+  .meta { color: ${THEME.text2}; font-size: 42px; margin-bottom: 80px; }
+  .card {
+    background: rgba(124,58,237,0.1);
+    border: 2px solid rgba(124,58,237,0.35);
+    border-radius: 40px;
+    padding: 56px;
+    margin-bottom: 40px;
+  }
+  .card-row { display: flex; justify-content: space-between; margin-bottom: 24px; font-size: 42px; }
+  .bar { height: 24px; background: rgba(255,255,255,0.1); border-radius: 12px; overflow: hidden; margin-top: 16px; }
+  .bar-fill { height: 24px; width: ${progress}%; background: ${THEME.success}; }
+  .exercise { color: ${THEME.text2}; font-size: 34px; margin-bottom: 14px; }
+  .footer { margin-top: auto; color: ${THEME.text3}; font-size: 32px; text-align: center; }
+</style>
+</head>
+<body>
+  <div class="tag">🔥 STORY DE TREINO</div>
+  <div class="title">${workout.focus}</div>
+  <div class="meta">${new Date(workout.date).toLocaleDateString('pt-BR')}</div>
+  <div class="card">
+    <div class="card-row"><span>⏱ Duração</span><strong>${fmtDuration(workout.durationSeconds)}</strong></div>
+    <div class="card-row"><span>💪 Séries</span><strong>${doneSets}/${totalSets}</strong></div>
+    <div class="card-row"><span>📈 Progresso</span><strong>${progress}%</strong></div>
+    <div class="bar"><div class="bar-fill"></div></div>
+  </div>
+  ${workout.exercises.slice(0, 5).map((ex) => `<div class="exercise">• ${ex.name}</div>`).join('')}
+  <div class="footer">Compartilhado via GymApp 💜</div>
+</body>
+</html>`;
+}
+
 function buildWeeklyCardHtml(data: WeeklyCardData): string {
   const { weekLabel, totalWorkouts, totalMinutes, topExercise, avgBpm } = data;
   const hrRow = avgBpm
@@ -298,6 +351,21 @@ export async function shareWorkoutCard(data: WorkoutCardData): Promise<void> {
   }
 }
 
+/** Share workout in 9:16 story format. */
+export async function shareWorkoutStory(data: WorkoutCardData): Promise<void> {
+  try {
+    await _shareHtml(buildWorkoutStoryHtml(data), `treino_story_${data.workout.id}.pdf`, {
+      width: 1080,
+      height: 1920,
+    });
+  } catch {
+    await Share.share({
+      message: `🔥 Story de treino: ${data.workout.focus}\n⏱ ${fmtDuration(data.workout.durationSeconds)}\nCompartilhado via GymApp 💜`,
+      title: 'Story de Treino',
+    });
+  }
+}
+
 /**
  * Share a weekly progress summary as a social card image.
  * Falls back to text share if image generation fails.
@@ -313,7 +381,11 @@ export async function shareWeeklyCard(data: WeeklyCardData): Promise<void> {
   }
 }
 
-async function _shareHtml(html: string, filename: string): Promise<void> {
+async function _shareHtml(
+  html: string,
+  filename: string,
+  options?: { width?: number; height?: number },
+): Promise<void> {
   const print = getPrint();
   const sharing = getSharing();
 
@@ -326,7 +398,7 @@ async function _shareHtml(html: string, filename: string): Promise<void> {
     throw new Error('Sharing not available on this platform');
   }
 
-  const { uri } = await print.printToFileAsync({ html, base64: false });
+  const { uri } = await print.printToFileAsync({ html, base64: false, ...options });
   await sharing.shareAsync(uri, {
     mimeType: 'application/pdf',
     dialogTitle: 'Compartilhar treino',
