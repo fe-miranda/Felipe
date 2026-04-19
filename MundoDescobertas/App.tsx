@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 type Screen = 'home' | 'colors' | 'animals' | 'shapes';
+type NonEmptyArray<T> = [T, ...T[]];
 
 type Option = {
   id: string;
@@ -12,7 +13,7 @@ type Option = {
   color?: string;
 };
 
-const COLORS: Option[] = [
+const COLORS: NonEmptyArray<Option> = [
   { id: 'red', label: 'Vermelho', emoji: '🔴', color: '#ef4444' },
   { id: 'blue', label: 'Azul', emoji: '🔵', color: '#3b82f6' },
   { id: 'green', label: 'Verde', emoji: '🟢', color: '#22c55e' },
@@ -21,21 +22,21 @@ const COLORS: Option[] = [
   { id: 'orange', label: 'Laranja', emoji: '🟠', color: '#fb923c' },
 ];
 
-const ANIMALS: Option[] = [
+const ANIMALS: NonEmptyArray<Option> = [
   { id: 'dog', label: 'Cachorro', emoji: '🐶', extra: 'Au au!' },
   { id: 'cat', label: 'Gato', emoji: '🐱', extra: 'Miau!' },
   { id: 'cow', label: 'Vaca', emoji: '🐮', extra: 'Muuu!' },
   { id: 'duck', label: 'Pato', emoji: '🦆', extra: 'Quá quá!' },
 ];
 
-const SHAPES: Option[] = [
+const SHAPES: NonEmptyArray<Option> = [
   { id: 'circle', label: 'Círculo', emoji: '⚪' },
   { id: 'square', label: 'Quadrado', emoji: '🟦' },
   { id: 'triangle', label: 'Triângulo', emoji: '🔺' },
   { id: 'star', label: 'Estrela', emoji: '⭐' },
 ];
 
-const randomItem = <T,>(list: T[]) => list[Math.floor(Math.random() * list.length)];
+const randomItem = <T,>(list: NonEmptyArray<T>): T => list[Math.floor(Math.random() * list.length)];
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('home');
