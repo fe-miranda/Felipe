@@ -216,7 +216,7 @@ export function HomeScreen({ navigation }: Props) {
     Alert.alert('Novo Plano', 'Seu plano atual será apagado. Continuar?', [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Apagar e recomeçar', style: 'destructive',
-        onPress: async () => { await clearPlan(); navigation.replace('Onboarding'); } },
+        onPress: async () => { await clearPlan(); navigation.replace('NewPlan'); } },
     ]);
   };
 
@@ -227,7 +227,7 @@ export function HomeScreen({ navigation }: Props) {
           <Text style={s.emptyEmoji}>🏋️</Text>
           <Text style={s.emptyTitle}>Nenhum plano encontrado</Text>
           <Text style={s.emptyDesc}>Crie seu plano anual personalizado com IA</Text>
-          <TouchableOpacity style={s.emptyBtn} onPress={() => navigation.replace('Onboarding')}>
+          <TouchableOpacity style={s.emptyBtn} onPress={() => navigation.replace('NewPlan')}>
             <Text style={s.emptyBtnText}>Criar Plano Agora</Text>
           </TouchableOpacity>
         </View>
