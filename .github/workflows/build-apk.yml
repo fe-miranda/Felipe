@@ -37,10 +37,10 @@ jobs:
         working-directory: GymApp
         run: npx expo prebuild --platform android --clean
 
-      - name: Pin Gradle to 8.14.3 (Gradle 9 removed List.execute() used in build.gradle)
+      - name: Pin Gradle to 8.13 (Gradle 9 removed APIs used in build.gradle)
         working-directory: GymApp/android
         run: |
-          sed -i 's|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.14.3-bin.zip|' gradle/wrapper/gradle-wrapper.properties
+          sed -i 's|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.13-bin.zip|' gradle/wrapper/gradle-wrapper.properties
 
       - name: Make gradlew executable
         working-directory: GymApp/android
