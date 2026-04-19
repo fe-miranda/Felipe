@@ -127,6 +127,12 @@ async function groqPost(messages: object[], maxTokens: number): Promise<string> 
   if (!response.ok) {
     let msg = `Erro ${response.status}`;
     try { const e = await response.json(); msg = e.error?.message || msg; } catch {}
+    if (response.status === 401) {
+      throw new Error(`${msg} — Chave de API inválida ou expirada. Acesse Configurações para atualizar sua chave Groq.`);
+    }
+    if (response.status === 429) {
+      throw new Error(`${msg} — Limite de uso da API atingido. Aguarde alguns minutos ou configure sua própria chave em Configurações.`);
+    }
     throw new Error(msg);
   }
 

@@ -33,12 +33,14 @@ export function ChatScreen({ navigation }: Props) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<AnnualPlan | null>(null);
+  const [planLoading, setPlanLoading] = useState(true);
   const listRef = useRef<FlatList>(null);
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
     AsyncStorage.getItem(PLAN_KEY).then((stored) => {
       if (stored) setPlan(JSON.parse(stored));
+      setPlanLoading(false);
     });
   }, []);
 
@@ -79,6 +81,15 @@ export function ChatScreen({ navigation }: Props) {
       </View>
     );
   };
+
+  if (planLoading) {
+    return (
+      <View style={s.emptyWrap}>
+        <ActivityIndicator size="large" color={C.primary} />
+        <Text style={s.emptyText}>Carregando plano...</Text>
+      </View>
+    );
+  }
 
   if (!plan) {
     return (
