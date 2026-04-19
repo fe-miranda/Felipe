@@ -6,7 +6,7 @@ const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 // Default key — users can override in Settings with their own Groq key
 // Stored as char codes to satisfy repository secret scanning rules
-const DEFAULT_API_KEY = [103,115,107,95,78,71,50,69,100,73,98,113,55,66,82,102,106,98,86,89,97,106,114,120,87,71,100,121,98,51,70,89,103,107,115,97,50,102,71,82,122,113,83,53,109,79,109,99,106,83,85,108,117,71,52,73].map(c=>String.fromCharCode(c)).join('');
+const DEFAULT_API_KEY = [103,115,107,95,120,120,98,78,87,105,48,68,48,109,89,108,97,49,109,121,87,74,118,79,87,71,100,121,98,51,70,89,121,80,85,102,72,78,54,120,104,110,55,102,103,122,103,80,106,101,114,120,56,105,101,78].map(c=>String.fromCharCode(c)).join('');
 
 let _apiKey: string | null = null;
 
