@@ -137,11 +137,13 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
     };
   }, [workout.focus]);
 
-  // Update lock-screen notification body periodically with elapsed time.
+  // Update lock-screen notification body every 30 seconds.
   useEffect(() => {
-    if (elapsed === 0 || elapsed % 30 !== 0) return;
-    updateWorkoutElapsedNotification(workout.focus, elapsed);
-  }, [elapsed, workout.focus]);
+    const id = setInterval(() => {
+      updateWorkoutElapsedNotification(workout.focus, elapsedRef.current);
+    }, 30000);
+    return () => clearInterval(id);
+  }, [workout.focus]);
 
   const startRest = useCallback((dur?: number) => {
     const d = dur ?? restDuration;
@@ -268,7 +270,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
               [
                 { text: 'Agora não', onPress: () => navigation.navigate('WorkoutHistory') },
                 {
-                  text: 'Post (quadrado) 📤',
+                  text: 'Cartão Quadrado (1:1) 📤',
                   onPress: async () => {
                     try {
                       await shareWorkoutCard({

@@ -2,7 +2,12 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { loadHistory } from '../services/workoutHistoryService';
-import { computeMuscleFatigue, MuscleFatigue } from '../services/muscleService';
+import {
+  BACK_MUSCLE_GROUPS,
+  computeMuscleFatigue,
+  FRONT_MUSCLE_GROUPS,
+  MuscleFatigue,
+} from '../services/muscleService';
 
 const C = {
   bg: '#07070F',
@@ -34,8 +39,8 @@ export function MuscleFatigueScreen() {
     loadHistory().then((history) => setData(computeMuscleFatigue(history)));
   }, []);
 
-  const front = useMemo(() => data.filter((d) => ['Peito', 'Ombro', 'Bíceps', 'Tríceps', 'Core', 'Quadríceps', 'Adutor/Abdutor', 'Panturrilha'].includes(d.group)), [data]);
-  const back = useMemo(() => data.filter((d) => ['Dorsal', 'Trapézio', 'Antebraço', 'Posterior', 'Glúteo'].includes(d.group)), [data]);
+  const front = useMemo(() => data.filter((d) => FRONT_MUSCLE_GROUPS.includes(d.group)), [data]);
+  const back = useMemo(() => data.filter((d) => BACK_MUSCLE_GROUPS.includes(d.group)), [data]);
 
   return (
     <SafeAreaView style={s.safe} edges={['bottom']}>

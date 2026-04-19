@@ -68,10 +68,10 @@ const QUICK_WORKOUTS: QuickWorkout[] = [
     id: 'hiit', name: 'HIIT Express', icon: '⚡', duration: 20,
     color: '#EF4444', description: 'Alta intensidade, queima máxima', tag: 'Queima Rápida',
     exercises: [
-      { name: 'Burpee',           sets: 4, reps: '10',  rest: '30s', muscleGroups: ['Corpo Inteiro', 'Cardio'] },
-      { name: 'Mountain Climber', sets: 4, reps: '30s', rest: '20s', muscleGroups: ['Core', 'Cardio'] },
+      { name: 'Burpee',           sets: 4, reps: '10',  rest: '30s', muscleGroups: ['Peito', 'Quadríceps', 'Core'] },
+      { name: 'Mountain Climber', sets: 4, reps: '30s', rest: '20s', muscleGroups: ['Core', 'Ombro'] },
       { name: 'Jump Squat',       sets: 3, reps: '15',  rest: '30s', muscleGroups: ['Quadríceps', 'Glúteo'] },
-      { name: 'High Knees',       sets: 3, reps: '30s', rest: '20s', muscleGroups: ['Cardio', 'Panturrilha'] },
+      { name: 'High Knees',       sets: 3, reps: '30s', rest: '20s', muscleGroups: ['Quadríceps', 'Panturrilha'] },
     ],
   },
   {
@@ -125,10 +125,10 @@ const QUICK_WORKOUTS: QuickWorkout[] = [
     id: 'mobility', name: 'Mobilidade & Flexibilidade', icon: '🧘', duration: 30,
     color: '#22C55E', description: 'Alongamentos dinâmicos e mobilidade articular', tag: 'Mobilidade',
     exercises: [
-      { name: 'Alongamento de Quadril', sets: 3, reps: '45s', rest: '15s', muscleGroups: ['Mobilidade', 'Glúteo'] },
-      { name: 'Mobilidade Torácica', sets: 3, reps: '12', rest: '20s', muscleGroups: ['Mobilidade', 'Dorsal'] },
-      { name: 'Alongamento de Isquiotibiais', sets: 3, reps: '40s', rest: '20s', muscleGroups: ['Mobilidade', 'Posterior'] },
-      { name: 'Yoga Dinâmica (Flow)', sets: 2, reps: '6min', rest: '30s', muscleGroups: ['Mobilidade', 'Core'] },
+      { name: 'Alongamento de Quadril', sets: 3, reps: '45s', rest: '15s', muscleGroups: ['Glúteo', 'Adutor/Abdutor'] },
+      { name: 'Mobilidade Torácica', sets: 3, reps: '12', rest: '20s', muscleGroups: ['Dorsal', 'Trapézio'] },
+      { name: 'Alongamento de Isquiotibiais', sets: 3, reps: '40s', rest: '20s', muscleGroups: ['Posterior'] },
+      { name: 'Yoga Dinâmica (Flow)', sets: 2, reps: '6min', rest: '30s', muscleGroups: ['Core', 'Ombro'] },
     ],
   },
 ];

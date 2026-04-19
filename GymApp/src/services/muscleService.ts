@@ -17,6 +17,12 @@ export const MUSCLE_GROUPS = [
 ] as const;
 
 export type MuscleGroup = typeof MUSCLE_GROUPS[number];
+export const FRONT_MUSCLE_GROUPS: MuscleGroup[] = [
+  'Peito', 'Ombro', 'Bíceps', 'Tríceps', 'Core', 'Quadríceps', 'Adutor/Abdutor', 'Panturrilha',
+];
+export const BACK_MUSCLE_GROUPS: MuscleGroup[] = [
+  'Dorsal', 'Trapézio', 'Antebraço', 'Posterior', 'Glúteo',
+];
 
 export const EXERCISE_MUSCLE_MAP: Record<string, MuscleGroup[]> = {
   'Supino Reto': ['Peito', 'Tríceps'],
@@ -48,7 +54,7 @@ export type MuscleFatigue = {
   lastTrainedDays: number | null;
 };
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 const LOOKBACK_DAYS = 7;
 
 function clamp(v: number, min = 0, max = 100): number {
@@ -66,19 +72,27 @@ function recencyWeight(daysAgo: number): number {
 }
 
 export function computeMuscleFatigue(history: CompletedWorkout[], now = new Date()): MuscleFatigue[] {
+  /**
+   * Fatigue score model:
+   * - Looks at completed workouts in the last 7 days.
+   * - Adds volume as completed sets (or target sets if not marked as done).
+   * - Applies a recency weight (yesterday weighs more than 6-7 days ago).
+   * - Normalizes all muscle totals to a 0-100 scale where 100 is the highest
+   *   relative fatigue among groups in the selected period.
+   */
   const scores: Record<MuscleGroup, number> = Object.fromEntries(
     MUSCLE_GROUPS.map((g) => [g, 0]),
   ) as Record<MuscleGroup, number>;
   const lastDate: Partial<Record<MuscleGroup, number>> = {};
 
   const nowTs = now.getTime();
-  const lookbackStart = nowTs - LOOKBACK_DAYS * DAY_MS;
+  const lookbackStart = nowTs - LOOKBACK_DAYS * MILLISECONDS_PER_DAY;
 
   for (const workout of history) {
     const ts = new Date(workout.date).getTime();
     if (Number.isNaN(ts) || ts < lookbackStart || ts > nowTs) continue;
 
-    const daysAgo = Math.floor((nowTs - ts) / DAY_MS);
+    const daysAgo = Math.floor((nowTs - ts) / MILLISECONDS_PER_DAY);
     const weight = recencyWeight(daysAgo);
 
     for (const ex of workout.exercises) {
@@ -99,7 +113,7 @@ export function computeMuscleFatigue(history: CompletedWorkout[], now = new Date
 
   return MUSCLE_GROUPS.map((group) => {
     const ts = lastDate[group];
-    const lastTrainedDays = ts !== undefined ? Math.floor((nowTs - ts) / DAY_MS) : null;
+    const lastTrainedDays = ts !== undefined ? Math.floor((nowTs - ts) / MILLISECONDS_PER_DAY) : null;
     return {
       group,
       fatigue: clamp(Math.round((scores[group] / maxScore) * 100)),

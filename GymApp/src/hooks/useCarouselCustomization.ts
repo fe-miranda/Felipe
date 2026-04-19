@@ -27,6 +27,9 @@ async function loadSelectionMap(): Promise<SelectionMap> {
     const parsed = JSON.parse(raw) as Record<string, number[] | WorkoutSelection>;
     const normalized: SelectionMap = {};
     for (const [workoutId, value] of Object.entries(parsed)) {
+      // Backward compatibility:
+      // before the 2026 muscle-group filter update, storage persisted only number[]
+      // (enabled exercise indices). Normalize that legacy format to the new shape.
       if (Array.isArray(value)) {
         normalized[workoutId] = { enabledIndices: value, muscleGroup: null };
       } else if (value && Array.isArray(value.enabledIndices)) {

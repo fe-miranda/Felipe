@@ -134,7 +134,7 @@ export function ChatScreen({ navigation }: Props) {
         <View style={s.welcomeWrap}>
           {!hasCustomKey && (
             <View style={s.keyWarning}>
-              <Text style={s.keyWarningText}>Usando chave padrão da IA. Para evitar limite, configure sua chave.</Text>
+              <Text style={s.keyWarningText}>Usando chave padrão da IA. Para evitar limites de uso, configure sua própria chave.</Text>
               <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
                 <Text style={s.keyWarningLink}>Ir para Configurações</Text>
               </TouchableOpacity>
