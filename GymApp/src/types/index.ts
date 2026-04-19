@@ -110,7 +110,38 @@ export interface QuickWorkout {
   exercises: Exercise[];
 }
 
+// ─── Heart rate ──────────────────────────────────────────────────────────────
+
+export type HeartRateStatus =
+  | 'idle'
+  | 'scanning'
+  | 'connecting'
+  | 'connected'
+  | 'disconnected'
+  | 'error'
+  | 'unavailable';
+
+export interface HeartRateSample {
+  bpm: number;
+  timestamp: string; // ISO string
+}
+
+export interface HeartRateState {
+  status: HeartRateStatus;
+  bpm: number | null;
+  deviceName: string | null;
+  error: string | null;
+  samples: HeartRateSample[];
+}
+
+// ─── Carousel customization ──────────────────────────────────────────────────
+
+export interface CarouselSelectionState {
+  [workoutId: string]: Set<number>; // set of enabled exercise indices
+}
+
 export type RootStackParamList = {
+  Welcome: undefined;
   Onboarding: undefined;
   Home: undefined;
   GeneratePlan: undefined;
