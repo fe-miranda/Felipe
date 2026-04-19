@@ -144,8 +144,6 @@ export type RootStackParamList = {
   Welcome: undefined;
   Onboarding: undefined;
   Home: undefined;
-  GeneratePlan: undefined;
-  AnnualPlan: undefined;
   MonthDetail: { monthIndex: number };
   WeekDetail: { monthIndex: number; weekIndex: number };
   WorkoutDetail: { monthIndex: number; weekIndex: number; dayIndex: number };
