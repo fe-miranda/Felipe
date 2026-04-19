@@ -11,6 +11,8 @@ import {
   Vibration,
   KeyboardAvoidingView,
   Platform,
+  AppState,
+  AppStateStatus,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -53,8 +55,14 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   const hr = useHeartRate();
 
   // ── Timer state ──
-  const [elapsed, setElapsed] = useState(0);
+  // Elapsed time is derived from a stored start timestamp so it remains
+  // accurate when the app goes to the background (screen locked, etc.).
+  const workoutStartRef = useRef<number>(Date.now());    // epoch ms when workout started
+  const [elapsed, setElapsed] = useState(0);             // seconds, recomputed from timestamp
+
+  // Rest countdown — tracked via the deadline timestamp so background time counts.
   const [restActive, setRestActive] = useState(false);
+  const restDeadlineRef = useRef<number | null>(null);   // epoch ms when rest should end
   const [restRemaining, setRestRemaining] = useState(0);
   const [restDuration, setRestDuration] = useState(90);
   const [showRestConfig, setShowRestConfig] = useState(false);
@@ -72,35 +80,55 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   const elapsedRef = useRef(0);
   elapsedRef.current = elapsed;
 
-  // Stopwatch — always counting
-  useEffect(() => {
-    const id = setInterval(() => setElapsed(e => e + 1), 1000);
-    return () => clearInterval(id);
+  // ── Tick function — recalculates both timers from timestamps ──────────────
+  const tick = useCallback(() => {
+    const nowMs = Date.now();
+
+    // Elapsed stopwatch
+    const elapsedSec = Math.floor((nowMs - workoutStartRef.current) / 1000);
+    setElapsed(elapsedSec);
+
+    // Rest countdown
+    if (restDeadlineRef.current !== null) {
+      const remaining = Math.ceil((restDeadlineRef.current - nowMs) / 1000);
+      if (remaining <= 0) {
+        restDeadlineRef.current = null;
+        setRestActive(false);
+        setRestRemaining(0);
+        Vibration.vibrate([0, 300, 150, 300, 150, 500]);
+      } else {
+        setRestRemaining(remaining);
+      }
+    }
   }, []);
 
-  // Rest countdown — only when active
+  // Stopwatch — ticks every second while screen is foregrounded.
+  // On resume from background, tick() immediately resynchronises from timestamps.
   useEffect(() => {
-    if (!restActive || restRemaining <= 0) return;
-    const id = setInterval(() => {
-      setRestRemaining(r => {
-        if (r <= 1) {
-          setRestActive(false);
-          Vibration.vibrate([0, 300, 150, 300, 150, 500]);
-          return 0;
-        }
-        return r - 1;
-      });
-    }, 1000);
+    const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [restActive, restRemaining]);
+  }, [tick]);
+
+  // AppState listener — resync timers immediately when app returns to foreground.
+  useEffect(() => {
+    const handleAppState = (nextState: AppStateStatus) => {
+      if (nextState === 'active') {
+        tick();
+      }
+    };
+    const sub = AppState.addEventListener('change', handleAppState);
+    return () => sub.remove();
+  }, [tick]);
 
   const startRest = useCallback((dur?: number) => {
     const d = dur ?? restDuration;
+    restDeadlineRef.current = Date.now() + d * 1000;
     setRestRemaining(d);
     setRestActive(true);
   }, [restDuration]);
 
   const stopRest = useCallback(() => {
+    restDeadlineRef.current = null;
     setRestActive(false);
     setRestRemaining(0);
   }, []);
