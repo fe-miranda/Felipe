@@ -57,15 +57,16 @@ export function WorkoutDetailScreen({ navigation, route }: Props) {
   const week = month.weeks[weekIndex];
   const day = week.days[dayIndex];
   const phaseColor = PHASE_COLOR(monthIndex);
+  const currentExercises = editableExercises.length ? editableExercises : day.exercises;
 
-  const totalSets = editableExercises.reduce((a, e) => a + e.sets, 0);
+  const totalSets = currentExercises.reduce((a, e) => a + e.sets, 0);
   const workoutToStart = useMemo(() => ({
     ...day,
-    exercises: editableExercises,
-  }), [day, editableExercises]);
+    exercises: currentExercises,
+  }), [day, currentExercises]);
 
   const openEditExercise = (idx: number) => {
-    const ex = editableExercises[idx];
+    const ex = currentExercises[idx];
     setEditIndex(idx);
     setEditName(ex.name);
     setEditSets(String(ex.sets));
@@ -132,7 +133,7 @@ export function WorkoutDetailScreen({ navigation, route }: Props) {
           <View style={s.headerStats}>
             {[
               { icon: '⏱', label: 'duração', value: `${day.duration} min` },
-              { icon: '💪', label: 'exercícios', value: String(editableExercises.length) },
+              { icon: '💪', label: 'exercícios', value: String(currentExercises.length) },
               { icon: '🔁', label: 'séries', value: String(totalSets) },
             ].map((stat, i) => (
               <View key={i} style={s.statItem}>
@@ -153,7 +154,7 @@ export function WorkoutDetailScreen({ navigation, route }: Props) {
 
         <Text style={s.sectionTitle}>Exercícios</Text>
 
-        {editableExercises.map((ex, idx) => (
+        {currentExercises.map((ex, idx) => (
           <View key={idx} style={s.exCard}>
             <View style={s.exHeader}>
               <View style={[s.exNumBadge, { backgroundColor: phaseColor }]}>
@@ -209,7 +210,7 @@ export function WorkoutDetailScreen({ navigation, route }: Props) {
           <Text style={[s.summaryTitle, { color: phaseColor }]}>📊 Resumo do Treino</Text>
           {[
             { label: 'Duração estimada', value: `${day.duration} min` },
-            { label: 'Total exercícios', value: String(editableExercises.length) },
+            { label: 'Total exercícios', value: String(currentExercises.length) },
             { label: 'Total de séries', value: String(totalSets) },
             { label: 'Foco muscular', value: day.focus },
           ].map((row, i, arr) => (
