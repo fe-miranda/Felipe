@@ -37,6 +37,12 @@ const C = {
 function pad2(n: number) { return String(n).padStart(2, '0'); }
 function fmtTime(s: number) { return `${pad2(Math.floor(s / 60))}:${pad2(s % 60)}`; }
 const ACTIVE_WORKOUT_SESSION_KEY = '@gymapp_active_workout_session';
+const PERSIST_INTERVAL_SECONDS = 5;
+const MIN_REST_SECONDS = 10;
+const MAX_REST_SECONDS = 600;
+function isValidRestDuration(value: number): boolean {
+  return Number.isFinite(value) && value >= MIN_REST_SECONDS && value <= MAX_REST_SECONDS;
+}
 
 function buildLogs(workout: Props['route']['params']['workout']): ExerciseLog[] {
   return workout.exercises.map(ex => ({
@@ -87,7 +93,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
 
   const elapsedRef = useRef(0);
   elapsedRef.current = elapsed;
-  const workoutStartAtRef = useRef<number>(Date.now());
+  const workoutStartAtRef = useRef<number | null>(null);
   const restEndsAtRef = useRef<number | null>(null);
   const restCompletionFiredRef = useRef(false);
 
@@ -112,7 +118,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
           restActive,
           restRemaining,
           restDuration,
-          workoutStartAt: workoutStartAtRef.current,
+          workoutStartAt: workoutStartAtRef.current ?? Date.now(),
           restEndsAt: restEndsAtRef.current,
           savedAt: Date.now(),
         }),
@@ -122,15 +128,17 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
 
   // Stopwatch based on start timestamp (keeps exact count after app background)
   useEffect(() => {
+    if (!workoutStartAtRef.current) workoutStartAtRef.current = Date.now();
     const id = setInterval(() => {
-      setElapsed(Math.max(0, Math.floor((Date.now() - workoutStartAtRef.current) / 1000)));
+      const startedAt = workoutStartAtRef.current ?? Date.now();
+      setElapsed(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
     }, 1000);
     return () => clearInterval(id);
   }, []);
 
   // Persist session periodically for crash/kill recovery
   useEffect(() => {
-    if (elapsed === 0 || elapsed % 5 !== 0) return;
+    if (elapsed === 0 || elapsed % PERSIST_INTERVAL_SECONDS !== 0) return;
     persistSession();
   }, [elapsed, persistSession]);
 
@@ -153,7 +161,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
         workoutStartAtRef.current = workoutStartAt;
         setElapsed(Math.max(0, Math.floor((Date.now() - workoutStartAt) / 1000)));
         const savedRestDuration = Number(saved.restDuration);
-        if (!Number.isNaN(savedRestDuration) && savedRestDuration >= 10 && savedRestDuration <= 600) {
+        if (isValidRestDuration(savedRestDuration)) {
           setRestDuration(savedRestDuration);
         }
         const restEndsAt = typeof saved.restEndsAt === 'number' ? saved.restEndsAt : null;
@@ -171,7 +179,8 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
-        setElapsed(Math.max(0, Math.floor((Date.now() - workoutStartAtRef.current) / 1000)));
+        const startedAt = workoutStartAtRef.current ?? Date.now();
+        setElapsed(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
         if (restEndsAtRef.current) {
           setRestRemaining(Math.max(0, Math.ceil((restEndsAtRef.current - Date.now()) / 1000)));
         }
@@ -186,7 +195,8 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   useEffect(() => {
     if (!restActive || !restEndsAtRef.current) return;
     const id = setInterval(async () => {
-      const remaining = Math.max(0, Math.ceil((restEndsAtRef.current! - Date.now()) / 1000));
+      if (!restEndsAtRef.current) return;
+      const remaining = Math.max(0, Math.ceil((restEndsAtRef.current - Date.now()) / 1000));
       setRestRemaining(remaining);
       if (remaining <= 0 && !restCompletionFiredRef.current) {
         restCompletionFiredRef.current = true;
@@ -195,7 +205,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
         await cancelRestNotification();
         await triggerRestEndAlert();
       }
-    }, 250);
+    }, 1000);
     return () => clearInterval(id);
   }, [restActive]);
 
@@ -232,11 +242,11 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
 
   const applyRestConfig = useCallback(() => {
     const v = parseInt(restInput, 10);
-    if (!isNaN(v) && v >= 10 && v <= 600) {
+    if (isValidRestDuration(v)) {
       setRestDuration(v);
       setShowRestConfig(false);
     } else {
-      Alert.alert('Inválido', 'Digite entre 10 e 600 segundos.');
+      Alert.alert('Inválido', `Digite entre ${MIN_REST_SECONDS} e ${MAX_REST_SECONDS} segundos.`);
     }
   }, [restInput]);
 
@@ -534,7 +544,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
               style={s.cfgInput} value={restInput} onChangeText={setRestInput}
               keyboardType="numeric" autoFocus selectTextOnFocus
             />
-            <Text style={s.cfgHint}>segundos (10 – 600)</Text>
+            <Text style={s.cfgHint}>segundos ({MIN_REST_SECONDS} – {MAX_REST_SECONDS})</Text>
             <View style={s.presetRow}>
               {[30, 60, 90, 120].map(v => (
                 <TouchableOpacity key={v} style={[s.preset, restDuration === v && s.presetActive]}

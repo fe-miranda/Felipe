@@ -23,6 +23,11 @@ const C = {
   activeStroke: '#F8FAFC',
   inactiveStroke: '#2A2A40',
 };
+// Horizontal correction to center legacy muscle coordinates in the updated silhouette layout.
+const POSITION_OFFSET_X = 8;
+const SVG_WIDTH = 156;
+const SVG_HEIGHT = 276;
+const SVG_INSET = 2;
 
 const AREAS: MuscleArea[] = [
   { group: 'Ombro', side: 'front', shape: 'circle', cx: 32, cy: 78, r: 12 },
@@ -66,7 +71,7 @@ function SideMap({
   return (
     <View style={s.mapSide}>
       <Text style={s.sideLabel}>{side === 'front' ? 'Frontal' : 'Dorsal'}</Text>
-      <Svg width={156} height={276}>
+      <Svg width={SVG_WIDTH} height={SVG_HEIGHT}>
         <Defs>
           <LinearGradient id="bodyMapBg" x1="0" y1="0" x2="0" y2="1">
             <Stop offset="0" stopColor="#121223" />
@@ -77,7 +82,14 @@ function SideMap({
             <Stop offset="1" stopColor="#141425" />
           </LinearGradient>
         </Defs>
-        <Rect x={2} y={2} width={152} height={272} rx={16} fill="url(#bodyMapBg)" />
+        <Rect
+          x={SVG_INSET}
+          y={SVG_INSET}
+          width={SVG_WIDTH - SVG_INSET * 2}
+          height={SVG_HEIGHT - SVG_INSET * 2}
+          rx={16}
+          fill="url(#bodyMapBg)"
+        />
         <Circle cx={78} cy={30} r={16} fill={C.silhouetteHead} stroke={C.silhouetteStroke} strokeWidth={1.5} />
         <Path
           d="M48 56 C52 48 62 44 78 44 C94 44 104 48 108 56
@@ -101,7 +113,7 @@ function SideMap({
             return (
               <Circle
                 key={`${side}-${a.group}-${idx}`}
-                cx={a.cx + 8}
+                cx={a.cx + POSITION_OFFSET_X}
                 cy={a.cy}
                 r={a.r!}
                 fill={fill}
@@ -115,7 +127,7 @@ function SideMap({
           return (
             <Ellipse
               key={`${side}-${a.group}-${idx}`}
-              cx={a.cx + 8}
+              cx={a.cx + POSITION_OFFSET_X}
               cy={a.cy}
               rx={a.rx!}
               ry={a.ry!}

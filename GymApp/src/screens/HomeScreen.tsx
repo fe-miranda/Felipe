@@ -533,7 +533,7 @@ export function HomeScreen({ navigation }: Props) {
         <Text style={s.widgetIcon}>🧩</Text>
         <View style={s.widgetInfo}>
           <Text style={s.widgetTitle}>Widget</Text>
-          <Text style={s.widgetSub}>Preview do treino de hoje + atalho de início rápido</Text>
+          <Text style={s.widgetSub}>Prévia do treino de hoje + atalho de início rápido</Text>
         </View>
         <Text style={s.widgetArrow}>›</Text>
       </TouchableOpacity>
