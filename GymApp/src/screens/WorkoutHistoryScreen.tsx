@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RootStackParamList, CompletedWorkout } from '../types';
 import { loadHistory, deleteWorkout } from '../services/workoutHistoryService';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { loadPersonalRecords, PersonalRecord } from '../services/personalRecordsService';
 
 type Props = { navigation: NativeStackNavigationProp<RootStackParamList, 'WorkoutHistory'> };
 
@@ -60,9 +61,12 @@ function bestLoad(workout: CompletedWorkout): string {
 export function WorkoutHistoryScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const [history, setHistory] = useState<CompletedWorkout[]>([]);
+  const [records, setRecords] = useState<PersonalRecord[]>([]);
 
   const reload = useCallback(async () => {
-    setHistory(await loadHistory());
+    const [hist, prs] = await Promise.all([loadHistory(), loadPersonalRecords()]);
+    setHistory(hist);
+    setRecords(prs);
   }, []);
 
   useEffect(() => { reload(); }, []);
@@ -166,6 +170,20 @@ export function WorkoutHistoryScreen({ navigation }: Props) {
           );
         })
       )}
+
+      {records.length > 0 && (
+        <View style={s.recordsWrap}>
+          <Text style={s.recordsTitle}>🏆 Meus Records</Text>
+          {records.map((r) => (
+            <View key={r.exerciseName} style={s.recordRow}>
+              <Text style={s.recordName} numberOfLines={1}>{r.exerciseName}</Text>
+              <Text style={s.recordMeta}>
+                {r.maxLoad > 0 ? `${Math.round(r.maxLoad)}kg` : '—'} · {r.maxReps} reps
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -212,4 +230,9 @@ const s = StyleSheet.create({
   loadRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   loadName: { color: C.text2, fontSize: 13, flex: 1, marginRight: 10 },
   loadValues: { color: C.success, fontSize: 12, fontWeight: '700' },
+  recordsWrap: { backgroundColor: C.surface, borderRadius: 16, borderWidth: 1, borderColor: C.border, padding: 14, marginTop: 8 },
+  recordsTitle: { color: C.text1, fontSize: 16, fontWeight: '800', marginBottom: 10 },
+  recordRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: C.border },
+  recordName: { color: C.text2, flex: 1, fontSize: 13, fontWeight: '600' },
+  recordMeta: { color: C.success, fontSize: 12, fontWeight: '800' },
 });

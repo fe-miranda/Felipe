@@ -15,7 +15,8 @@ const WORKOUT_NOTIF_ID = 'gymapp-workout-active';
 const REST_CATEGORY_ID = 'workout-active';
 
 let _restNotifId: string | null = null;
-let _restActionCb: (() => void) | null = null;
+let _restActionStartCb: (() => void) | null = null;
+let _restActionPauseCb: (() => void) | null = null;
 let _responseListener: Notifications.EventSubscription | null = null;
 
 function fmtElapsed(seconds: number): string {
@@ -25,7 +26,11 @@ function fmtElapsed(seconds: number): string {
 }
 
 export function setRestActionCallback(cb: (() => void) | null): void {
-  _restActionCb = cb;
+  _restActionStartCb = cb;
+}
+
+export function setRestPauseActionCallback(cb: (() => void) | null): void {
+  _restActionPauseCb = cb;
 }
 
 export async function setupNotifications(): Promise<void> {
@@ -49,16 +54,20 @@ export async function setupNotifications(): Promise<void> {
   await Notifications.setNotificationCategoryAsync(REST_CATEGORY_ID, [
     {
       identifier: 'START_REST',
-      buttonTitle: '⏸ Descansar',
+      buttonTitle: '▶ Iniciar Descanso',
+      options: { opensAppToForeground: true },
+    },
+    {
+      identifier: 'PAUSE_REST',
+      buttonTitle: '⏸ Pausar Descanso',
       options: { opensAppToForeground: true },
     },
   ]);
 
   if (!_responseListener) {
     _responseListener = Notifications.addNotificationResponseReceivedListener((response) => {
-      if (response.actionIdentifier === 'START_REST' && _restActionCb) {
-        _restActionCb();
-      }
+      if (response.actionIdentifier === 'START_REST' && _restActionStartCb) _restActionStartCb();
+      if (response.actionIdentifier === 'PAUSE_REST' && _restActionPauseCb) _restActionPauseCb();
     });
   }
 }
@@ -69,10 +78,12 @@ export async function startWorkoutNotification(elapsedSeconds: number = 0): Prom
       identifier: WORKOUT_NOTIF_ID,
       content: {
         title: `💪 Treino em andamento — ${fmtElapsed(elapsedSeconds)}`,
-        body: 'Toque para voltar ao app • Botão Descansar disponível',
+        body: 'Ações rápidas: iniciar/pausar descanso',
         sound: undefined,
         categoryIdentifier: REST_CATEGORY_ID,
         data: { type: 'workout-active' },
+        sticky: true,
+        autoDismiss: false,
       },
       trigger: null,
     });
@@ -82,9 +93,6 @@ export async function startWorkoutNotification(elapsedSeconds: number = 0): Prom
 }
 
 export async function updateWorkoutNotification(elapsedSeconds: number): Promise<void> {
-  try {
-    await Notifications.dismissNotificationAsync(WORKOUT_NOTIF_ID);
-  } catch {}
   await startWorkoutNotification(elapsedSeconds);
 }
 

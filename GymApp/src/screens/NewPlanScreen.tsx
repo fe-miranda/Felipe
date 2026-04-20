@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet,
-  TextInput, Alert, ActivityIndicator, Image, Platform,
+  TextInput, Alert, ActivityIndicator, Image, Platform, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
-import { RootStackParamList } from '../types';
+import { RootStackParamList, UserProfile, FitnessGoal, FitnessLevel, Gender } from '../types';
 import { importPlanFromText, importPlanFromImages } from '../services/aiService';
 
 type Props = { navigation: NativeStackNavigationProp<RootStackParamList, 'NewPlan'> };
@@ -30,11 +30,42 @@ interface PickedImage {
   mimeType: string;
 }
 
+type PendingImportMode = 'text' | 'images' | null;
+
+interface ImportForm {
+  name: string;
+  age: string;
+  weight: string;
+  height: string;
+  gender: Gender;
+  fitnessLevel: FitnessLevel;
+  goal: FitnessGoal;
+  daysPerWeek: string;
+  workoutDuration: string;
+  cardioMinutes: string;
+  durationMonths: 1 | 3 | 6 | 12;
+}
+
 export function NewPlanScreen({ navigation }: Props) {
   const [mode, setMode] = useState<Mode>('choose');
   const [planText, setPlanText] = useState('');
   const [images, setImages] = useState<PickedImage[]>([]);
   const [loading, setLoading] = useState(false);
+  const [showImportForm, setShowImportForm] = useState(false);
+  const [pendingImportMode, setPendingImportMode] = useState<PendingImportMode>(null);
+  const [form, setForm] = useState<ImportForm>({
+    name: 'Usuário',
+    age: '25',
+    weight: '70',
+    height: '170',
+    gender: 'male',
+    fitnessLevel: 'intermediate',
+    goal: 'general_fitness',
+    daysPerWeek: '3',
+    workoutDuration: '60',
+    cardioMinutes: '10',
+    durationMonths: 3,
+  });
 
   // ── image picker ──────────────────────────────────────────────────────────
 
@@ -72,16 +103,8 @@ export function NewPlanScreen({ navigation }: Props) {
       Alert.alert('Atenção', 'Cole seu plano de treino no campo acima.');
       return;
     }
-    setLoading(true);
-    try {
-      const plan = await importPlanFromText(planText.trim());
-      await AsyncStorage.setItem(PLAN_KEY, JSON.stringify(plan));
-      navigation.replace('Home');
-    } catch (err: any) {
-      Alert.alert('Erro', err?.message || 'Não foi possível importar o plano. Tente novamente.');
-    } finally {
-      setLoading(false);
-    }
+    setPendingImportMode('text');
+    setShowImportForm(true);
   };
 
   const handleImportImages = async () => {
@@ -89,12 +112,54 @@ export function NewPlanScreen({ navigation }: Props) {
       Alert.alert('Atenção', 'Adicione pelo menos uma imagem do seu treino.');
       return;
     }
+    setPendingImportMode('images');
+    setShowImportForm(true);
+  };
+
+  const runImport = async () => {
+    if (!pendingImportMode) return;
+    const age = parseInt(form.age, 10);
+    const weight = parseFloat(form.weight);
+    const height = parseFloat(form.height);
+    const daysPerWeek = parseInt(form.daysPerWeek, 10);
+    const workoutDuration = parseInt(form.workoutDuration, 10);
+    const cardioMinutes = parseInt(form.cardioMinutes, 10);
+
+    if (!form.name.trim()) {
+      Alert.alert('Atenção', 'Informe o nome.');
+      return;
+    }
+    if (
+      [age, weight, height, daysPerWeek, workoutDuration, cardioMinutes].some((n) => Number.isNaN(n)) ||
+      age < 12 || age > 100 || weight <= 0 || height <= 0 ||
+      daysPerWeek < 1 || daysPerWeek > 7 || workoutDuration < 10 || cardioMinutes < 0 ||
+      cardioMinutes > workoutDuration
+    ) {
+      Alert.alert('Atenção', 'Revise os dados do perfil antes de continuar.');
+      return;
+    }
+
+    const userProfile: UserProfile = {
+      name: form.name.trim(),
+      age,
+      weight,
+      height,
+      gender: form.gender,
+      fitnessLevel: form.fitnessLevel,
+      goal: form.goal,
+      daysPerWeek,
+      workoutDuration,
+      cardioMinutes,
+    };
+
     setLoading(true);
     try {
-      const plan = await importPlanFromImages(
-        images.map((img) => ({ data: img.base64, mimeType: img.mimeType })),
-      );
+      const options = { userProfile, durationMonths: form.durationMonths };
+      const plan = pendingImportMode === 'text'
+        ? await importPlanFromText(planText.trim(), options)
+        : await importPlanFromImages(images.map((img) => ({ data: img.base64, mimeType: img.mimeType })), options);
       await AsyncStorage.setItem(PLAN_KEY, JSON.stringify(plan));
+      setShowImportForm(false);
       navigation.replace('Home');
     } catch (err: any) {
       Alert.alert('Erro', err?.message || 'Não foi possível importar o plano. Tente novamente.');
@@ -198,6 +263,76 @@ export function NewPlanScreen({ navigation }: Props) {
             <Text style={s.loadingHint}>Analisando seu plano… isso pode levar alguns segundos.</Text>
           )}
         </ScrollView>
+        <Modal visible={showImportForm} transparent animationType="slide">
+          <View style={s.modalOverlay}>
+            <View style={s.modalSheet}>
+              <Text style={s.modalTitle}>Dados para importar plano</Text>
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                <TextInput style={s.input} value={form.name} onChangeText={(v) => setForm((f) => ({ ...f, name: v }))} placeholder="Nome" placeholderTextColor={C.text3} editable={!loading} />
+                <View style={s.row}>
+                  <TextInput style={[s.input, s.half]} value={form.age} onChangeText={(v) => setForm((f) => ({ ...f, age: v }))} placeholder="Idade" keyboardType="numeric" placeholderTextColor={C.text3} editable={!loading} />
+                  <TextInput style={[s.input, s.half]} value={form.weight} onChangeText={(v) => setForm((f) => ({ ...f, weight: v }))} placeholder="Peso (kg)" keyboardType="decimal-pad" placeholderTextColor={C.text3} editable={!loading} />
+                </View>
+                <TextInput style={s.input} value={form.height} onChangeText={(v) => setForm((f) => ({ ...f, height: v }))} placeholder="Altura (cm)" keyboardType="numeric" placeholderTextColor={C.text3} editable={!loading} />
+                <View style={s.optionRow}>
+                  {([
+                    ['male', 'Masculino'],
+                    ['female', 'Feminino'],
+                    ['other', 'Outro'],
+                  ] as [Gender, string][]).map(([value, label]) => (
+                    <TouchableOpacity key={value} style={[s.pill, form.gender === value && s.pillActive]} onPress={() => setForm((f) => ({ ...f, gender: value }))}>
+                      <Text style={[s.pillText, form.gender === value && s.pillTextActive]}>{label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <View style={s.optionRow}>
+                  {([
+                    ['beginner', 'Iniciante'],
+                    ['intermediate', 'Intermediário'],
+                    ['advanced', 'Avançado'],
+                  ] as [FitnessLevel, string][]).map(([value, label]) => (
+                    <TouchableOpacity key={value} style={[s.pill, form.fitnessLevel === value && s.pillActive]} onPress={() => setForm((f) => ({ ...f, fitnessLevel: value }))}>
+                      <Text style={[s.pillText, form.fitnessLevel === value && s.pillTextActive]}>{label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <View style={s.optionRow}>
+                  {([
+                    ['lose_weight', 'Perder peso'],
+                    ['gain_muscle', 'Ganhar massa'],
+                    ['general_fitness', 'Condicionamento'],
+                    ['increase_strength', 'Força'],
+                  ] as [FitnessGoal, string][]).map(([value, label]) => (
+                    <TouchableOpacity key={value} style={[s.pill, form.goal === value && s.pillActive]} onPress={() => setForm((f) => ({ ...f, goal: value }))}>
+                      <Text style={[s.pillText, form.goal === value && s.pillTextActive]}>{label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <View style={s.row}>
+                  <TextInput style={[s.input, s.half]} value={form.daysPerWeek} onChangeText={(v) => setForm((f) => ({ ...f, daysPerWeek: v }))} placeholder="Dias/sem" keyboardType="numeric" placeholderTextColor={C.text3} editable={!loading} />
+                  <TextInput style={[s.input, s.half]} value={form.workoutDuration} onChangeText={(v) => setForm((f) => ({ ...f, workoutDuration: v }))} placeholder="Duração (min)" keyboardType="numeric" placeholderTextColor={C.text3} editable={!loading} />
+                </View>
+                <TextInput style={s.input} value={form.cardioMinutes} onChangeText={(v) => setForm((f) => ({ ...f, cardioMinutes: v }))} placeholder="Cardio (min)" keyboardType="numeric" placeholderTextColor={C.text3} editable={!loading} />
+                <Text style={s.monthsLabel}>Por quantos meses é este plano?</Text>
+                <View style={s.optionRow}>
+                  {[1, 3, 6, 12].map((m) => (
+                    <TouchableOpacity key={m} style={[s.pill, form.durationMonths === m && s.pillActive]} onPress={() => setForm((f) => ({ ...f, durationMonths: m as 1 | 3 | 6 | 12 }))}>
+                      <Text style={[s.pillText, form.durationMonths === m && s.pillTextActive]}>{m} mês{m > 1 ? 'es' : ''}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <View style={s.modalActions}>
+                  <TouchableOpacity style={s.modalCancel} onPress={() => setShowImportForm(false)} disabled={loading}>
+                    <Text style={s.modalCancelText}>Cancelar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[s.modalConfirm, loading && s.importBtnDisabled]} onPress={runImport} disabled={loading}>
+                    {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.modalConfirmText}>Importar</Text>}
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
       </SafeAreaView>
     );
   }
@@ -259,6 +394,76 @@ export function NewPlanScreen({ navigation }: Props) {
           <Text style={s.loadingHint}>Analisando as imagens… isso pode levar alguns segundos.</Text>
         )}
       </ScrollView>
+      <Modal visible={showImportForm} transparent animationType="slide">
+        <View style={s.modalOverlay}>
+          <View style={s.modalSheet}>
+            <Text style={s.modalTitle}>Dados para importar plano</Text>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <TextInput style={s.input} value={form.name} onChangeText={(v) => setForm((f) => ({ ...f, name: v }))} placeholder="Nome" placeholderTextColor={C.text3} editable={!loading} />
+              <View style={s.row}>
+                <TextInput style={[s.input, s.half]} value={form.age} onChangeText={(v) => setForm((f) => ({ ...f, age: v }))} placeholder="Idade" keyboardType="numeric" placeholderTextColor={C.text3} editable={!loading} />
+                <TextInput style={[s.input, s.half]} value={form.weight} onChangeText={(v) => setForm((f) => ({ ...f, weight: v }))} placeholder="Peso (kg)" keyboardType="decimal-pad" placeholderTextColor={C.text3} editable={!loading} />
+              </View>
+              <TextInput style={s.input} value={form.height} onChangeText={(v) => setForm((f) => ({ ...f, height: v }))} placeholder="Altura (cm)" keyboardType="numeric" placeholderTextColor={C.text3} editable={!loading} />
+              <View style={s.optionRow}>
+                {([
+                  ['male', 'Masculino'],
+                  ['female', 'Feminino'],
+                  ['other', 'Outro'],
+                ] as [Gender, string][]).map(([value, label]) => (
+                  <TouchableOpacity key={value} style={[s.pill, form.gender === value && s.pillActive]} onPress={() => setForm((f) => ({ ...f, gender: value }))}>
+                    <Text style={[s.pillText, form.gender === value && s.pillTextActive]}>{label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <View style={s.optionRow}>
+                {([
+                  ['beginner', 'Iniciante'],
+                  ['intermediate', 'Intermediário'],
+                  ['advanced', 'Avançado'],
+                ] as [FitnessLevel, string][]).map(([value, label]) => (
+                  <TouchableOpacity key={value} style={[s.pill, form.fitnessLevel === value && s.pillActive]} onPress={() => setForm((f) => ({ ...f, fitnessLevel: value }))}>
+                    <Text style={[s.pillText, form.fitnessLevel === value && s.pillTextActive]}>{label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <View style={s.optionRow}>
+                {([
+                  ['lose_weight', 'Perder peso'],
+                  ['gain_muscle', 'Ganhar massa'],
+                  ['general_fitness', 'Condicionamento'],
+                  ['increase_strength', 'Força'],
+                ] as [FitnessGoal, string][]).map(([value, label]) => (
+                  <TouchableOpacity key={value} style={[s.pill, form.goal === value && s.pillActive]} onPress={() => setForm((f) => ({ ...f, goal: value }))}>
+                    <Text style={[s.pillText, form.goal === value && s.pillTextActive]}>{label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <View style={s.row}>
+                <TextInput style={[s.input, s.half]} value={form.daysPerWeek} onChangeText={(v) => setForm((f) => ({ ...f, daysPerWeek: v }))} placeholder="Dias/sem" keyboardType="numeric" placeholderTextColor={C.text3} editable={!loading} />
+                <TextInput style={[s.input, s.half]} value={form.workoutDuration} onChangeText={(v) => setForm((f) => ({ ...f, workoutDuration: v }))} placeholder="Duração (min)" keyboardType="numeric" placeholderTextColor={C.text3} editable={!loading} />
+              </View>
+              <TextInput style={s.input} value={form.cardioMinutes} onChangeText={(v) => setForm((f) => ({ ...f, cardioMinutes: v }))} placeholder="Cardio (min)" keyboardType="numeric" placeholderTextColor={C.text3} editable={!loading} />
+              <Text style={s.monthsLabel}>Por quantos meses é este plano?</Text>
+              <View style={s.optionRow}>
+                {[1, 3, 6, 12].map((m) => (
+                  <TouchableOpacity key={m} style={[s.pill, form.durationMonths === m && s.pillActive]} onPress={() => setForm((f) => ({ ...f, durationMonths: m as 1 | 3 | 6 | 12 }))}>
+                    <Text style={[s.pillText, form.durationMonths === m && s.pillTextActive]}>{m} mês{m > 1 ? 'es' : ''}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <View style={s.modalActions}>
+                <TouchableOpacity style={s.modalCancel} onPress={() => setShowImportForm(false)} disabled={loading}>
+                  <Text style={s.modalCancelText}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[s.modalConfirm, loading && s.importBtnDisabled]} onPress={runImport} disabled={loading}>
+                  {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.modalConfirmText}>Importar</Text>}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -333,4 +538,65 @@ const s = StyleSheet.create({
   },
   addImgText: { color: C.primaryLight, fontSize: 15, fontWeight: '700' },
   imageCount: { color: C.text3, fontSize: 12, textAlign: 'center', marginBottom: 16 },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    backgroundColor: C.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 16,
+    maxHeight: '88%',
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  modalTitle: { color: C.text1, fontSize: 17, fontWeight: '800', marginBottom: 12 },
+  input: {
+    backgroundColor: C.elevated,
+    borderWidth: 1,
+    borderColor: C.border,
+    color: C.text1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 10,
+  },
+  row: { flexDirection: 'row', gap: 8 },
+  half: { flex: 1 },
+  optionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
+  pill: {
+    backgroundColor: C.elevated,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  pillActive: { backgroundColor: C.primaryGlow, borderColor: C.primary },
+  pillText: { color: C.text2, fontSize: 12, fontWeight: '600' },
+  pillTextActive: { color: C.primaryLight },
+  monthsLabel: { color: C.text2, marginBottom: 8, marginTop: 4, fontSize: 13, fontWeight: '700' },
+  modalActions: { flexDirection: 'row', gap: 10, marginTop: 6, marginBottom: Platform.OS === 'ios' ? 20 : 8 },
+  modalCancel: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+  },
+  modalCancelText: { color: C.text2, fontWeight: '700' },
+  modalConfirm: {
+    flex: 1,
+    backgroundColor: C.primary,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+  },
+  modalConfirmText: { color: '#fff', fontWeight: '800' },
 });

@@ -5,6 +5,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, CompletedWorkout } from '../types';
 import { loadHistory } from '../services/workoutHistoryService';
 import { calculateFatigue, fatigueColor, fatigueLabel, FatigueScore } from '../services/muscleService';
+import { BodyMap } from '../components/BodyMap';
 
 type Props = { navigation: NativeStackNavigationProp<RootStackParamList, 'MuscleFatigue'> };
 
@@ -25,6 +26,7 @@ export function MuscleFatigueScreen({ navigation }: Props) {
   const [scores, setScores] = useState<FatigueScore[]>([]);
   const [loading, setLoading] = useState(true);
   const [history, setHistory] = useState<CompletedWorkout[]>([]);
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
 
   useEffect(() => {
     loadHistory().then((hist) => {
@@ -70,6 +72,17 @@ export function MuscleFatigueScreen({ navigation }: Props) {
             </View>
           ))}
         </View>
+
+        {!loading && scores.length > 0 && (
+          <>
+            <BodyMap scores={scores} selected={selectedGroup} onSelect={setSelectedGroup} />
+            <Text style={s.mapHint}>
+              {selectedGroup
+                ? `${selectedGroup}: ${scores.find((s) => s.group === selectedGroup)?.score ?? 0}% de fadiga`
+                : 'Toque em uma região para ver o nível de fadiga.'}
+            </Text>
+          </>
+        )}
 
         {/* Muscle group cards */}
         {loading ? (
@@ -142,6 +155,7 @@ const s = StyleSheet.create({
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   legendDot: { width: 10, height: 10, borderRadius: 5 },
   legendText: { color: C.text3, fontSize: 12 },
+  mapHint: { color: C.text2, fontSize: 12, marginBottom: 14, textAlign: 'center' },
 
   groupList: { gap: 10 },
   groupCard: {
