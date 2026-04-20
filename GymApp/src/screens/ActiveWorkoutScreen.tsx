@@ -177,6 +177,17 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
     });
   }, [startRest]);
 
+  const addExtraSet = useCallback((exIdx: number) => {
+    setExercises((prev) => {
+      const next = [...prev];
+      const ex = { ...next[exIdx], sets: [...next[exIdx].sets] };
+      ex.sets.push({ load: '', reps: '', done: false });
+      ex.targetSets += 1;
+      next[exIdx] = ex;
+      return next;
+    });
+  }, []);
+
   const openAlternatives = useCallback(async (exIdx: number) => {
     setSelectedExIdx(exIdx);
     setAlternatives([]);
@@ -378,6 +389,9 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
                 </View>
                 <TouchableOpacity style={s.subBtn} onPress={() => openAlternatives(exIdx)}>
                   <Text style={s.subBtnText}>↺</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={s.addSetBtn} onPress={() => addExtraSet(exIdx)}>
+                  <Text style={s.addSetBtnText}>＋S</Text>
                 </TouchableOpacity>
               </View>
 
@@ -617,6 +631,8 @@ const s = StyleSheet.create({
   exTarget: { color: C.text3, fontSize: 12, marginTop: 2 },
   subBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: C.elevated, borderWidth: 1, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },
   subBtnText: { color: C.primaryLight, fontSize: 20, fontWeight: '700' },
+  addSetBtn: { width: 42, height: 36, borderRadius: 10, backgroundColor: C.elevated, borderWidth: 1, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },
+  addSetBtnText: { color: C.success, fontSize: 13, fontWeight: '800' },
 
   setHeaderRow: { flexDirection: 'row', paddingHorizontal: 2, marginBottom: 2 },
   setHeaderCell: { color: C.text3, fontSize: 10, fontWeight: '700', textAlign: 'center', letterSpacing: 0.3 },

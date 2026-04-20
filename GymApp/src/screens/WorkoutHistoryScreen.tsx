@@ -171,19 +171,21 @@ export function WorkoutHistoryScreen({ navigation }: Props) {
         })
       )}
 
-      {records.length > 0 && (
-        <View style={s.recordsWrap}>
-          <Text style={s.recordsTitle}>🏆 Meus Records</Text>
-          {records.map((r) => (
+      <View style={s.recordsWrap}>
+        <Text style={s.recordsTitle}>🏆 Meus Records</Text>
+        {records.length === 0 ? (
+          <Text style={s.recordsEmpty}>Complete treinos com cargas/reps para liberar seus recordes aqui.</Text>
+        ) : (
+          records.map((r) => (
             <View key={r.exerciseName} style={s.recordRow}>
               <Text style={s.recordName} numberOfLines={1}>{r.exerciseName}</Text>
               <Text style={s.recordMeta}>
                 {r.maxLoad > 0 ? `${Math.round(r.maxLoad)}kg` : '—'} · {r.maxReps} reps
               </Text>
             </View>
-          ))}
-        </View>
-      )}
+          ))
+        )}
+      </View>
     </ScrollView>
   );
 }
@@ -232,6 +234,7 @@ const s = StyleSheet.create({
   loadValues: { color: C.success, fontSize: 12, fontWeight: '700' },
   recordsWrap: { backgroundColor: C.surface, borderRadius: 16, borderWidth: 1, borderColor: C.border, padding: 14, marginTop: 8 },
   recordsTitle: { color: C.text1, fontSize: 16, fontWeight: '800', marginBottom: 10 },
+  recordsEmpty: { color: C.text3, fontSize: 13 },
   recordRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: C.border },
   recordName: { color: C.text2, flex: 1, fontSize: 13, fontWeight: '600' },
   recordMeta: { color: C.success, fontSize: 12, fontWeight: '800' },

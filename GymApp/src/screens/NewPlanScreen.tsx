@@ -268,12 +268,19 @@ export function NewPlanScreen({ navigation }: Props) {
             <View style={s.modalSheet}>
               <Text style={s.modalTitle}>Dados para importar plano</Text>
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                <Text style={s.fieldLabel}>Nome</Text>
                 <TextInput style={s.input} value={form.name} onChangeText={(v) => setForm((f) => ({ ...f, name: v }))} placeholder="Nome" placeholderTextColor={C.text3} editable={!loading} />
+                <View style={s.row}>
+                  <Text style={[s.fieldLabel, s.half]}>Idade</Text>
+                  <Text style={[s.fieldLabel, s.half]}>Peso (kg)</Text>
+                </View>
                 <View style={s.row}>
                   <TextInput style={[s.input, s.half]} value={form.age} onChangeText={(v) => setForm((f) => ({ ...f, age: v }))} placeholder="Idade" keyboardType="numeric" placeholderTextColor={C.text3} editable={!loading} />
                   <TextInput style={[s.input, s.half]} value={form.weight} onChangeText={(v) => setForm((f) => ({ ...f, weight: v }))} placeholder="Peso (kg)" keyboardType="decimal-pad" placeholderTextColor={C.text3} editable={!loading} />
                 </View>
+                <Text style={s.fieldLabel}>Altura (cm)</Text>
                 <TextInput style={s.input} value={form.height} onChangeText={(v) => setForm((f) => ({ ...f, height: v }))} placeholder="Altura (cm)" keyboardType="numeric" placeholderTextColor={C.text3} editable={!loading} />
+                <Text style={s.fieldLabel}>Sexo</Text>
                 <View style={s.optionRow}>
                   {([
                     ['male', 'Masculino'],
@@ -285,6 +292,7 @@ export function NewPlanScreen({ navigation }: Props) {
                     </TouchableOpacity>
                   ))}
                 </View>
+                <Text style={s.fieldLabel}>Nível de treino</Text>
                 <View style={s.optionRow}>
                   {([
                     ['beginner', 'Iniciante'],
@@ -296,6 +304,7 @@ export function NewPlanScreen({ navigation }: Props) {
                     </TouchableOpacity>
                   ))}
                 </View>
+                <Text style={s.fieldLabel}>Objetivo</Text>
                 <View style={s.optionRow}>
                   {([
                     ['lose_weight', 'Perder peso'],
@@ -309,9 +318,14 @@ export function NewPlanScreen({ navigation }: Props) {
                   ))}
                 </View>
                 <View style={s.row}>
+                  <Text style={[s.fieldLabel, s.half]}>Dias por semana</Text>
+                  <Text style={[s.fieldLabel, s.half]}>Duração por treino (min)</Text>
+                </View>
+                <View style={s.row}>
                   <TextInput style={[s.input, s.half]} value={form.daysPerWeek} onChangeText={(v) => setForm((f) => ({ ...f, daysPerWeek: v }))} placeholder="Dias/sem" keyboardType="numeric" placeholderTextColor={C.text3} editable={!loading} />
                   <TextInput style={[s.input, s.half]} value={form.workoutDuration} onChangeText={(v) => setForm((f) => ({ ...f, workoutDuration: v }))} placeholder="Duração (min)" keyboardType="numeric" placeholderTextColor={C.text3} editable={!loading} />
                 </View>
+                <Text style={s.fieldLabel}>Cardio por treino (min)</Text>
                 <TextInput style={s.input} value={form.cardioMinutes} onChangeText={(v) => setForm((f) => ({ ...f, cardioMinutes: v }))} placeholder="Cardio (min)" keyboardType="numeric" placeholderTextColor={C.text3} editable={!loading} />
                 <Text style={s.monthsLabel}>Por quantos meses é este plano?</Text>
                 <View style={s.optionRow}>
@@ -399,12 +413,19 @@ export function NewPlanScreen({ navigation }: Props) {
           <View style={s.modalSheet}>
             <Text style={s.modalTitle}>Dados para importar plano</Text>
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <Text style={s.fieldLabel}>Nome</Text>
               <TextInput style={s.input} value={form.name} onChangeText={(v) => setForm((f) => ({ ...f, name: v }))} placeholder="Nome" placeholderTextColor={C.text3} editable={!loading} />
+              <View style={s.row}>
+                <Text style={[s.fieldLabel, s.half]}>Idade</Text>
+                <Text style={[s.fieldLabel, s.half]}>Peso (kg)</Text>
+              </View>
               <View style={s.row}>
                 <TextInput style={[s.input, s.half]} value={form.age} onChangeText={(v) => setForm((f) => ({ ...f, age: v }))} placeholder="Idade" keyboardType="numeric" placeholderTextColor={C.text3} editable={!loading} />
                 <TextInput style={[s.input, s.half]} value={form.weight} onChangeText={(v) => setForm((f) => ({ ...f, weight: v }))} placeholder="Peso (kg)" keyboardType="decimal-pad" placeholderTextColor={C.text3} editable={!loading} />
               </View>
+              <Text style={s.fieldLabel}>Altura (cm)</Text>
               <TextInput style={s.input} value={form.height} onChangeText={(v) => setForm((f) => ({ ...f, height: v }))} placeholder="Altura (cm)" keyboardType="numeric" placeholderTextColor={C.text3} editable={!loading} />
+              <Text style={s.fieldLabel}>Sexo</Text>
               <View style={s.optionRow}>
                 {([
                   ['male', 'Masculino'],
@@ -416,6 +437,7 @@ export function NewPlanScreen({ navigation }: Props) {
                   </TouchableOpacity>
                 ))}
               </View>
+              <Text style={s.fieldLabel}>Nível de treino</Text>
               <View style={s.optionRow}>
                 {([
                   ['beginner', 'Iniciante'],
@@ -427,6 +449,7 @@ export function NewPlanScreen({ navigation }: Props) {
                   </TouchableOpacity>
                 ))}
               </View>
+              <Text style={s.fieldLabel}>Objetivo</Text>
               <View style={s.optionRow}>
                 {([
                   ['lose_weight', 'Perder peso'],
@@ -440,9 +463,14 @@ export function NewPlanScreen({ navigation }: Props) {
                 ))}
               </View>
               <View style={s.row}>
+                <Text style={[s.fieldLabel, s.half]}>Dias por semana</Text>
+                <Text style={[s.fieldLabel, s.half]}>Duração por treino (min)</Text>
+              </View>
+              <View style={s.row}>
                 <TextInput style={[s.input, s.half]} value={form.daysPerWeek} onChangeText={(v) => setForm((f) => ({ ...f, daysPerWeek: v }))} placeholder="Dias/sem" keyboardType="numeric" placeholderTextColor={C.text3} editable={!loading} />
                 <TextInput style={[s.input, s.half]} value={form.workoutDuration} onChangeText={(v) => setForm((f) => ({ ...f, workoutDuration: v }))} placeholder="Duração (min)" keyboardType="numeric" placeholderTextColor={C.text3} editable={!loading} />
               </View>
+              <Text style={s.fieldLabel}>Cardio por treino (min)</Text>
               <TextInput style={s.input} value={form.cardioMinutes} onChangeText={(v) => setForm((f) => ({ ...f, cardioMinutes: v }))} placeholder="Cardio (min)" keyboardType="numeric" placeholderTextColor={C.text3} editable={!loading} />
               <Text style={s.monthsLabel}>Por quantos meses é este plano?</Text>
               <View style={s.optionRow}>
@@ -564,6 +592,7 @@ const s = StyleSheet.create({
     paddingVertical: 10,
     marginBottom: 10,
   },
+  fieldLabel: { color: C.text2, fontSize: 12, fontWeight: '700', marginBottom: 6, marginTop: 2 },
   row: { flexDirection: 'row', gap: 8 },
   half: { flex: 1 },
   optionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
