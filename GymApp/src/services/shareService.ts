@@ -77,6 +77,7 @@ function buildWorkoutCardHtml(data: WorkoutCardData): string {
     (a, e) => a + e.sets.filter(s => s.done).length, 0
   );
   const totalSets = workout.exercises.reduce((a, e) => a + e.sets.length, 0);
+  const progress = totalSets > 0 ? Math.round((doneSets / totalSets) * 100) : 0;
   const dateStr = new Date(workout.date).toLocaleDateString('pt-BR', {
     weekday: 'long', day: 'numeric', month: 'long',
   });
@@ -86,8 +87,19 @@ function buildWorkoutCardHtml(data: WorkoutCardData): string {
       ? Math.round(heartRateSamples.reduce((a, s) => a + s.bpm, 0) / heartRateSamples.length)
       : null;
 
+  // Calculate total volume
+  let totalVol = 0;
+  for (const ex of workout.exercises)
+    for (const set of ex.sets)
+      if (set.done && set.load && set.reps)
+        totalVol += parseFloat(set.load) * parseInt(set.reps, 10);
+  totalVol = Math.round(totalVol);
+
   const hrRow = avgBpm
     ? `<div class="stat"><span class="stat-val">❤️ ${avgBpm}</span><span class="stat-lbl">BPM médio</span></div>`
+    : '';
+  const volRow = totalVol > 0
+    ? `<div class="stat"><span class="stat-val">📊 ${totalVol}kg</span><span class="stat-lbl">Volume total</span></div>`
     : '';
 
   return `<!DOCTYPE html>
@@ -122,25 +134,41 @@ function buildWorkoutCardHtml(data: WorkoutCardData): string {
     color: ${THEME.text1}; font-size: 26px; font-weight: 900;
     margin-bottom: 4px; line-height: 1.2;
   }
-  .date { color: ${THEME.text3}; font-size: 13px; margin-bottom: 20px; }
+  .date { color: ${THEME.text3}; font-size: 13px; margin-bottom: 16px; }
+  .progress-bar {
+    height: 8px; background: rgba(255,255,255,0.06); border-radius: 4px;
+    overflow: hidden; margin-bottom: 6px;
+  }
+  .progress-fill {
+    height: 8px; width: ${progress}%;
+    background: ${THEME.success}; border-radius: 4px;
+  }
+  .progress-text {
+    color: ${THEME.success}; font-size: 11px; font-weight: 700;
+    margin-bottom: 18px;
+  }
   .stats-row {
-    display: flex; gap: 12px; margin-bottom: 20px;
+    display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;
   }
   .stat {
-    flex: 1; background: rgba(255,255,255,0.04);
-    border-radius: 14px; padding: 14px; text-align: center;
+    flex: 1; min-width: 80px; background: rgba(255,255,255,0.04);
+    border-radius: 14px; padding: 12px; text-align: center;
   }
   .stat-val {
     display: block; color: ${THEME.primary};
-    font-size: 22px; font-weight: 900;
+    font-size: 20px; font-weight: 900;
   }
   .stat-lbl {
     display: block; color: ${THEME.text3};
-    font-size: 11px; margin-top: 4px;
+    font-size: 10px; margin-top: 4px;
   }
   .divider {
     border: none; border-top: 1px solid rgba(255,255,255,0.06);
-    margin: 18px 0;
+    margin: 16px 0;
+  }
+  .ex-title {
+    color: ${THEME.text3}; font-size: 10px; font-weight: 700;
+    letter-spacing: 1.5px; margin-bottom: 10px;
   }
   .exercises { list-style: none; }
   .ex-item {
@@ -152,8 +180,9 @@ function buildWorkoutCardHtml(data: WorkoutCardData): string {
     background: ${THEME.primary};
     flex-shrink: 0;
   }
-  .ex-name { color: ${THEME.text2}; font-size: 14px; flex: 1; }
-  .ex-sets { color: ${THEME.text3}; font-size: 13px; }
+  .ex-name { color: ${THEME.text2}; font-size: 13px; flex: 1; }
+  .ex-detail { color: ${THEME.text3}; font-size: 11px; white-space: nowrap; }
+  .ex-loads { color: ${THEME.success}; font-size: 11px; font-weight: 700; white-space: nowrap; }
   .footer {
     margin-top: 20px; text-align: center;
     color: ${THEME.text3}; font-size: 12px;
@@ -167,6 +196,9 @@ function buildWorkoutCardHtml(data: WorkoutCardData): string {
   <div class="title">${workout.focus}</div>
   <div class="date">${dateStr}</div>
 
+  <div class="progress-bar"><div class="progress-fill"></div></div>
+  <div class="progress-text">${progress}% completo · ${doneSets}/${totalSets} séries</div>
+
   <div class="stats-row">
     <div class="stat">
       <span class="stat-val">⏱ ${fmtDuration(workout.durationSeconds)}</span>
@@ -177,17 +209,24 @@ function buildWorkoutCardHtml(data: WorkoutCardData): string {
       <span class="stat-lbl">Séries</span>
     </div>
     ${hrRow}
+    ${volRow}
   </div>
 
   <hr class="divider"/>
+  <div class="ex-title">EXERCÍCIOS REALIZADOS</div>
 
   <ul class="exercises">
     ${workout.exercises.map(ex => {
       const done = ex.sets.filter(s => s.done).length;
+      const loads = ex.sets
+        .filter(s => s.done && s.load)
+        .map(s => `${s.load}kg x${s.reps || '?'}`)
+        .join(' · ');
       return `<li class="ex-item">
         <div class="ex-dot"></div>
         <span class="ex-name">${ex.name}</span>
-        <span class="ex-sets">${done}/${ex.targetSets} séries</span>
+        <span class="ex-detail">${done}/${ex.targetSets}</span>
+        ${loads ? `<span class="ex-loads">${loads}</span>` : ''}
       </li>`;
     }).join('')}
   </ul>
@@ -199,10 +238,31 @@ function buildWorkoutCardHtml(data: WorkoutCardData): string {
 }
 
 function buildWorkoutStoryHtml(data: WorkoutCardData): string {
-  const { workout } = data;
+  const { workout, heartRateSamples } = data;
   const doneSets = workout.exercises.reduce((a, e) => a + e.sets.filter(s => s.done).length, 0);
   const totalSets = workout.exercises.reduce((a, e) => a + e.sets.length, 0);
   const progress = totalSets > 0 ? Math.round((doneSets / totalSets) * 100) : 0;
+
+  const avgBpm =
+    heartRateSamples && heartRateSamples.length > 0
+      ? Math.round(heartRateSamples.reduce((a, s) => a + s.bpm, 0) / heartRateSamples.length)
+      : null;
+
+  // Calculate total volume
+  let totalVol = 0;
+  for (const ex of workout.exercises)
+    for (const set of ex.sets)
+      if (set.done && set.load && set.reps)
+        totalVol += parseFloat(set.load) * parseInt(set.reps, 10);
+  totalVol = Math.round(totalVol);
+
+  const bpmRow = avgBpm
+    ? `<div class="card-row"><span>❤️ BPM Médio</span><strong>${avgBpm}</strong></div>`
+    : '';
+  const volRow = totalVol > 0
+    ? `<div class="card-row"><span>📊 Volume</span><strong>${totalVol}kg</strong></div>`
+    : '';
+
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -215,37 +275,82 @@ function buildWorkoutStoryHtml(data: WorkoutCardData): string {
     background: linear-gradient(160deg, ${THEME.bg}, ${THEME.surface});
     color: ${THEME.text1};
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    padding: 120px 80px;
+    padding: 100px 80px;
     display: flex; flex-direction: column;
   }
-  .tag { color: ${THEME.primaryLight}; font-size: 40px; font-weight: 800; margin-bottom: 30px; }
-  .title { font-size: 84px; font-weight: 900; line-height: 1.1; margin-bottom: 24px; }
-  .meta { color: ${THEME.text2}; font-size: 42px; margin-bottom: 80px; }
+  .tag { color: ${THEME.primaryLight}; font-size: 36px; font-weight: 800; margin-bottom: 24px; letter-spacing: 2px; }
+  .title { font-size: 72px; font-weight: 900; line-height: 1.1; margin-bottom: 16px; }
+  .date { color: ${THEME.text2}; font-size: 36px; margin-bottom: 20px; }
+  .done-badge {
+    display: inline-block;
+    background: rgba(16,185,129,0.15);
+    border: 2px solid rgba(16,185,129,0.4);
+    border-radius: 20px; padding: 12px 28px;
+    color: ${THEME.success}; font-size: 30px; font-weight: 800;
+    margin-bottom: 40px;
+  }
+  .progress-section { margin-bottom: 50px; }
+  .bar { height: 20px; background: rgba(255,255,255,0.1); border-radius: 10px; overflow: hidden; }
+  .bar-fill { height: 20px; width: ${progress}%; background: ${THEME.success}; border-radius: 10px; }
+  .progress-text { color: ${THEME.success}; font-size: 28px; font-weight: 700; margin-top: 12px; }
   .card {
     background: rgba(124,58,237,0.1);
     border: 2px solid rgba(124,58,237,0.35);
-    border-radius: 40px;
-    padding: 56px;
+    border-radius: 36px;
+    padding: 48px;
     margin-bottom: 40px;
   }
-  .card-row { display: flex; justify-content: space-between; margin-bottom: 24px; font-size: 42px; }
-  .bar { height: 24px; background: rgba(255,255,255,0.1); border-radius: 12px; overflow: hidden; margin-top: 16px; }
-  .bar-fill { height: 24px; width: ${progress}%; background: ${THEME.success}; }
-  .exercise { color: ${THEME.text2}; font-size: 34px; margin-bottom: 14px; }
-  .footer { margin-top: auto; color: ${THEME.text3}; font-size: 32px; text-align: center; }
+  .card-row {
+    display: flex; justify-content: space-between;
+    margin-bottom: 20px; font-size: 36px; line-height: 1.4;
+  }
+  .card-row span { color: ${THEME.text2}; }
+  .card-row strong { color: ${THEME.text1}; }
+  .ex-title {
+    color: ${THEME.text3}; font-size: 26px; font-weight: 700;
+    letter-spacing: 2px; margin-bottom: 16px;
+  }
+  .exercise {
+    display: flex; justify-content: space-between; align-items: center;
+    color: ${THEME.text2}; font-size: 30px; margin-bottom: 12px;
+    padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .exercise .loads { color: ${THEME.success}; font-weight: 700; font-size: 28px; }
+  .footer { margin-top: auto; color: ${THEME.text3}; font-size: 28px; text-align: center; }
 </style>
 </head>
 <body>
   <div class="tag">🔥 STORY DE TREINO</div>
   <div class="title">${workout.focus}</div>
-  <div class="meta">${new Date(workout.date).toLocaleDateString('pt-BR')}</div>
+  <div class="date">${new Date(workout.date).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
+  <span class="done-badge">✓ CONCLUÍDO</span>
+
+  <div class="progress-section">
+    <div class="bar"><div class="bar-fill"></div></div>
+    <div class="progress-text">${progress}% completo · ${doneSets}/${totalSets} séries</div>
+  </div>
+
   <div class="card">
     <div class="card-row"><span>⏱ Duração</span><strong>${fmtDuration(workout.durationSeconds)}</strong></div>
     <div class="card-row"><span>💪 Séries</span><strong>${doneSets}/${totalSets}</strong></div>
-    <div class="card-row"><span>📈 Progresso</span><strong>${progress}%</strong></div>
-    <div class="bar"><div class="bar-fill"></div></div>
+    ${bpmRow}
+    ${volRow}
   </div>
-  ${workout.exercises.slice(0, 5).map((ex) => `<div class="exercise">• ${ex.name}</div>`).join('')}
+
+  <div class="ex-title">EXERCÍCIOS REALIZADOS</div>
+  ${workout.exercises.slice(0, 6).map((ex) => {
+    const done = ex.sets.filter(s => s.done).length;
+    const loads = ex.sets
+      .filter(s => s.done && s.load)
+      .map(s => `${s.load}kg${s.reps ? 'x' + s.reps : ''}`)
+      .slice(0, 3)
+      .join(' · ');
+    return `<div class="exercise">
+      <span>• ${ex.name} (${done}/${ex.targetSets})</span>
+      ${loads ? `<span class="loads">${loads}</span>` : ''}
+    </div>`;
+  }).join('')}
+
   <div class="footer">Compartilhado via GymApp 💜</div>
 </body>
 </html>`;
@@ -339,15 +444,42 @@ export async function shareWorkoutCard(data: WorkoutCardData): Promise<void> {
   try {
     await _shareHtml(buildWorkoutCardHtml(data), `treino_${data.workout.id}.pdf`);
   } catch {
-    // Graceful text fallback
-    const done = data.workout.exercises.reduce(
+    // Graceful text fallback — structured and readable
+    const w = data.workout;
+    const done = w.exercises.reduce(
       (a, e) => a + e.sets.filter(s => s.done).length, 0
     );
-    const total = data.workout.exercises.reduce((a, e) => a + e.sets.length, 0);
-    await Share.share({
-      message: `🏋️ Treino concluído: ${data.workout.focus}\n⏱ ${fmtDuration(data.workout.durationSeconds)}\n💪 ${done}/${total} séries\n\nGerado por GymApp 💜`,
-      title: 'Meu Treino',
+    const total = w.exercises.reduce((a, e) => a + e.sets.length, 0);
+    const progress = total > 0 ? Math.round((done / total) * 100) : 0;
+    const dateStr = new Date(w.date).toLocaleDateString('pt-BR', {
+      weekday: 'long', day: 'numeric', month: 'long',
     });
+
+    const exLines = w.exercises.map(ex => {
+      const exDone = ex.sets.filter(s => s.done).length;
+      const loads = ex.sets
+        .filter(s => s.done && s.load)
+        .map(s => `${s.load}kg x${s.reps || '?'}`)
+        .join(', ');
+      return `  • ${ex.name}: ${exDone}/${ex.targetSets} séries${loads ? ` → ${loads}` : ''}`;
+    }).join('\n');
+
+    const msg = [
+      `🏋️ TREINO CONCLUÍDO`,
+      ``,
+      `📌 ${w.focus}`,
+      `📅 ${dateStr}`,
+      ``,
+      `⏱ Duração: ${fmtDuration(w.durationSeconds)}`,
+      `💪 Séries: ${done}/${total} (${progress}%)`,
+      ``,
+      `📋 Exercícios:`,
+      exLines,
+      ``,
+      `Gerado por GymApp 💜`,
+    ].join('\n');
+
+    await Share.share({ message: msg, title: 'Meu Treino' });
   }
 }
 
@@ -359,10 +491,29 @@ export async function shareWorkoutStory(data: WorkoutCardData): Promise<void> {
       height: 1920,
     });
   } catch {
-    await Share.share({
-      message: `🔥 Story de treino: ${data.workout.focus}\n⏱ ${fmtDuration(data.workout.durationSeconds)}\nCompartilhado via GymApp 💜`,
-      title: 'Story de Treino',
-    });
+    const w = data.workout;
+    const done = w.exercises.reduce((a, e) => a + e.sets.filter(s => s.done).length, 0);
+    const total = w.exercises.reduce((a, e) => a + e.sets.length, 0);
+    const progress = total > 0 ? Math.round((done / total) * 100) : 0;
+
+    const exList = w.exercises.slice(0, 5).map(ex => {
+      const exDone = ex.sets.filter(s => s.done).length;
+      return `  • ${ex.name} (${exDone}/${ex.targetSets})`;
+    }).join('\n');
+
+    const msg = [
+      `🔥 STORY DE TREINO`,
+      ``,
+      `📌 ${w.focus}`,
+      `⏱ ${fmtDuration(w.durationSeconds)}`,
+      `💪 ${done}/${total} séries · ${progress}%`,
+      ``,
+      exList,
+      ``,
+      `Compartilhado via GymApp 💜`,
+    ].join('\n');
+
+    await Share.share({ message: msg, title: 'Story de Treino' });
   }
 }
 
