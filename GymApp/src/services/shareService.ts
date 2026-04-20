@@ -220,7 +220,7 @@ function buildWorkoutCardHtml(data: WorkoutCardData): string {
       const done = ex.sets.filter(s => s.done).length;
       const loads = ex.sets
         .filter(s => s.done && s.load)
-        .map(s => `${s.load}kg×${s.reps || '?'}`)
+        .map(s => `${s.load}kg x${s.reps || '?'}`)
         .join(' · ');
       return `<li class="ex-item">
         <div class="ex-dot"></div>
@@ -342,7 +342,7 @@ function buildWorkoutStoryHtml(data: WorkoutCardData): string {
     const done = ex.sets.filter(s => s.done).length;
     const loads = ex.sets
       .filter(s => s.done && s.load)
-      .map(s => `${s.load}kg`)
+      .map(s => `${s.load}kg${s.reps ? 'x' + s.reps : ''}`)
       .slice(0, 3)
       .join(' · ');
     return `<div class="exercise">
@@ -459,7 +459,7 @@ export async function shareWorkoutCard(data: WorkoutCardData): Promise<void> {
       const exDone = ex.sets.filter(s => s.done).length;
       const loads = ex.sets
         .filter(s => s.done && s.load)
-        .map(s => `${s.load}kg×${s.reps || '?'}`)
+        .map(s => `${s.load}kg x${s.reps || '?'}`)
         .join(', ');
       return `  • ${ex.name}: ${exDone}/${ex.targetSets} séries${loads ? ` → ${loads}` : ''}`;
     }).join('\n');

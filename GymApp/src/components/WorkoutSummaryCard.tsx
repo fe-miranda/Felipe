@@ -98,7 +98,7 @@ export const WorkoutSummaryCard = React.forwardRef<View, Props>(({ workout, avgH
             const exDone = ex.sets.filter(s => s.done).length;
             const loads = ex.sets
               .filter(s => s.done && s.load)
-              .map(s => `${s.load}kg×${s.reps || '?'}`);
+              .map(s => `${s.load}kg x${s.reps || '?'}`);
             return (
               <View key={i} style={s.exRow}>
                 <View style={s.exLeft}>
