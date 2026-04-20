@@ -34,8 +34,6 @@ const C = {
   text1: '#F1F5F9', text2: '#94A3B8', text3: '#475569',
 };
 
-function pad2(n: number) { return String(n).padStart(2, '0'); }
-function fmtTime(s: number) { return `${pad2(Math.floor(s / 60))}:${pad2(s % 60)}`; }
 const ACTIVE_WORKOUT_SESSION_KEY = '@gymapp_active_workout_session';
 const PERSIST_INTERVAL_SECONDS = 5;
 const MIN_REST_SECONDS = 10;
@@ -60,13 +58,11 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   const shareRef = useRef<View>(null);
   const storyRef = useRef<View>(null);
 
-  // ── Timer ──
+  // ── Timer (background only – no visible timer/rest UI) ──
   const [elapsed, setElapsed] = useState(0);
   const [restActive, setRestActive] = useState(false);
   const [restRemaining, setRestRemaining] = useState(0);
   const [restDuration, setRestDuration] = useState(90);
-  const [showRestConfig, setShowRestConfig] = useState(false);
-  const [restInput, setRestInput] = useState('90');
 
   // ── Exercises ──
   const [exercises, setExercises] = useState<ExerciseLog[]>(() => buildLogs(workout));
@@ -239,16 +235,6 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
     setRestRemaining(0);
     cancelRestNotification();
   }, []);
-
-  const applyRestConfig = useCallback(() => {
-    const v = parseInt(restInput, 10);
-    if (isValidRestDuration(v)) {
-      setRestDuration(v);
-      setShowRestConfig(false);
-    } else {
-      Alert.alert('Inválido', `Digite entre ${MIN_REST_SECONDS} e ${MAX_REST_SECONDS} segundos.`);
-    }
-  }, [restInput]);
 
   const updateSet = useCallback((exIdx: number, setIdx: number, field: 'load' | 'reps', value: string) => {
     setExercises(prev => {
@@ -437,29 +423,8 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
           </TouchableOpacity>
         </View>
 
-        {/* Timer bar */}
+        {/* Progress bar */}
         <View style={s.timerBar}>
-          <View style={s.elapsed}>
-            <Text style={s.timerLabel}>TEMPO</Text>
-            <Text style={s.timerValue}>{fmtTime(elapsed)}</Text>
-          </View>
-
-          {restActive ? (
-            <TouchableOpacity style={s.restActive} onPress={stopRest} activeOpacity={0.8}>
-              <Text style={s.restActiveLabel}>DESCANSO · toque para cancelar</Text>
-              <Text style={s.restActiveValue}>{fmtTime(restRemaining)}</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={s.restIdleRow}>
-              <TouchableOpacity style={s.restBtn} onPress={() => startRest()}>
-                <Text style={s.restBtnText}>⏸  {fmtTime(restDuration)}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={s.restCfgBtn} onPress={() => { setRestInput(String(restDuration)); setShowRestConfig(true); }}>
-                <Text style={s.restCfgIcon}>⚙</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
           <View style={s.progressWrap}>
             <Text style={s.progressLabel}>{doneCount}/{totalSets}</Text>
             <View style={s.progressTrack}>
@@ -534,31 +499,6 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
           <Text style={s.addExerciseBtnText}>＋ Adicionar Exercício</Text>
         </TouchableOpacity>
       </ScrollView>
-
-      {/* ── Rest config modal ── */}
-      <Modal visible={showRestConfig} transparent animationType="fade">
-        <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setShowRestConfig(false)}>
-          <View style={s.cfgBox} onStartShouldSetResponder={() => true}>
-            <Text style={s.cfgTitle}>Tempo de Descanso</Text>
-            <TextInput
-              style={s.cfgInput} value={restInput} onChangeText={setRestInput}
-              keyboardType="numeric" autoFocus selectTextOnFocus
-            />
-            <Text style={s.cfgHint}>segundos ({MIN_REST_SECONDS} – {MAX_REST_SECONDS})</Text>
-            <View style={s.presetRow}>
-              {[30, 60, 90, 120].map(v => (
-                <TouchableOpacity key={v} style={[s.preset, restDuration === v && s.presetActive]}
-                  onPress={() => { setRestInput(String(v)); setRestDuration(v); setShowRestConfig(false); }}>
-                  <Text style={[s.presetText, restDuration === v && s.presetTextActive]}>{v}s</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <TouchableOpacity style={s.cfgApply} onPress={applyRestConfig}>
-              <Text style={s.cfgApplyText}>Aplicar</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
 
       {/* ── HR input modal ── */}
       <Modal visible={showHrModal} transparent animationType="fade">
@@ -697,20 +637,9 @@ const s = StyleSheet.create({
   finishBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 
   timerBar: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  elapsed: { alignItems: 'center', minWidth: 60 },
-  timerLabel: { color: C.text3, fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
-  timerValue: { color: C.text1, fontSize: 22, fontWeight: '900' },
-  restActive: { flex: 1, alignItems: 'center', backgroundColor: 'rgba(245,158,11,0.15)', borderRadius: 12, padding: 8, borderWidth: 1, borderColor: 'rgba(245,158,11,0.4)' },
-  restActiveLabel: { color: C.warning, fontSize: 9, fontWeight: '600' },
-  restActiveValue: { color: C.warning, fontSize: 24, fontWeight: '900' },
-  restIdleRow: { flex: 1, flexDirection: 'row', gap: 6 },
-  restBtn: { flex: 1, backgroundColor: C.elevated, borderRadius: 10, alignItems: 'center', paddingVertical: 9, borderWidth: 1, borderColor: C.border },
-  restBtnText: { color: C.text2, fontSize: 13, fontWeight: '700' },
-  restCfgBtn: { width: 36, backgroundColor: C.elevated, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border },
-  restCfgIcon: { color: C.text3, fontSize: 16 },
-  progressWrap: { alignItems: 'center', minWidth: 44 },
-  progressLabel: { color: C.primaryLight, fontSize: 11, fontWeight: '700', marginBottom: 4 },
-  progressTrack: { width: 36, height: 4, backgroundColor: C.elevated, borderRadius: 2, overflow: 'hidden' },
+  progressWrap: { flex: 1, alignItems: 'center' },
+  progressLabel: { color: C.primaryLight, fontSize: 12, fontWeight: '700', marginBottom: 4 },
+  progressTrack: { height: 4, backgroundColor: C.elevated, borderRadius: 2, overflow: 'hidden', width: '100%' },
   progressFill: { height: 4, backgroundColor: C.primary, borderRadius: 2 },
 
   scroll: { flex: 1, backgroundColor: C.bg },
@@ -752,11 +681,6 @@ const s = StyleSheet.create({
   cfgTitle: { color: C.text1, fontSize: 18, fontWeight: '800', marginBottom: 16, textAlign: 'center' },
   cfgInput: { backgroundColor: C.elevated, borderRadius: 12, padding: 14, color: C.text1, fontSize: 32, fontWeight: '900', textAlign: 'center', borderWidth: 1, borderColor: C.border },
   cfgHint: { color: C.text3, fontSize: 12, textAlign: 'center', marginTop: 6, marginBottom: 14 },
-  presetRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
-  preset: { flex: 1, backgroundColor: C.elevated, borderRadius: 10, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: C.border },
-  presetActive: { backgroundColor: C.primaryGlow, borderColor: C.primary },
-  presetText: { color: C.text2, fontWeight: '700', fontSize: 15 },
-  presetTextActive: { color: C.primaryLight },
   cfgApply: { backgroundColor: C.primary, borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
   cfgApplyText: { color: '#fff', fontWeight: '700', fontSize: 16 },
   quickInputRow: { flexDirection: 'row', gap: 8 },

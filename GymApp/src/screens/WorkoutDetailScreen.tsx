@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -45,14 +45,37 @@ export function WorkoutDetailScreen({ navigation, route }: Props) {
   const [newRest, setNewRest] = useState('90s');
   const [newNotes, setNewNotes] = useState('');
 
-  useEffect(() => { loadStoredPlan(); }, []);
+  const [planLoading, setPlanLoading] = useState(true);
+
+  useEffect(() => {
+    loadStoredPlan().finally(() => setPlanLoading(false));
+  }, []);
   useEffect(() => {
     if (!plan) return;
     const day = plan.monthlyBlocks?.[monthIndex]?.weeks?.[weekIndex]?.days?.[dayIndex];
     if (!day) return;
     setEditableExercises(day.exercises.map((ex) => ({ ...ex })));
   }, [plan, monthIndex, weekIndex, dayIndex]);
-  if (!plan) return null;
+
+  if (planLoading) {
+    return (
+      <View style={[s.container, { justifyContent: 'center', alignItems: 'center', flex: 1 }]}>
+        <ActivityIndicator color={C.primary} size="large" />
+      </View>
+    );
+  }
+  if (!plan) {
+    return (
+      <View style={[s.container, { justifyContent: 'center', alignItems: 'center', flex: 1 }]}>
+        <Text style={{ color: C.text2, fontSize: 16, textAlign: 'center', marginBottom: 16 }}>
+          Não foi possível carregar o plano.
+        </Text>
+        <TouchableOpacity style={[s.startBtn, { backgroundColor: C.primary, paddingHorizontal: 32 }]} onPress={() => navigation.goBack()}>
+          <Text style={s.startBtnText}>Voltar</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   const month = plan.monthlyBlocks?.[monthIndex];
   const week = month?.weeks?.[weekIndex];
