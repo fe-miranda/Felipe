@@ -487,6 +487,31 @@ export function HomeScreen({ navigation }: Props) {
         })
       )}
 
+      <TouchableOpacity style={s.recordsCard} onPress={() => navigation.navigate('WorkoutHistory')} activeOpacity={0.82}>
+        <Text style={s.recordsIcon}>🏆</Text>
+        <View style={s.recordsInfo}>
+          <Text style={s.recordsTitle}>Recordes Pessoais</Text>
+          <Text style={s.recordsSub}>A seção de recordes fica no Histórico de Treinos</Text>
+        </View>
+        <Text style={s.recordsArrow}>›</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={s.widgetCard}
+        activeOpacity={0.82}
+        onPress={() => Alert.alert(
+          'Widget de treino',
+          'Você pode usar o compartilhamento de treino para fixar o card na tela inicial.\n\nO suporte avançado a widget nativo está em evolução.',
+        )}
+      >
+        <Text style={s.widgetIcon}>🧩</Text>
+        <View style={s.widgetInfo}>
+          <Text style={s.widgetTitle}>Widget</Text>
+          <Text style={s.widgetSub}>Toque para ver como usar o widget do treino</Text>
+        </View>
+        <Text style={s.widgetArrow}>›</Text>
+      </TouchableOpacity>
+
       {/* ── Muscle fatigue link ── */}
       <TouchableOpacity style={s.fatigueCard} onPress={() => navigation.navigate('MuscleFatigue')} activeOpacity={0.82}>
         <Text style={s.fatigueIcon}>🔥</Text>
@@ -861,6 +886,26 @@ const s = StyleSheet.create({
   historyCardRight: { alignItems: 'flex-end' },
   historyCardDur: { color: C.primaryLight, fontSize: 13, fontWeight: '700' },
   historyCardSets: { color: C.text3, fontSize: 11, marginTop: 2 },
+  recordsCard: {
+    backgroundColor: C.surface, borderRadius: 14, padding: 14,
+    borderWidth: 1, borderColor: C.border, flexDirection: 'row',
+    alignItems: 'center', marginBottom: 8, gap: 12,
+  },
+  recordsIcon: { fontSize: 26 },
+  recordsInfo: { flex: 1 },
+  recordsTitle: { color: C.text1, fontSize: 15, fontWeight: '700' },
+  recordsSub: { color: C.text3, fontSize: 12, marginTop: 2 },
+  recordsArrow: { color: C.text3, fontSize: 22 },
+  widgetCard: {
+    backgroundColor: C.surface, borderRadius: 14, padding: 14,
+    borderWidth: 1, borderColor: C.border, flexDirection: 'row',
+    alignItems: 'center', marginBottom: 16, gap: 12,
+  },
+  widgetIcon: { fontSize: 24 },
+  widgetInfo: { flex: 1 },
+  widgetTitle: { color: C.text1, fontSize: 15, fontWeight: '700' },
+  widgetSub: { color: C.text3, fontSize: 12, marginTop: 2 },
+  widgetArrow: { color: C.text3, fontSize: 22 },
 
   // Daily suggestion card
   suggestionCard: {
