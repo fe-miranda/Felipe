@@ -1,6 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import Svg, { Circle, Ellipse, Path, Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
+import Svg, {
+  Circle, Ellipse, Path, Defs, LinearGradient, Stop, Rect, ClipPath, G,
+} from 'react-native-svg';
 import { FatigueScore, fatigueColor } from '../services/muscleService';
 
 type Side = 'front' | 'back';
@@ -16,40 +18,62 @@ interface MuscleArea {
   r?: number;
 }
 
-const C = {
+const COLORS = {
   silhouetteHead: '#232339',
   silhouetteBody: '#17172A',
   silhouetteStroke: '#353553',
   activeStroke: '#F8FAFC',
   inactiveStroke: '#2A2A40',
 };
-// Horizontal correction to center legacy muscle coordinates in the updated silhouette layout.
-const POSITION_OFFSET_X = 8;
-const SVG_WIDTH = 156;
-const SVG_HEIGHT = 276;
-const SVG_INSET = 2;
 
+/* SVG canvas */
+const SVG_W = 160;
+const SVG_H = 290;
+const SVG_PAD = 2;
+
+/* Body center X — all muscle coords are absolute on this canvas */
+const CX = SVG_W / 2; // 80
+
+/* ── Silhouette paths (reused for both clip and drawing) ── */
+const HEAD_CY = 28;
+const HEAD_R = 14;
+
+const TORSO_PATH =
+  `M52 54 C56 46 66 42 ${CX} 42 C94 42 104 46 108 54
+   C113 66 112 82 106 96 C100 108 98 124 98 140
+   C98 160 100 180 97 218 C96 232 90 244 ${CX} 244
+   C70 244 64 232 63 218 C60 180 62 160 62 140
+   C62 124 60 108 54 96 C48 82 47 66 52 54 Z`;
+
+const ARM_L_PATH =
+  'M52 63 C40 74 33 96 33 116 C33 124 38 130 44 128 C50 126 53 118 54 111 C56 98 58 80 60 66 Z';
+const ARM_R_PATH =
+  'M108 63 C120 74 127 96 127 116 C127 124 122 130 116 128 C110 126 107 118 106 111 C104 98 102 80 100 66 Z';
+
+/* ── Muscle areas with coordinates tuned to the silhouette ── */
 const AREAS: MuscleArea[] = [
-  { group: 'Ombro', side: 'front', shape: 'circle', cx: 32, cy: 78, r: 12 },
-  { group: 'Ombro', side: 'front', shape: 'circle', cx: 108, cy: 78, r: 12 },
-  { group: 'Peito', side: 'front', shape: 'ellipse', cx: 56, cy: 92, rx: 16, ry: 13 },
-  { group: 'Peito', side: 'front', shape: 'ellipse', cx: 84, cy: 92, rx: 16, ry: 13 },
-  { group: 'Bíceps', side: 'front', shape: 'ellipse', cx: 26, cy: 112, rx: 8, ry: 15 },
-  { group: 'Bíceps', side: 'front', shape: 'ellipse', cx: 114, cy: 112, rx: 8, ry: 15 },
-  { group: 'Abdômen', side: 'front', shape: 'ellipse', cx: 70, cy: 122, rx: 18, ry: 22 },
-  { group: 'Quadríceps', side: 'front', shape: 'ellipse', cx: 58, cy: 176, rx: 13, ry: 24 },
-  { group: 'Quadríceps', side: 'front', shape: 'ellipse', cx: 82, cy: 176, rx: 13, ry: 24 },
+  /* ─ Front ─ */
+  { group: 'Ombro',       side: 'front', shape: 'ellipse', cx: 42,  cy: 62,  rx: 10, ry: 8  },
+  { group: 'Ombro',       side: 'front', shape: 'ellipse', cx: 118, cy: 62,  rx: 10, ry: 8  },
+  { group: 'Peito',       side: 'front', shape: 'ellipse', cx: 67,  cy: 78,  rx: 13, ry: 11 },
+  { group: 'Peito',       side: 'front', shape: 'ellipse', cx: 93,  cy: 78,  rx: 13, ry: 11 },
+  { group: 'Bíceps',      side: 'front', shape: 'ellipse', cx: 38,  cy: 100, rx: 7,  ry: 13 },
+  { group: 'Bíceps',      side: 'front', shape: 'ellipse', cx: 122, cy: 100, rx: 7,  ry: 13 },
+  { group: 'Abdômen',     side: 'front', shape: 'ellipse', cx: CX,  cy: 114, rx: 14, ry: 20 },
+  { group: 'Quadríceps',  side: 'front', shape: 'ellipse', cx: 70,  cy: 172, rx: 11, ry: 22 },
+  { group: 'Quadríceps',  side: 'front', shape: 'ellipse', cx: 90,  cy: 172, rx: 11, ry: 22 },
 
-  { group: 'Trapézio', side: 'back', shape: 'ellipse', cx: 70, cy: 82, rx: 22, ry: 10 },
-  { group: 'Costas', side: 'back', shape: 'ellipse', cx: 70, cy: 108, rx: 28, ry: 22 },
-  { group: 'Tríceps', side: 'back', shape: 'ellipse', cx: 28, cy: 112, rx: 8, ry: 15 },
-  { group: 'Tríceps', side: 'back', shape: 'ellipse', cx: 112, cy: 112, rx: 8, ry: 15 },
-  { group: 'Glúteo', side: 'back', shape: 'ellipse', cx: 58, cy: 150, rx: 12, ry: 12 },
-  { group: 'Glúteo', side: 'back', shape: 'ellipse', cx: 82, cy: 150, rx: 12, ry: 12 },
-  { group: 'Posterior', side: 'back', shape: 'ellipse', cx: 58, cy: 184, rx: 12, ry: 23 },
-  { group: 'Posterior', side: 'back', shape: 'ellipse', cx: 82, cy: 184, rx: 12, ry: 23 },
-  { group: 'Panturrilha', side: 'back', shape: 'ellipse', cx: 58, cy: 228, rx: 9, ry: 18 },
-  { group: 'Panturrilha', side: 'back', shape: 'ellipse', cx: 82, cy: 228, rx: 9, ry: 18 },
+  /* ─ Back ─ */
+  { group: 'Trapézio',    side: 'back',  shape: 'ellipse', cx: CX,  cy: 66,  rx: 20, ry: 8  },
+  { group: 'Costas',      side: 'back',  shape: 'ellipse', cx: CX,  cy: 96,  rx: 22, ry: 18 },
+  { group: 'Tríceps',     side: 'back',  shape: 'ellipse', cx: 38,  cy: 100, rx: 7,  ry: 13 },
+  { group: 'Tríceps',     side: 'back',  shape: 'ellipse', cx: 122, cy: 100, rx: 7,  ry: 13 },
+  { group: 'Glúteo',      side: 'back',  shape: 'ellipse', cx: 70,  cy: 144, rx: 11, ry: 11 },
+  { group: 'Glúteo',      side: 'back',  shape: 'ellipse', cx: 90,  cy: 144, rx: 11, ry: 11 },
+  { group: 'Posterior',   side: 'back',  shape: 'ellipse', cx: 70,  cy: 178, rx: 10, ry: 20 },
+  { group: 'Posterior',   side: 'back',  shape: 'ellipse', cx: 90,  cy: 178, rx: 10, ry: 20 },
+  { group: 'Panturrilha', side: 'back',  shape: 'ellipse', cx: 70,  cy: 222, rx: 8,  ry: 15 },
+  { group: 'Panturrilha', side: 'back',  shape: 'ellipse', cx: 90,  cy: 222, rx: 8,  ry: 15 },
 ];
 
 function colorFor(group: string, scores: FatigueScore[]): string {
@@ -68,77 +92,85 @@ function SideMap({
   selected: string | null;
   onSelect: (group: string) => void;
 }) {
+  const clipId = `body-clip-${side}`;
   return (
-    <View style={s.mapSide}>
-      <Text style={s.sideLabel}>{side === 'front' ? 'Frontal' : 'Dorsal'}</Text>
-      <Svg width={SVG_WIDTH} height={SVG_HEIGHT}>
+    <View style={sty.mapSide}>
+      <Text style={sty.sideLabel}>{side === 'front' ? 'Frontal' : 'Dorsal'}</Text>
+      <Svg width={SVG_W} height={SVG_H}>
         <Defs>
-          <LinearGradient id="bodyMapBg" x1="0" y1="0" x2="0" y2="1">
+          <LinearGradient id={`bg-${side}`} x1="0" y1="0" x2="0" y2="1">
             <Stop offset="0" stopColor="#121223" />
             <Stop offset="1" stopColor="#0B0B18" />
           </LinearGradient>
-          <LinearGradient id="bodySilhouette" x1="0" y1="0" x2="0" y2="1">
+          <LinearGradient id={`sil-${side}`} x1="0" y1="0" x2="0" y2="1">
             <Stop offset="0" stopColor="#1E1E32" />
             <Stop offset="1" stopColor="#141425" />
           </LinearGradient>
+          {/* Clip path keeps all muscle fills inside the body */}
+          <ClipPath id={clipId}>
+            <Circle cx={CX} cy={HEAD_CY} r={HEAD_R} />
+            <Path d={TORSO_PATH} />
+            <Path d={ARM_L_PATH} />
+            <Path d={ARM_R_PATH} />
+          </ClipPath>
         </Defs>
-        <Rect
-          x={SVG_INSET}
-          y={SVG_INSET}
-          width={SVG_WIDTH - SVG_INSET * 2}
-          height={SVG_HEIGHT - SVG_INSET * 2}
-          rx={16}
-          fill="url(#bodyMapBg)"
-        />
-        <Circle cx={78} cy={30} r={16} fill={C.silhouetteHead} stroke={C.silhouetteStroke} strokeWidth={1.5} />
-        <Path
-          d="M48 56 C52 48 62 44 78 44 C94 44 104 48 108 56
-             C114 69 112 88 104 103 C98 114 96 130 96 146
-             C96 170 98 190 95 228 C94 244 88 254 78 254
-             C68 254 62 244 61 228 C58 190 60 170 60 146
-             C60 130 58 114 52 103 C44 88 42 69 48 56 Z"
-          fill="url(#bodySilhouette)"
-          stroke={C.silhouetteStroke}
-          strokeWidth={1.5}
-        />
-        <Path d="M48 66 C36 78 28 102 28 124 C28 133 34 140 42 137 C48 134 51 126 52 118 C54 102 58 84 60 70 Z" fill="url(#bodySilhouette)" stroke={C.silhouetteStroke} strokeWidth={1.2} />
-        <Path d="M108 66 C120 78 128 102 128 124 C128 133 122 140 114 137 C108 134 105 126 104 118 C102 102 98 84 96 70 Z" fill="url(#bodySilhouette)" stroke={C.silhouetteStroke} strokeWidth={1.2} />
 
-        {AREAS.filter((a) => a.side === side).map((a, idx) => {
-          const isActive = selected === a.group;
-          const fill = colorFor(a.group, scores);
-          const stroke = isActive ? C.activeStroke : C.inactiveStroke;
-          const strokeWidth = isActive ? 2.2 : 1;
-          if (a.shape === 'circle') {
+        {/* Background */}
+        <Rect
+          x={SVG_PAD} y={SVG_PAD}
+          width={SVG_W - SVG_PAD * 2} height={SVG_H - SVG_PAD * 2}
+          rx={16} fill={`url(#bg-${side})`}
+        />
+
+        {/* Silhouette fill */}
+        <Circle cx={CX} cy={HEAD_CY} r={HEAD_R}
+          fill={COLORS.silhouetteHead} stroke={COLORS.silhouetteStroke} strokeWidth={1.2} />
+        <Path d={TORSO_PATH}
+          fill={`url(#sil-${side})`} stroke={COLORS.silhouetteStroke} strokeWidth={1.2} />
+        <Path d={ARM_L_PATH}
+          fill={`url(#sil-${side})`} stroke={COLORS.silhouetteStroke} strokeWidth={1} />
+        <Path d={ARM_R_PATH}
+          fill={`url(#sil-${side})`} stroke={COLORS.silhouetteStroke} strokeWidth={1} />
+
+        {/* Muscle areas — clipped to the body silhouette */}
+        <G clipPath={`url(#${clipId})`}>
+          {AREAS.filter((a) => a.side === side).map((a, idx) => {
+            const isActive = selected === a.group;
+            const fill = colorFor(a.group, scores);
+            const stroke = isActive ? COLORS.activeStroke : COLORS.inactiveStroke;
+            const strokeW = isActive ? 2 : 0.8;
+            if (a.shape === 'circle') {
+              return (
+                <Circle
+                  key={`${side}-${a.group}-${idx}`}
+                  cx={a.cx} cy={a.cy} r={a.r!}
+                  fill={fill} opacity={0.85}
+                  stroke={stroke} strokeWidth={strokeW}
+                  onPress={() => onSelect(a.group)}
+                />
+              );
+            }
             return (
-              <Circle
+              <Ellipse
                 key={`${side}-${a.group}-${idx}`}
-                cx={a.cx + POSITION_OFFSET_X}
-                cy={a.cy}
-                r={a.r!}
-                fill={fill}
-                opacity={0.95}
-                stroke={stroke}
-                strokeWidth={strokeWidth}
+                cx={a.cx} cy={a.cy} rx={a.rx!} ry={a.ry!}
+                fill={fill} opacity={0.85}
+                stroke={stroke} strokeWidth={strokeW}
                 onPress={() => onSelect(a.group)}
               />
             );
-          }
-          return (
-            <Ellipse
-              key={`${side}-${a.group}-${idx}`}
-              cx={a.cx + POSITION_OFFSET_X}
-              cy={a.cy}
-              rx={a.rx!}
-              ry={a.ry!}
-              fill={fill}
-              opacity={0.95}
-              stroke={stroke}
-              strokeWidth={strokeWidth}
-              onPress={() => onSelect(a.group)}
-            />
-          );
-        })}
+          })}
+        </G>
+
+        {/* Re-draw silhouette outline on top for clean edges */}
+        <Circle cx={CX} cy={HEAD_CY} r={HEAD_R}
+          fill="none" stroke={COLORS.silhouetteStroke} strokeWidth={1.2} />
+        <Path d={TORSO_PATH}
+          fill="none" stroke={COLORS.silhouetteStroke} strokeWidth={1.2} />
+        <Path d={ARM_L_PATH}
+          fill="none" stroke={COLORS.silhouetteStroke} strokeWidth={1} />
+        <Path d={ARM_R_PATH}
+          fill="none" stroke={COLORS.silhouetteStroke} strokeWidth={1} />
       </Svg>
     </View>
   );
@@ -154,14 +186,14 @@ export function BodyMap({
   onSelect: (group: string) => void;
 }) {
   return (
-    <View style={s.wrap}>
+    <View style={sty.wrap}>
       <SideMap side="front" scores={scores} selected={selected} onSelect={onSelect} />
       <SideMap side="back" scores={scores} selected={selected} onSelect={onSelect} />
     </View>
   );
 }
 
-const s = StyleSheet.create({
+const sty = StyleSheet.create({
   wrap: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, marginBottom: 14 },
   mapSide: {
     flex: 1,
@@ -171,6 +203,7 @@ const s = StyleSheet.create({
     borderColor: '#24243A',
     alignItems: 'center',
     paddingVertical: 8,
+    overflow: 'hidden',
   },
   sideLabel: { color: '#A7B4CC', fontSize: 12, marginBottom: 6, fontWeight: '800', letterSpacing: 0.5 },
 });
