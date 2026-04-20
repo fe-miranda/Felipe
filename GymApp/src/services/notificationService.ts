@@ -25,6 +25,7 @@ Notifications.setNotificationHandler({
 
 const WORKOUT_NOTIF_ID = 'gymapp-workout-active';
 const REST_CATEGORY_ID = 'workout-active';
+let _lastWorkoutMinuteNotified = -1;
 
 let _restNotifId: string | null = null;
 let _restActionStartCb: (() => void) | null = null;
@@ -86,11 +87,13 @@ export async function setupNotifications(): Promise<void> {
 
 export async function startWorkoutNotification(elapsedSeconds: number = 0): Promise<void> {
   try {
+    const startedAt = new Date(Date.now() - elapsedSeconds * 1000);
+    const startedAtLabel = startedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     await Notifications.scheduleNotificationAsync({
       identifier: WORKOUT_NOTIF_ID,
       content: {
-        title: `💪 Treino em andamento — ${fmtElapsed(elapsedSeconds)}`,
-        body: 'Ações rápidas: iniciar/pausar descanso',
+        title: '💪 Treino em andamento',
+        body: `Iniciado às ${startedAtLabel} · Timer ativo`,
         sound: undefined,
         categoryIdentifier: REST_CATEGORY_ID,
         data: { type: 'workout-active' },
@@ -105,6 +108,9 @@ export async function startWorkoutNotification(elapsedSeconds: number = 0): Prom
 }
 
 export async function updateWorkoutNotification(elapsedSeconds: number): Promise<void> {
+  const minute = Math.floor(elapsedSeconds / 60);
+  if (minute === _lastWorkoutMinuteNotified) return;
+  _lastWorkoutMinuteNotified = minute;
   await startWorkoutNotification(elapsedSeconds);
 }
 
@@ -113,6 +119,7 @@ export async function stopWorkoutNotification(): Promise<void> {
     await Notifications.cancelScheduledNotificationAsync(WORKOUT_NOTIF_ID);
     await Notifications.dismissNotificationAsync(WORKOUT_NOTIF_ID);
   } catch {}
+  _lastWorkoutMinuteNotified = -1;
 }
 
 export async function scheduleRestEndNotification(seconds: number): Promise<void> {
@@ -140,5 +147,21 @@ export async function cancelRestNotification(): Promise<void> {
   if (_restNotifId) {
     try { await Notifications.cancelScheduledNotificationAsync(_restNotifId); } catch {}
     _restNotifId = null;
+  }
+}
+
+export async function triggerRestEndAlert(): Promise<void> {
+  try {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: '⏰ Descanso finalizado',
+        body: 'Hora de voltar ao treino 💪',
+        sound: 'default',
+        data: { type: 'rest-end' },
+      },
+      trigger: null,
+    });
+  } catch {
+    // Notifications not available — fail silently
   }
 }

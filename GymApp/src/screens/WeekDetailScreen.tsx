@@ -46,7 +46,17 @@ export function WeekDetailScreen({ navigation, route }: Props) {
   if (!plan) return null;
 
   const month = plan.monthlyBlocks[monthIndex];
-  const week  = month.weeks[weekIndex];
+  const week  = month?.weeks?.[weekIndex];
+  if (!month || !week) {
+    return (
+      <ScrollView style={s.container} contentContainerStyle={[s.content, { justifyContent: 'center', flexGrow: 1 }]}>
+        <Text style={[s.sectionTitle, { textAlign: 'center' }]}>Semana não encontrada</Text>
+        <TouchableOpacity style={[s.dayCard, { alignItems: 'center' }]} onPress={() => navigation.goBack()}>
+          <Text style={s.dayFocus}>Voltar</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    );
+  }
   const phaseColor = PHASE_COLOR(monthIndex);
   const totalExercises = week.days.reduce((a, d) => a + d.exercises.length, 0);
   const totalSets = week.days.reduce((a, d) => a + d.exercises.reduce((b, e) => b + e.sets, 0), 0);

@@ -1,19 +1,20 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
-  StyleSheet, Modal, Alert, Vibration, KeyboardAvoidingView, Platform,
+  StyleSheet, Modal, Alert, KeyboardAvoidingView, Platform, AppState,
 } from 'react-native';
 import ViewShot, { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RootStackParamList, ExerciseLog, SetLog, CompletedWorkout } from '../types';
 import { getExerciseAlternatives } from '../services/aiService';
 import { saveWorkout } from '../services/workoutHistoryService';
 import {
   setupNotifications, scheduleRestEndNotification, cancelRestNotification,
-  startWorkoutNotification, updateWorkoutNotification, stopWorkoutNotification,
+  startWorkoutNotification, stopWorkoutNotification, triggerRestEndAlert,
   setRestActionCallback, setRestPauseActionCallback,
 } from '../services/notificationService';
 import { WorkoutSummaryCard } from '../components/WorkoutSummaryCard';
@@ -35,6 +36,13 @@ const C = {
 
 function pad2(n: number) { return String(n).padStart(2, '0'); }
 function fmtTime(s: number) { return `${pad2(Math.floor(s / 60))}:${pad2(s % 60)}`; }
+const ACTIVE_WORKOUT_SESSION_KEY = '@gymapp_active_workout_session';
+const PERSIST_INTERVAL_SECONDS = 5;
+const MIN_REST_SECONDS = 10;
+const MAX_REST_SECONDS = 600;
+function isValidRestDuration(value: number): boolean {
+  return Number.isFinite(value) && value >= MIN_REST_SECONDS && value <= MAX_REST_SECONDS;
+}
 
 function buildLogs(workout: Props['route']['params']['workout']): ExerciseLog[] {
   return workout.exercises.map(ex => ({
@@ -85,42 +93,126 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
 
   const elapsedRef = useRef(0);
   elapsedRef.current = elapsed;
+  const workoutStartAtRef = useRef<number | null>(null);
+  const restEndsAtRef = useRef<number | null>(null);
+  const restCompletionFiredRef = useRef(false);
 
   // Keep a stable ref so the notification callback always calls the latest startRest
   const startRestRef = useRef<() => void>(() => {});
 
-  // Stopwatch
+  const clearPersistedSession = useCallback(async () => {
+    try {
+      await AsyncStorage.removeItem(ACTIVE_WORKOUT_SESSION_KEY);
+    } catch {}
+  }, []);
+
+  const persistSession = useCallback(async () => {
+    try {
+      await AsyncStorage.setItem(
+        ACTIVE_WORKOUT_SESSION_KEY,
+        JSON.stringify({
+          workout,
+          context,
+          exercises,
+          elapsed: elapsedRef.current,
+          restActive,
+          restRemaining,
+          restDuration,
+          workoutStartAt: workoutStartAtRef.current ?? Date.now(),
+          restEndsAt: restEndsAtRef.current,
+          savedAt: Date.now(),
+        }),
+      );
+    } catch {}
+  }, [workout, context, exercises, restActive, restRemaining, restDuration]);
+
+  // Stopwatch based on start timestamp (keeps exact count after app background)
   useEffect(() => {
-    const id = setInterval(() => setElapsed(e => e + 1), 1000);
+    if (!workoutStartAtRef.current) workoutStartAtRef.current = Date.now();
+    const id = setInterval(() => {
+      const startedAt = workoutStartAtRef.current ?? Date.now();
+      setElapsed(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
+    }, 1000);
     return () => clearInterval(id);
   }, []);
 
-  // Update workout notification in real-time using same identifier
+  // Persist session periodically for crash/kill recovery
   useEffect(() => {
-    if (elapsed > 0) {
-      updateWorkoutNotification(elapsed);
-    }
-  }, [elapsed]);
+    if (elapsed === 0 || elapsed % PERSIST_INTERVAL_SECONDS !== 0) return;
+    persistSession();
+  }, [elapsed, persistSession]);
 
-  // Rest countdown
   useEffect(() => {
-    if (!restActive || restRemaining <= 0) return;
-    const id = setInterval(() => {
-      setRestRemaining(r => {
-        if (r <= 1) {
-          setRestActive(false);
-          cancelRestNotification();
-          Vibration.vibrate([0, 300, 150, 300, 150, 500]);
-          return 0;
+    persistSession();
+  }, [exercises, restActive, restRemaining, restDuration, persistSession]);
+
+  // Restore persisted in-progress session if available
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(ACTIVE_WORKOUT_SESSION_KEY);
+        if (!raw) return;
+        const saved = JSON.parse(raw);
+        if (!saved?.workout || !Array.isArray(saved?.exercises)) return;
+        setExercises(saved.exercises);
+        const workoutStartAt = typeof saved.workoutStartAt === 'number'
+          ? saved.workoutStartAt
+          : Date.now() - Math.max(0, Number(saved.elapsed) || 0) * 1000;
+        workoutStartAtRef.current = workoutStartAt;
+        setElapsed(Math.max(0, Math.floor((Date.now() - workoutStartAt) / 1000)));
+        const savedRestDuration = Number(saved.restDuration);
+        if (isValidRestDuration(savedRestDuration)) {
+          setRestDuration(savedRestDuration);
         }
-        return r - 1;
-      });
+        const restEndsAt = typeof saved.restEndsAt === 'number' ? saved.restEndsAt : null;
+        if (saved.restActive && restEndsAt && restEndsAt > Date.now()) {
+          restEndsAtRef.current = restEndsAt;
+          setRestActive(true);
+          setRestRemaining(Math.max(0, Math.ceil((restEndsAt - Date.now()) / 1000)));
+        }
+        await startWorkoutNotification(Math.max(0, Math.floor((Date.now() - workoutStartAt) / 1000)));
+      } catch {}
+    })();
+  }, []);
+
+  // Keep persisted snapshot when app goes background and refresh timers when app returns
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        const startedAt = workoutStartAtRef.current ?? Date.now();
+        setElapsed(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
+        if (restEndsAtRef.current) {
+          setRestRemaining(Math.max(0, Math.ceil((restEndsAtRef.current - Date.now()) / 1000)));
+        }
+        return;
+      }
+      persistSession();
+    });
+    return () => sub.remove();
+  }, [persistSession]);
+
+  // Rest countdown based on absolute end timestamp
+  useEffect(() => {
+    if (!restActive || !restEndsAtRef.current) return;
+    const id = setInterval(async () => {
+      if (!restEndsAtRef.current) return;
+      const remaining = Math.max(0, Math.ceil((restEndsAtRef.current - Date.now()) / 1000));
+      setRestRemaining(remaining);
+      if (remaining <= 0 && !restCompletionFiredRef.current) {
+        restCompletionFiredRef.current = true;
+        restEndsAtRef.current = null;
+        setRestActive(false);
+        await cancelRestNotification();
+        await triggerRestEndAlert();
+      }
     }, 1000);
     return () => clearInterval(id);
-  }, [restActive, restRemaining]);
+  }, [restActive]);
 
   const startRest = useCallback((dur?: number) => {
     const d = dur ?? restDuration;
+    restCompletionFiredRef.current = false;
+    restEndsAtRef.current = Date.now() + d * 1000;
     setRestRemaining(d);
     setRestActive(true);
     scheduleRestEndNotification(d);
@@ -133,13 +225,16 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
     setRestActionCallback(() => startRestRef.current());
     setRestPauseActionCallback(() => stopRest());
     return () => {
+      persistSession();
       stopWorkoutNotification();
       setRestActionCallback(null);
       setRestPauseActionCallback(null);
     };
-  }, []);
+  }, [persistSession]);
 
   const stopRest = useCallback(() => {
+    restCompletionFiredRef.current = false;
+    restEndsAtRef.current = null;
     setRestActive(false);
     setRestRemaining(0);
     cancelRestNotification();
@@ -147,11 +242,11 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
 
   const applyRestConfig = useCallback(() => {
     const v = parseInt(restInput, 10);
-    if (!isNaN(v) && v >= 10 && v <= 600) {
+    if (isValidRestDuration(v)) {
       setRestDuration(v);
       setShowRestConfig(false);
     } else {
-      Alert.alert('Inválido', 'Digite entre 10 e 600 segundos.');
+      Alert.alert('Inválido', `Digite entre ${MIN_REST_SECONDS} e ${MAX_REST_SECONDS} segundos.`);
     }
   }, [restInput]);
 
@@ -221,9 +316,9 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   const confirmExit = useCallback(() => {
     Alert.alert('Sair do treino', 'O progresso não será salvo. Deseja sair?', [
       { text: 'Continuar', style: 'cancel' },
-      { text: 'Sair', style: 'destructive', onPress: () => { stopWorkoutNotification(); navigation.goBack(); } },
+      { text: 'Sair', style: 'destructive', onPress: async () => { await clearPersistedSession(); stopWorkoutNotification(); navigation.goBack(); } },
     ]);
-  }, [navigation]);
+  }, [navigation, clearPersistedSession]);
 
   const addManualExercise = useCallback(() => {
     const targetSets = parseInt(newExerciseSets, 10);
@@ -260,6 +355,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
           text: 'Salvar',
           onPress: async () => {
             stopWorkoutNotification();
+            await clearPersistedSession();
             const log: CompletedWorkout = {
               id: String(Date.now()),
               date: new Date().toISOString(),
@@ -281,7 +377,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
         },
       ],
     );
-  }, [exercises, workout, context]);
+  }, [exercises, workout, context, clearPersistedSession]);
 
   const handleShare = useCallback(async () => {
     if (!shareRef.current) return;
@@ -448,7 +544,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
               style={s.cfgInput} value={restInput} onChangeText={setRestInput}
               keyboardType="numeric" autoFocus selectTextOnFocus
             />
-            <Text style={s.cfgHint}>segundos (10 – 600)</Text>
+            <Text style={s.cfgHint}>segundos ({MIN_REST_SECONDS} – {MAX_REST_SECONDS})</Text>
             <View style={s.presetRow}>
               {[30, 60, 90, 120].map(v => (
                 <TouchableOpacity key={v} style={[s.preset, restDuration === v && s.presetActive]}

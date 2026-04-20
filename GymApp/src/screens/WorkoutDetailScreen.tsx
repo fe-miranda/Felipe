@@ -48,14 +48,25 @@ export function WorkoutDetailScreen({ navigation, route }: Props) {
   useEffect(() => { loadStoredPlan(); }, []);
   useEffect(() => {
     if (!plan) return;
-    const day = plan.monthlyBlocks[monthIndex].weeks[weekIndex].days[dayIndex];
+    const day = plan.monthlyBlocks?.[monthIndex]?.weeks?.[weekIndex]?.days?.[dayIndex];
+    if (!day) return;
     setEditableExercises(day.exercises.map((ex) => ({ ...ex })));
   }, [plan, monthIndex, weekIndex, dayIndex]);
   if (!plan) return null;
 
-  const month = plan.monthlyBlocks[monthIndex];
-  const week = month.weeks[weekIndex];
-  const day = week.days[dayIndex];
+  const month = plan.monthlyBlocks?.[monthIndex];
+  const week = month?.weeks?.[weekIndex];
+  const day = week?.days?.[dayIndex];
+  if (!month || !week || !day) {
+    return (
+      <ScrollView style={s.container} contentContainerStyle={[s.content, { justifyContent: 'center', flexGrow: 1 }]}>
+        <Text style={[s.sectionTitle, { textAlign: 'center' }]}>Treino não encontrado</Text>
+        <TouchableOpacity style={[s.startBtn, { backgroundColor: C.primary }]} onPress={() => navigation.goBack()}>
+          <Text style={s.startBtnText}>Voltar</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    );
+  }
   const phaseColor = PHASE_COLOR(monthIndex);
   const currentExercises = editableExercises.length ? editableExercises : day.exercises;
 

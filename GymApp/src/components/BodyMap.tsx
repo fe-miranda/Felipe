@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import Svg, { Circle, Ellipse, Path } from 'react-native-svg';
+import Svg, { Circle, Ellipse, Path, Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { FatigueScore, fatigueColor } from '../services/muscleService';
 
 type Side = 'front' | 'back';
@@ -17,12 +17,17 @@ interface MuscleArea {
 }
 
 const C = {
-  silhouetteHead: '#1B1B2A',
-  silhouetteBody: '#141426',
-  silhouetteStroke: '#2B2B40',
+  silhouetteHead: '#232339',
+  silhouetteBody: '#17172A',
+  silhouetteStroke: '#353553',
   activeStroke: '#F8FAFC',
-  inactiveStroke: '#1E1E30',
+  inactiveStroke: '#2A2A40',
 };
+// Horizontal correction to center legacy muscle coordinates in the updated silhouette layout.
+const POSITION_OFFSET_X = 8;
+const SVG_WIDTH = 156;
+const SVG_HEIGHT = 276;
+const SVG_INSET = 2;
 
 const AREAS: MuscleArea[] = [
   { group: 'Ombro', side: 'front', shape: 'circle', cx: 32, cy: 78, r: 12 },
@@ -66,20 +71,38 @@ function SideMap({
   return (
     <View style={s.mapSide}>
       <Text style={s.sideLabel}>{side === 'front' ? 'Frontal' : 'Dorsal'}</Text>
-      <Svg width={140} height={260}>
-        <Circle cx={70} cy={28} r={16} fill={C.silhouetteHead} stroke={C.silhouetteStroke} strokeWidth={1.5} />
+      <Svg width={SVG_WIDTH} height={SVG_HEIGHT}>
+        <Defs>
+          <LinearGradient id="bodyMapBg" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor="#121223" />
+            <Stop offset="1" stopColor="#0B0B18" />
+          </LinearGradient>
+          <LinearGradient id="bodySilhouette" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor="#1E1E32" />
+            <Stop offset="1" stopColor="#141425" />
+          </LinearGradient>
+        </Defs>
+        <Rect
+          x={SVG_INSET}
+          y={SVG_INSET}
+          width={SVG_WIDTH - SVG_INSET * 2}
+          height={SVG_HEIGHT - SVG_INSET * 2}
+          rx={16}
+          fill="url(#bodyMapBg)"
+        />
+        <Circle cx={78} cy={30} r={16} fill={C.silhouetteHead} stroke={C.silhouetteStroke} strokeWidth={1.5} />
         <Path
-          d="M40 56 C44 48 54 44 70 44 C86 44 96 48 100 56
-             C107 70 106 88 98 102 C91 114 89 132 89 150
-             C89 172 91 198 89 226 C88 238 82 248 70 248
-             C58 248 52 238 51 226 C49 198 51 172 51 150
-             C51 132 49 114 42 102 C34 88 33 70 40 56 Z"
-          fill={C.silhouetteBody}
+          d="M48 56 C52 48 62 44 78 44 C94 44 104 48 108 56
+             C114 69 112 88 104 103 C98 114 96 130 96 146
+             C96 170 98 190 95 228 C94 244 88 254 78 254
+             C68 254 62 244 61 228 C58 190 60 170 60 146
+             C60 130 58 114 52 103 C44 88 42 69 48 56 Z"
+          fill="url(#bodySilhouette)"
           stroke={C.silhouetteStroke}
           strokeWidth={1.5}
         />
-        <Path d="M40 64 C30 76 23 98 23 122 C23 129 28 134 34 132 C40 130 43 124 44 116 C45 103 48 82 52 68 Z" fill={C.silhouetteBody} stroke={C.silhouetteStroke} strokeWidth={1.2} />
-        <Path d="M100 64 C110 76 117 98 117 122 C117 129 112 134 106 132 C100 130 97 124 96 116 C95 103 92 82 88 68 Z" fill={C.silhouetteBody} stroke={C.silhouetteStroke} strokeWidth={1.2} />
+        <Path d="M48 66 C36 78 28 102 28 124 C28 133 34 140 42 137 C48 134 51 126 52 118 C54 102 58 84 60 70 Z" fill="url(#bodySilhouette)" stroke={C.silhouetteStroke} strokeWidth={1.2} />
+        <Path d="M108 66 C120 78 128 102 128 124 C128 133 122 140 114 137 C108 134 105 126 104 118 C102 102 98 84 96 70 Z" fill="url(#bodySilhouette)" stroke={C.silhouetteStroke} strokeWidth={1.2} />
 
         {AREAS.filter((a) => a.side === side).map((a, idx) => {
           const isActive = selected === a.group;
@@ -90,7 +113,7 @@ function SideMap({
             return (
               <Circle
                 key={`${side}-${a.group}-${idx}`}
-                cx={a.cx}
+                cx={a.cx + POSITION_OFFSET_X}
                 cy={a.cy}
                 r={a.r!}
                 fill={fill}
@@ -104,7 +127,7 @@ function SideMap({
           return (
             <Ellipse
               key={`${side}-${a.group}-${idx}`}
-              cx={a.cx}
+              cx={a.cx + POSITION_OFFSET_X}
               cy={a.cy}
               rx={a.rx!}
               ry={a.ry!}
@@ -142,12 +165,12 @@ const s = StyleSheet.create({
   wrap: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, marginBottom: 14 },
   mapSide: {
     flex: 1,
-    backgroundColor: '#0F0F1A',
+    backgroundColor: '#0E0E1A',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#1E1E30',
+    borderColor: '#24243A',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 8,
   },
-  sideLabel: { color: '#94A3B8', fontSize: 12, marginBottom: 6, fontWeight: '700' },
+  sideLabel: { color: '#A7B4CC', fontSize: 12, marginBottom: 6, fontWeight: '800', letterSpacing: 0.5 },
 });
