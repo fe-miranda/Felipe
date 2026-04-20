@@ -16,6 +16,14 @@ interface MuscleArea {
   r?: number;
 }
 
+const C = {
+  silhouetteHead: '#1B1B2A',
+  silhouetteBody: '#141426',
+  silhouetteStroke: '#2B2B40',
+  activeStroke: '#F8FAFC',
+  inactiveStroke: '#1E1E30',
+};
+
 const AREAS: MuscleArea[] = [
   { group: 'Ombro', side: 'front', shape: 'circle', cx: 32, cy: 78, r: 12 },
   { group: 'Ombro', side: 'front', shape: 'circle', cx: 108, cy: 78, r: 12 },
@@ -59,24 +67,24 @@ function SideMap({
     <View style={s.mapSide}>
       <Text style={s.sideLabel}>{side === 'front' ? 'Frontal' : 'Dorsal'}</Text>
       <Svg width={140} height={260}>
-        <Circle cx={70} cy={28} r={16} fill="#1B1B2A" stroke="#2B2B40" strokeWidth={1.5} />
+        <Circle cx={70} cy={28} r={16} fill={C.silhouetteHead} stroke={C.silhouetteStroke} strokeWidth={1.5} />
         <Path
           d="M40 56 C44 48 54 44 70 44 C86 44 96 48 100 56
              C107 70 106 88 98 102 C91 114 89 132 89 150
              C89 172 91 198 89 226 C88 238 82 248 70 248
              C58 248 52 238 51 226 C49 198 51 172 51 150
              C51 132 49 114 42 102 C34 88 33 70 40 56 Z"
-          fill="#141426"
-          stroke="#2B2B40"
+          fill={C.silhouetteBody}
+          stroke={C.silhouetteStroke}
           strokeWidth={1.5}
         />
-        <Path d="M40 64 C30 76 23 98 23 122 C23 129 28 134 34 132 C40 130 43 124 44 116 C45 103 48 82 52 68 Z" fill="#141426" stroke="#2B2B40" strokeWidth={1.2} />
-        <Path d="M100 64 C110 76 117 98 117 122 C117 129 112 134 106 132 C100 130 97 124 96 116 C95 103 92 82 88 68 Z" fill="#141426" stroke="#2B2B40" strokeWidth={1.2} />
+        <Path d="M40 64 C30 76 23 98 23 122 C23 129 28 134 34 132 C40 130 43 124 44 116 C45 103 48 82 52 68 Z" fill={C.silhouetteBody} stroke={C.silhouetteStroke} strokeWidth={1.2} />
+        <Path d="M100 64 C110 76 117 98 117 122 C117 129 112 134 106 132 C100 130 97 124 96 116 C95 103 92 82 88 68 Z" fill={C.silhouetteBody} stroke={C.silhouetteStroke} strokeWidth={1.2} />
 
         {AREAS.filter((a) => a.side === side).map((a, idx) => {
           const isActive = selected === a.group;
           const fill = colorFor(a.group, scores);
-          const stroke = isActive ? '#F8FAFC' : '#1E1E30';
+          const stroke = isActive ? C.activeStroke : C.inactiveStroke;
           const strokeWidth = isActive ? 2.2 : 1;
           if (a.shape === 'circle') {
             return (
