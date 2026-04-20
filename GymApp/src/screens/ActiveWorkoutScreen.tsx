@@ -42,6 +42,13 @@ function isValidRestDuration(value: number): boolean {
   return Number.isFinite(value) && value >= MIN_REST_SECONDS && value <= MAX_REST_SECONDS;
 }
 
+function formatClock(seconds: number): string {
+  const safeSeconds = Math.max(0, Math.floor(seconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainingSeconds = safeSeconds % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+}
+
 function buildLogs(workout: Props['route']['params']['workout']): ExerciseLog[] {
   return workout.exercises.map(ex => ({
     name: ex.name,
@@ -425,6 +432,16 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
 
         {/* Progress bar */}
         <View style={s.timerBar}>
+          <View style={s.timeCard}>
+            <Text style={s.timeLabel}>Treino</Text>
+            <Text style={s.timeValue}>{formatClock(elapsed)}</Text>
+          </View>
+          <View style={s.timeCard}>
+            <Text style={s.timeLabel}>Descanso</Text>
+            <Text style={[s.timeValue, restActive ? s.timeValueRestActive : s.timeValueRestIdle]}>
+              {restActive ? formatClock(restRemaining) : `00:${String(restDuration).padStart(2, '0')}`}
+            </Text>
+          </View>
           <View style={s.progressWrap}>
             <Text style={s.progressLabel}>{doneCount}/{totalSets}</Text>
             <View style={s.progressTrack}>
@@ -637,6 +654,20 @@ const s = StyleSheet.create({
   finishBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 
   timerBar: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  timeCard: {
+    backgroundColor: C.elevated,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    minWidth: 74,
+    alignItems: 'center',
+  },
+  timeLabel: { color: C.text3, fontSize: 10, fontWeight: '700' },
+  timeValue: { color: C.text1, fontSize: 14, fontWeight: '800', marginTop: 1 },
+  timeValueRestActive: { color: C.warning },
+  timeValueRestIdle: { color: C.primaryLight },
   progressWrap: { flex: 1, alignItems: 'center' },
   progressLabel: { color: C.primaryLight, fontSize: 12, fontWeight: '700', marginBottom: 4 },
   progressTrack: { height: 4, backgroundColor: C.elevated, borderRadius: 2, overflow: 'hidden', width: '100%' },
