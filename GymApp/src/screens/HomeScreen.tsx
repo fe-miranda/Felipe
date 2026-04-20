@@ -3,6 +3,9 @@ import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet,
   Alert, Dimensions, Modal, ActivityIndicator,
 } from 'react-native';
+import ViewShot, { captureRef } from 'react-native-view-shot';
+import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -169,6 +172,8 @@ export function HomeScreen({ navigation }: Props) {
   const [custEquipment, setCustEquipment] = useState('academia');
   const [custLoading, setCustLoading] = useState(false);
   const [custWorkout, setCustWorkout] = useState<WorkoutDay | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const exportImageRef = React.useRef<View>(null);
 
   const reloadHistory = useCallback(async () => {
     const hist = await loadHistory();
@@ -220,6 +225,71 @@ export function HomeScreen({ navigation }: Props) {
     ]);
   };
 
+  const buildPlanExportText = useCallback(() => {
+    if (!plan) return '';
+    const lines: string[] = [];
+    lines.push(`Plano de treino — ${plan.userProfile.name}`);
+    lines.push(`Objetivo: ${plan.overallGoal}`);
+    lines.push('');
+    for (const month of plan.monthlyBlocks) {
+      lines.push(`=== ${month.monthName} · ${month.focus} ===`);
+      if (!month.weeks.length) {
+        lines.push('Sem detalhes gerados ainda.');
+      } else {
+        for (const week of month.weeks) {
+          lines.push(`Semana ${week.week}: ${week.theme}`);
+          for (const day of week.days) {
+            lines.push(`- ${day.dayOfWeek} (${day.focus}, ${day.duration}min)`);
+            for (const ex of day.exercises) {
+              lines.push(`  • ${ex.name} — ${ex.sets}x${ex.reps} · descanso ${ex.rest}`);
+            }
+          }
+        }
+      }
+      lines.push('');
+    }
+    return lines.join('\n');
+  }, [plan]);
+
+  const sharePlanAsText = useCallback(async () => {
+    if (!plan) return;
+    setExporting(true);
+    try {
+      const text = buildPlanExportText();
+      const uri = `${FileSystem.cacheDirectory}gymapp-plan-${Date.now()}.txt`;
+      await FileSystem.writeAsStringAsync(uri, text, { encoding: FileSystem.EncodingType.UTF8 });
+      await Sharing.shareAsync(uri, {
+        mimeType: 'text/plain',
+        dialogTitle: 'Exportar plano como texto',
+      });
+    } catch {
+      Alert.alert('Erro', 'Não foi possível exportar o plano em texto.');
+    } finally {
+      setExporting(false);
+    }
+  }, [plan, buildPlanExportText]);
+
+  const sharePlanAsImage = useCallback(async () => {
+    if (!exportImageRef.current) return;
+    setExporting(true);
+    try {
+      const uri = await captureRef(exportImageRef, { format: 'png', quality: 0.95 });
+      await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: 'Exportar plano como imagem' });
+    } catch {
+      Alert.alert('Erro', 'Não foi possível exportar o plano em imagem.');
+    } finally {
+      setExporting(false);
+    }
+  }, []);
+
+  const openExportOptions = useCallback(() => {
+    Alert.alert('Exportar Plano', 'Escolha o formato de exportação', [
+      { text: 'Texto', onPress: sharePlanAsText },
+      { text: 'Imagem', onPress: sharePlanAsImage },
+      { text: 'Cancelar', style: 'cancel' },
+    ]);
+  }, [sharePlanAsText, sharePlanAsImage]);
+
   if (!plan) {
     return (
       <SafeAreaView style={s.safeArea} edges={['top', 'bottom']}>
@@ -254,6 +324,9 @@ export function HomeScreen({ navigation }: Props) {
           <Text style={s.iconBtnText}>⚙️</Text>
         </TouchableOpacity>
       </View>
+      <TouchableOpacity style={s.exportBtn} onPress={openExportOptions} disabled={exporting}>
+        <Text style={s.exportBtnText}>{exporting ? 'Exportando...' : '📤 Exportar Plano'}</Text>
+      </TouchableOpacity>
 
       {/* ── Hero goal card ── */}
       <View style={s.heroCard}>
@@ -500,6 +573,21 @@ export function HomeScreen({ navigation }: Props) {
       )}
     </ScrollView>
 
+    <View style={s.hiddenCapture}>
+      <ViewShot ref={exportImageRef} options={{ format: 'png', quality: 0.95 }}>
+        <View style={s.exportCard}>
+          <Text style={s.exportTitle}>Plano de Treino</Text>
+          <Text style={s.exportSubtitle}>{p.name} • {goal.label}</Text>
+          {monthlyBlocks.slice(0, 6).map((month, idx) => (
+            <Text key={idx} style={s.exportLine}>
+              {month.monthName}: {month.focus}
+            </Text>
+          ))}
+          <Text style={s.exportHint}>Abra o app para ver o plano completo 💜</Text>
+        </View>
+      </ViewShot>
+    </View>
+
     {/* ── Customizer Modal ── */}
     <Modal visible={showCustomizer} animationType="slide" transparent presentationStyle="overFullScreen">
       <View style={s.modalOverlay}>
@@ -634,6 +722,8 @@ const s = StyleSheet.create({
   greetingSub: { color: C.text3, fontSize: 12, marginTop: 2 },
   iconBtn: { width: 38, height: 38, borderRadius: 10, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border },
   iconBtnText: { fontSize: 18 },
+  exportBtn: { backgroundColor: C.surface, borderRadius: 12, borderWidth: 1, borderColor: C.border, paddingVertical: 10, alignItems: 'center', marginBottom: 14 },
+  exportBtnText: { color: C.primaryLight, fontSize: 14, fontWeight: '700' },
 
   // Hero card
   heroCard: {
@@ -832,4 +922,17 @@ const s = StyleSheet.create({
   fatigueTitle: { color: C.text1, fontWeight: '700', fontSize: 15 },
   fatigueSub: { color: C.text3, fontSize: 12, marginTop: 2 },
   fatigueArrow: { color: C.text3, fontSize: 22 },
+  hiddenCapture: { position: 'absolute', left: -9999, top: 0, opacity: 0 },
+  exportCard: {
+    width: 400,
+    backgroundColor: C.surface,
+    padding: 24,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  exportTitle: { color: C.text1, fontSize: 28, fontWeight: '900', marginBottom: 6 },
+  exportSubtitle: { color: C.primaryLight, fontSize: 14, marginBottom: 14 },
+  exportLine: { color: C.text2, fontSize: 13, marginBottom: 6 },
+  exportHint: { color: C.text3, fontSize: 12, marginTop: 10 },
 });

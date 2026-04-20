@@ -229,6 +229,31 @@ const DURATION_MONTHS: Record<PlanDuration, number> = {
   annual: 12,
 };
 
+const MONTH_NAMES_PT = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+];
+
+function planDurationFromMonths(months: number): PlanDuration {
+  if (months <= 1) return 'monthly';
+  if (months <= 3) return 'quarterly';
+  if (months <= 6) return 'biannual';
+  return 'annual';
+}
+
+function calendarMonthName(startDate: Date, offset: number): string {
+  const idx = (startDate.getMonth() + offset) % 12;
+  return MONTH_NAMES_PT[idx];
+}
+
+function withRollingMonthLabels(blocks: MonthlyBlock[], startDate: Date = new Date()): MonthlyBlock[] {
+  return blocks.map((b, i) => ({
+    ...b,
+    month: i + 1,
+    monthName: calendarMonthName(startDate, i),
+  }));
+}
+
 function phaseDescForMonths(n: number): string {
   if (n <= 1) return 'Focus entirely on goal-specific training. No phase labels.';
   if (n <= 3) return 'Month 1: Base. Month 2: Development. Month 3: Consolidation.';
@@ -283,12 +308,14 @@ export async function generatePlanOverview(
   const raw = await groqPost([{ role: 'user', content: prompt }], maxTokens);
   const data = extractJson(raw);
 
+  const blocks = ((data.months ?? data.monthlyBlocks ?? []) as MonthlyBlock[]).map((b) => ({
+    ...b,
+    weeks: [],
+  }));
+
   return {
     overallGoal: data.overallGoal ?? '',
-    monthlyBlocks: ((data.months ?? data.monthlyBlocks ?? []) as MonthlyBlock[]).map((b) => ({
-      ...b,
-      weeks: [],
-    })),
+    monthlyBlocks: withRollingMonthLabels(blocks),
     nutritionTips: data.nutritionTips ?? [],
     recoveryTips: data.recoveryTips ?? [],
   };
@@ -477,33 +504,73 @@ const IMPORT_PLAN_PROMPT_SUFFIX =
   `{"overallGoal":"..","months":[{"month":1,"monthName":"Janeiro","focus":"..","description":"..","progressIndicators":[".."],"weeks":[{"week":1,"theme":"..","weeklyGoals":[".."],"days":[{"dayOfWeek":"Segunda","focus":"..","duration":60,"exercises":[{"name":"Supino Reto","sets":4,"reps":"10-12","rest":"90s"}]}]}]}],"nutritionTips":[".."],"recoveryTips":[".."]}\n` +
   `Rules: group days into weeks (4 weeks per month), keep all exercises exactly as described, fill missing fields with reasonable defaults.`;
 
+export interface ImportPlanOptions {
+  userProfile: UserProfile;
+  durationMonths: 1 | 3 | 6 | 12;
+}
+
+const DEFAULT_IMPORT_PROFILE: UserProfile = {
+  name: 'Usuário',
+  age: 25,
+  weight: 70,
+  height: 170,
+  gender: 'male',
+  fitnessLevel: 'intermediate',
+  goal: 'general_fitness',
+  daysPerWeek: 3,
+  workoutDuration: 60,
+  cardioMinutes: 10,
+  planDuration: 'monthly',
+};
+
+function normalizeImportedMonths(rawMonths: any[], targetMonths: number): any[] {
+  if (targetMonths <= 0) return rawMonths;
+  const months = Array.isArray(rawMonths) ? [...rawMonths] : [];
+  if (months.length >= targetMonths) return months.slice(0, targetMonths);
+  if (months.length === 0) {
+    return Array.from({ length: targetMonths }, () => ({}));
+  }
+  const last = months[months.length - 1];
+  while (months.length < targetMonths) {
+    months.push({ ...last });
+  }
+  return months;
+}
+
 export async function importPlanFromText(
   planText: string,
-  userName: string = 'Usuário',
+  options?: ImportPlanOptions,
 ): Promise<AnnualPlan> {
-  const prompt = `Workout plan to import:\n\n${planText}${IMPORT_PLAN_PROMPT_SUFFIX}`;
+  const durationMonths = options?.durationMonths ?? 1;
+  const prompt =
+    `Workout plan to import:\n\n${planText}\n` +
+    `Import constraints: this plan must have exactly ${durationMonths} month(s), starting from current calendar month.\n` +
+    IMPORT_PLAN_PROMPT_SUFFIX;
   const raw = await groqPost([{ role: 'user', content: prompt }], 3000);
   const data = extractJson(raw);
-  return _buildImportedPlan(data, userName);
+  return _buildImportedPlan(data, options);
 }
 
 // ─── Import plan from images ──────────────────────────────────────────────────
 
 export async function importPlanFromImages(
   images: { data: string; mimeType: string }[],
-  userName: string = 'Usuário',
+  options?: ImportPlanOptions,
 ): Promise<AnnualPlan> {
   if (images.length === 0) throw new Error('Nenhuma imagem fornecida.');
 
   if (images.length === 1) {
+    const durationMonths = options?.durationMonths ?? 1;
     // Single image: send directly with vision model
     const raw = await groqVisionPost(
       images,
-      `Extract all workout exercises, sets, reps and rest times visible in the image.${IMPORT_PLAN_PROMPT_SUFFIX}`,
+      `Extract all workout exercises, sets, reps and rest times visible in the image.` +
+      ` Build exactly ${durationMonths} month(s) starting from current month.` +
+      IMPORT_PLAN_PROMPT_SUFFIX,
       3000,
     );
     const data = extractJson(raw);
-    return _buildImportedPlan(data, userName);
+    return _buildImportedPlan(data, options);
   }
 
   // Multiple images: extract text from each image first, then combine and convert
@@ -516,11 +583,13 @@ export async function importPlanFromImages(
   );
   const texts = await Promise.all(extractPromises);
   const combined = texts.join('\n\n---\n\n');
-  return importPlanFromText(combined, userName);
+  return importPlanFromText(combined, options);
 }
 
-function _buildImportedPlan(data: any, userName: string): AnnualPlan {
-  const months: MonthlyBlock[] = (data.months ?? data.monthlyBlocks ?? []).map((m: any) => ({
+function _buildImportedPlan(data: any, options?: ImportPlanOptions): AnnualPlan {
+  const selectedMonths = options?.durationMonths ?? 1;
+  const monthsInput = normalizeImportedMonths(data.months ?? data.monthlyBlocks ?? [], selectedMonths);
+  const monthsRaw: MonthlyBlock[] = monthsInput.map((m: any) => ({
     month: m.month ?? 1,
     monthName: m.monthName ?? `Mês ${m.month ?? 1}`,
     focus: m.focus ?? 'Treino',
@@ -539,27 +608,20 @@ function _buildImportedPlan(data: any, userName: string): AnnualPlan {
       })),
     })),
   }));
+  const months = withRollingMonthLabels(monthsRaw);
+  const profile: UserProfile = {
+    ...(options?.userProfile ?? DEFAULT_IMPORT_PROFILE),
+    planDuration: planDurationFromMonths(selectedMonths),
+  };
 
   return {
-    userId: userName,
+    userId: profile.name,
     createdAt: new Date().toISOString(),
-    totalMonths: months.length || 1,
+    totalMonths: selectedMonths,
     overallGoal: data.overallGoal ?? 'Plano importado',
-    monthlyBlocks: months,
+    monthlyBlocks: months.slice(0, selectedMonths),
     nutritionTips: data.nutritionTips ?? [],
     recoveryTips: data.recoveryTips ?? [],
-    userProfile: {
-      name: userName,
-      age: 25,
-      weight: 70,
-      height: 170,
-      gender: 'male',
-      fitnessLevel: 'intermediate',
-      goal: 'general_fitness',
-      daysPerWeek: 3,
-      workoutDuration: 60,
-      cardioMinutes: 10,
-      planDuration: 'monthly',
-    },
+    userProfile: profile,
   };
 }

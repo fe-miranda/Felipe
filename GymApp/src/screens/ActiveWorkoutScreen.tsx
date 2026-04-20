@@ -14,11 +14,12 @@ import { saveWorkout } from '../services/workoutHistoryService';
 import {
   setupNotifications, scheduleRestEndNotification, cancelRestNotification,
   startWorkoutNotification, updateWorkoutNotification, stopWorkoutNotification,
-  setRestActionCallback,
+  setRestActionCallback, setRestPauseActionCallback,
 } from '../services/notificationService';
 import { WorkoutSummaryCard } from '../components/WorkoutSummaryCard';
 import { WorkoutStoryCard } from '../components/WorkoutStoryCard';
 import * as MediaLibrary from 'expo-media-library';
+import { analyzeWorkoutForPersonalRecords } from '../services/personalRecordsService';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'ActiveWorkout'>;
@@ -76,6 +77,11 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   const [savedWorkout, setSavedWorkout] = useState<CompletedWorkout | null>(null);
   const [showShare, setShowShare] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [showAddExercise, setShowAddExercise] = useState(false);
+  const [newExerciseName, setNewExerciseName] = useState('');
+  const [newExerciseSets, setNewExerciseSets] = useState('3');
+  const [newExerciseReps, setNewExerciseReps] = useState('10-12');
+  const [newExerciseRest, setNewExerciseRest] = useState('90s');
 
   const elapsedRef = useRef(0);
   elapsedRef.current = elapsed;
@@ -89,9 +95,9 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
     return () => clearInterval(id);
   }, []);
 
-  // Update workout notification every 10s
+  // Update workout notification in real-time using same identifier
   useEffect(() => {
-    if (elapsed > 0 && elapsed % 10 === 0) {
+    if (elapsed > 0) {
       updateWorkoutNotification(elapsed);
     }
   }, [elapsed]);
@@ -125,7 +131,12 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   useEffect(() => {
     setupNotifications().then(() => startWorkoutNotification(0));
     setRestActionCallback(() => startRestRef.current());
-    return () => { stopWorkoutNotification(); setRestActionCallback(null); };
+    setRestPauseActionCallback(() => stopRest());
+    return () => {
+      stopWorkoutNotification();
+      setRestActionCallback(null);
+      setRestPauseActionCallback(null);
+    };
   }, []);
 
   const stopRest = useCallback(() => {
@@ -203,6 +214,29 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
     ]);
   }, [navigation]);
 
+  const addManualExercise = useCallback(() => {
+    const targetSets = parseInt(newExerciseSets, 10);
+    if (!newExerciseName.trim() || Number.isNaN(targetSets) || targetSets < 1 || targetSets > 20 || !newExerciseReps.trim() || !newExerciseRest.trim()) {
+      Alert.alert('Atenção', 'Preencha nome, séries, reps e descanso corretamente.');
+      return;
+    }
+    setExercises((prev) => ([
+      ...prev,
+      {
+        name: newExerciseName.trim(),
+        targetSets,
+        targetReps: newExerciseReps.trim(),
+        rest: newExerciseRest.trim(),
+        sets: Array.from({ length: targetSets }, () => ({ load: '', reps: '', done: false })),
+      },
+    ]));
+    setNewExerciseName('');
+    setNewExerciseSets('3');
+    setNewExerciseReps('10-12');
+    setNewExerciseRest('90s');
+    setShowAddExercise(false);
+  }, [newExerciseName, newExerciseSets, newExerciseReps, newExerciseRest]);
+
   const finishWorkout = useCallback(() => {
     const done = exercises.reduce((a, e) => a + e.sets.filter(s => s.done).length, 0);
     const total = exercises.reduce((a, e) => a + e.sets.length, 0);
@@ -225,8 +259,13 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
               ...context,
             };
             await saveWorkout(log);
+            const prs = await analyzeWorkoutForPersonalRecords(log);
             setSavedWorkout(log);
             setShowShare(true);
+            if (prs.length > 0) {
+              const lines = prs.map((pr) => `🏆 ${pr.exerciseName}: ${pr.current.maxLoad.toFixed(0)}kg · ${pr.current.maxReps} reps`).join('\n');
+              Alert.alert('Novo Recorde Pessoal!', lines);
+            }
           },
         },
       ],
@@ -381,6 +420,9 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
         <TouchableOpacity style={s.finishBig} onPress={finishWorkout} activeOpacity={0.85}>
           <Text style={s.finishBigText}>🏁  Finalizar e Salvar Treino</Text>
         </TouchableOpacity>
+        <TouchableOpacity style={s.addExerciseBtn} onPress={() => setShowAddExercise(true)} activeOpacity={0.85}>
+          <Text style={s.addExerciseBtnText}>＋ Adicionar Exercício</Text>
+        </TouchableOpacity>
       </ScrollView>
 
       {/* ── Rest config modal ── */}
@@ -486,6 +528,48 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
           </View>
         </View>
       </Modal>
+
+      <Modal visible={showAddExercise} transparent animationType="fade">
+        <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setShowAddExercise(false)}>
+          <View style={s.cfgBox} onStartShouldSetResponder={() => true}>
+            <Text style={s.cfgTitle}>Adicionar Exercício</Text>
+            <TextInput
+              style={s.cfgInput}
+              value={newExerciseName}
+              onChangeText={setNewExerciseName}
+              placeholder="Nome do exercício"
+              placeholderTextColor={C.text3}
+            />
+            <View style={s.quickInputRow}>
+              <TextInput
+                style={[s.cfgInput, s.quickInput]}
+                value={newExerciseSets}
+                onChangeText={setNewExerciseSets}
+                placeholder="Séries"
+                placeholderTextColor={C.text3}
+                keyboardType="numeric"
+              />
+              <TextInput
+                style={[s.cfgInput, s.quickInput]}
+                value={newExerciseReps}
+                onChangeText={setNewExerciseReps}
+                placeholder="Reps"
+                placeholderTextColor={C.text3}
+              />
+            </View>
+            <TextInput
+              style={s.cfgInput}
+              value={newExerciseRest}
+              onChangeText={setNewExerciseRest}
+              placeholder="Descanso (ex: 90s)"
+              placeholderTextColor={C.text3}
+            />
+            <TouchableOpacity style={s.cfgApply} onPress={addManualExercise}>
+              <Text style={s.cfgApplyText}>Adicionar</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -547,6 +631,8 @@ const s = StyleSheet.create({
 
   finishBig: { backgroundColor: C.primary, borderRadius: 16, paddingVertical: 16, alignItems: 'center', marginTop: 8, shadowColor: C.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 8 },
   finishBigText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  addExerciseBtn: { backgroundColor: C.elevated, borderWidth: 1, borderColor: C.border, borderRadius: 16, paddingVertical: 14, alignItems: 'center' },
+  addExerciseBtnText: { color: C.primaryLight, fontSize: 15, fontWeight: '800' },
 
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.72)', justifyContent: 'center', alignItems: 'center' },
 
@@ -561,6 +647,8 @@ const s = StyleSheet.create({
   presetTextActive: { color: C.primaryLight },
   cfgApply: { backgroundColor: C.primary, borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
   cfgApplyText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  quickInputRow: { flexDirection: 'row', gap: 8 },
+  quickInput: { flex: 1 },
 
   altSheet: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: C.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, borderWidth: 1, borderColor: C.border },
   altHandle: { width: 36, height: 4, backgroundColor: C.border, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
