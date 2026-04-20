@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RouteProp } from '@react-navigation/native';
@@ -94,10 +94,10 @@ export function WorkoutDetailScreen({ navigation, route }: Props) {
   const currentExercises = editableExercises.length ? editableExercises : day.exercises;
 
   const totalSets = currentExercises.reduce((a, e) => a + e.sets, 0);
-  const workoutToStart = useMemo(() => ({
+  const workoutToStart = {
     ...day,
     exercises: currentExercises,
-  }), [day, currentExercises]);
+  };
 
   const openEditExercise = (idx: number) => {
     const ex = currentExercises[idx];
