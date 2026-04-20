@@ -17,11 +17,15 @@ import { SettingsScreen } from '../screens/SettingsScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-export function AppNavigator() {
+type Props = {
+  initialRouteName?: keyof RootStackParamList;
+};
+
+export function AppNavigator({ initialRouteName = 'Welcome' }: Props) {
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName="Welcome"
+        initialRouteName={initialRouteName}
         screenOptions={{
           headerStyle: { backgroundColor: '#1a1a24' },
           headerTintColor: '#fff',

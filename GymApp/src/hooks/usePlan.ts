@@ -71,6 +71,7 @@ export function usePlan() {
 
       const currentPlan: AnnualPlan = JSON.parse(stored);
       const monthBlock = currentPlan.monthlyBlocks[monthIndex];
+      if (!monthBlock) throw new Error('Mês inválido no plano.');
 
       const weeks = await generateMonthDetail(monthBlock, currentPlan.userProfile, currentPlan.overallGoal);
 

@@ -18,6 +18,7 @@ const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48 - 16) / 3;
 
 const CUSTOM_KEY_STORAGE = '@gymapp_custom_apikey';
+const ACTIVE_WORKOUT_SESSION_KEY = '@gymapp_active_workout_session';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
@@ -172,6 +173,9 @@ export function HomeScreen({ navigation }: Props) {
   const [custEquipment, setCustEquipment] = useState('academia');
   const [custLoading, setCustLoading] = useState(false);
   const [custWorkout, setCustWorkout] = useState<WorkoutDay | null>(null);
+  const [showWidgetGuide, setShowWidgetGuide] = useState(false);
+  const [resumeWorkout, setResumeWorkout] = useState<WorkoutDay | null>(null);
+  const [resumeContext, setResumeContext] = useState<{ monthIndex: number; weekIndex: number; dayIndex: number } | undefined>(undefined);
   const [exporting, setExporting] = useState(false);
   const exportImageRef = React.useRef<View>(null);
 
@@ -183,6 +187,16 @@ export function HomeScreen({ navigation }: Props) {
   useEffect(() => {
     loadStoredPlan();
     AsyncStorage.getItem(CUSTOM_KEY_STORAGE).then((k) => { if (k) setRuntimeApiKey(k); });
+    AsyncStorage.getItem(ACTIVE_WORKOUT_SESSION_KEY).then((raw) => {
+      if (!raw) return;
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed?.workout?.focus && Array.isArray(parsed?.workout?.exercises)) {
+          setResumeWorkout(parsed.workout);
+          setResumeContext(parsed.context);
+        }
+      } catch {}
+    });
     reloadHistory();
   }, []);
 
@@ -384,6 +398,21 @@ export function HomeScreen({ navigation }: Props) {
         </View>
       </TouchableOpacity>
 
+      {resumeWorkout ? (
+        <TouchableOpacity
+          style={s.resumeCard}
+          activeOpacity={0.85}
+          onPress={() => navigation.navigate('ActiveWorkout', { workout: resumeWorkout, context: resumeContext })}
+        >
+          <Text style={s.resumeIcon}>🔄</Text>
+          <View style={s.resumeInfo}>
+            <Text style={s.resumeTitle}>Retomar sessão em andamento</Text>
+            <Text style={s.resumeSub}>{resumeWorkout.focus} · {resumeWorkout.exercises.length} exercícios</Text>
+          </View>
+          <Text style={s.resumeArrow}>›</Text>
+        </TouchableOpacity>
+      ) : null}
+
       {/* ── Daily suggestion ── */}
       {(loadingSuggestion || dailySuggestion) && (
         <View style={s.suggestionCard}>
@@ -499,15 +528,12 @@ export function HomeScreen({ navigation }: Props) {
       <TouchableOpacity
         style={s.widgetCard}
         activeOpacity={0.82}
-        onPress={() => Alert.alert(
-          'Widget de treino',
-          'Você pode usar o compartilhamento de treino para fixar o card na tela inicial.\n\nO suporte avançado a widget nativo está em evolução.',
-        )}
+        onPress={() => setShowWidgetGuide(true)}
       >
         <Text style={s.widgetIcon}>🧩</Text>
         <View style={s.widgetInfo}>
           <Text style={s.widgetTitle}>Widget</Text>
-          <Text style={s.widgetSub}>Toque para ver como usar o widget do treino</Text>
+          <Text style={s.widgetSub}>Preview do treino de hoje + atalho de início rápido</Text>
         </View>
         <Text style={s.widgetArrow}>›</Text>
       </TouchableOpacity>
@@ -612,6 +638,38 @@ export function HomeScreen({ navigation }: Props) {
         </View>
       </ViewShot>
     </View>
+
+    <Modal visible={showWidgetGuide} transparent animationType="fade">
+      <View style={s.modalOverlay}>
+        <View style={s.widgetSheet}>
+          <View style={s.modalHeader}>
+            <Text style={s.modalTitle}>🧩 Widget do Treino</Text>
+            <TouchableOpacity onPress={() => setShowWidgetGuide(false)}>
+              <Text style={s.modalClose}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={s.widgetPreview}>
+            <Text style={s.widgetPreviewLabel}>PRÉVIA</Text>
+            <Text style={s.widgetPreviewTitle}>{dailySuggestion?.title ?? 'Treino de hoje'}</Text>
+            <Text style={s.widgetPreviewSub}>{dailySuggestion?.reason ?? 'Resumo dinâmico do dia na tela inicial'}</Text>
+          </View>
+          {dailySuggestion?.workout ? (
+            <TouchableOpacity
+              style={s.widgetStartBtn}
+              onPress={() => {
+                setShowWidgetGuide(false);
+                navigation.navigate('ActiveWorkout', { workout: dailySuggestion.workout });
+              }}
+            >
+              <Text style={s.widgetStartText}>▶ Iniciar treino sugerido</Text>
+            </TouchableOpacity>
+          ) : null}
+          <Text style={s.widgetHint}>
+            Dica: use “Exportar Plano” para gerar o card e fixar na tela inicial enquanto o widget nativo evolui.
+          </Text>
+        </View>
+      </View>
+    </Modal>
 
     {/* ── Customizer Modal ── */}
     <Modal visible={showCustomizer} animationType="slide" transparent presentationStyle="overFullScreen">
@@ -810,6 +868,15 @@ const s = StyleSheet.create({
   chatSub: { color: C.primaryLight, fontSize: 12, marginTop: 2 },
   chatArrowWrap: { width: 32, height: 32, borderRadius: 16, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' },
   chatArrow: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  resumeCard: {
+    backgroundColor: C.surface, borderRadius: 14, padding: 14, marginBottom: 14,
+    borderWidth: 1, borderColor: 'rgba(124,58,237,0.35)', flexDirection: 'row', alignItems: 'center', gap: 12,
+  },
+  resumeIcon: { fontSize: 24 },
+  resumeInfo: { flex: 1 },
+  resumeTitle: { color: C.text1, fontSize: 15, fontWeight: '800' },
+  resumeSub: { color: C.text3, fontSize: 12, marginTop: 2 },
+  resumeArrow: { color: C.text3, fontSize: 22 },
 
   // Section
   sectionTitle: { color: C.text1, fontSize: 16, fontWeight: '800', marginBottom: 12 },
@@ -929,6 +996,20 @@ const s = StyleSheet.create({
     backgroundColor: C.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24,
     padding: 20, maxHeight: '85%',
   },
+  widgetSheet: {
+    backgroundColor: C.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: 20, borderWidth: 1, borderColor: C.border,
+  },
+  widgetPreview: {
+    backgroundColor: C.elevated, borderRadius: 14, padding: 14,
+    borderWidth: 1, borderColor: 'rgba(124,58,237,0.35)', marginBottom: 12,
+  },
+  widgetPreviewLabel: { color: C.primaryLight, fontSize: 10, fontWeight: '700', letterSpacing: 1 },
+  widgetPreviewTitle: { color: C.text1, fontSize: 18, fontWeight: '800', marginTop: 4 },
+  widgetPreviewSub: { color: C.text2, fontSize: 13, marginTop: 4, lineHeight: 18 },
+  widgetStartBtn: { backgroundColor: C.primary, borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginBottom: 10 },
+  widgetStartText: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  widgetHint: { color: C.text3, fontSize: 12, lineHeight: 18, marginBottom: 8 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   modalTitle: { color: C.text1, fontSize: 18, fontWeight: '800' },
   modalClose: { color: C.text3, fontSize: 20, padding: 4 },

@@ -41,6 +41,16 @@ export function MonthDetailScreen({ navigation, route }: Props) {
   if (!plan) return null;
 
   const month = plan.monthlyBlocks[monthIndex];
+  if (!month) {
+    return (
+      <ScrollView style={s.container} contentContainerStyle={[s.content, { justifyContent: 'center', flexGrow: 1 }]}>
+        <Text style={[s.sectionTitle, { textAlign: 'center' }]}>Mês não encontrado</Text>
+        <TouchableOpacity style={[s.generateBtn, { backgroundColor: C.primary, alignSelf: 'center' }]} onPress={() => navigation.goBack()}>
+          <Text style={s.generateBtnText}>Voltar</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    );
+  }
   const phase = PHASE_META(monthIndex);
   const hasWeeks = month.weeks && month.weeks.length > 0;
 
