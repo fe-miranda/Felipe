@@ -242,7 +242,7 @@ function planDurationFromMonths(months: number): PlanDuration {
 }
 
 function calendarMonthName(startDate: Date, offset: number): string {
-  const idx = (startDate.getMonth() + offset) % 12;
+  const idx = ((startDate.getMonth() + offset) % 12 + 12) % 12;
   return MONTH_NAMES_PT[idx];
 }
 

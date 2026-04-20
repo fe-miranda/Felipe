@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Rect } from 'react-native-svg';
 import { FatigueScore, fatigueColor } from '../services/muscleService';
 
@@ -39,7 +39,7 @@ export function BodyMap({ scores, selected, onSelect }: {
   onSelect: (group: string) => void;
 }) {
   const renderSide = (side: Side) => (
-    <TouchableOpacity style={s.mapSide} activeOpacity={0.9} onPress={() => {}}>
+    <View style={s.mapSide}>
       <Text style={s.sideLabel}>{side === 'front' ? 'Frontal' : 'Dorsal'}</Text>
       <Svg width={100} height={220}>
         {REGIONS.filter((r) => r.side === side).map((r) => {
@@ -60,7 +60,7 @@ export function BodyMap({ scores, selected, onSelect }: {
           );
         })}
       </Svg>
-    </TouchableOpacity>
+    </View>
   );
 
   return <View style={s.wrap}>{renderSide('front')}{renderSide('back')}</View>;

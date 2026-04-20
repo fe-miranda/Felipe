@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import ViewShot, { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system';
+import { File, Paths } from 'expo-file-system';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -256,9 +256,9 @@ export function HomeScreen({ navigation }: Props) {
     setExporting(true);
     try {
       const text = buildPlanExportText();
-      const uri = `${FileSystem.cacheDirectory}gymapp-plan-${Date.now()}.txt`;
-      await FileSystem.writeAsStringAsync(uri, text, { encoding: FileSystem.EncodingType.UTF8 });
-      await Sharing.shareAsync(uri, {
+      const file = new File(Paths.cache, `gymapp-plan-${Date.now()}.txt`);
+      file.write(text);
+      await Sharing.shareAsync(file.uri, {
         mimeType: 'text/plain',
         dialogTitle: 'Exportar plano como texto',
       });
