@@ -41,6 +41,7 @@ export interface Exercise {
   rest: string;
   muscleGroups?: string[];
   notes?: string;
+  blockType?: string;
 }
 
 export interface WeeklyPlan {
@@ -84,6 +85,7 @@ export interface ExerciseLog {
   targetReps: string;
   rest: string;
   sets: SetLog[];
+  blockType?: string;
 }
 
 export interface CompletedWorkout {
@@ -158,4 +160,5 @@ export type RootStackParamList = {
   MuscleFatigue: undefined;
   Chat: undefined;
   Settings: undefined;
+  PerformanceAnalysis: undefined;
 };

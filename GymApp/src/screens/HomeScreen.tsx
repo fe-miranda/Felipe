@@ -3,9 +3,6 @@ import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet,
   Alert, Dimensions, Modal, ActivityIndicator,
 } from 'react-native';
-import ViewShot, { captureRef } from 'react-native-view-shot';
-import * as Sharing from 'expo-sharing';
-import { File, Paths } from 'expo-file-system';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -160,6 +157,11 @@ function greeting(): string {
 
 type Props = { navigation: NativeStackNavigationProp<RootStackParamList, 'Home'> };
 
+const DAY_MAP: Record<number, string> = {
+  0: 'Domingo', 1: 'Segunda', 2: 'Terça', 3: 'Quarta',
+  4: 'Quinta', 5: 'Sexta', 6: 'Sábado',
+};
+
 export function HomeScreen({ navigation }: Props) {
   const { plan, loadStoredPlan, clearPlan } = usePlan();
   const [recentWorkouts, setRecentWorkouts] = useState<CompletedWorkout[]>([]);
@@ -173,11 +175,8 @@ export function HomeScreen({ navigation }: Props) {
   const [custEquipment, setCustEquipment] = useState('academia');
   const [custLoading, setCustLoading] = useState(false);
   const [custWorkout, setCustWorkout] = useState<WorkoutDay | null>(null);
-  const [showWidgetGuide, setShowWidgetGuide] = useState(false);
   const [resumeWorkout, setResumeWorkout] = useState<WorkoutDay | null>(null);
   const [resumeContext, setResumeContext] = useState<{ monthIndex: number; weekIndex: number; dayIndex: number } | undefined>(undefined);
-  const [exporting, setExporting] = useState(false);
-  const exportImageRef = React.useRef<View>(null);
 
   const reloadHistory = useCallback(async () => {
     const hist = await loadHistory();
@@ -239,71 +238,6 @@ export function HomeScreen({ navigation }: Props) {
     ]);
   };
 
-  const buildPlanExportText = useCallback(() => {
-    if (!plan) return '';
-    const lines: string[] = [];
-    lines.push(`Plano de treino — ${plan.userProfile.name}`);
-    lines.push(`Objetivo: ${plan.overallGoal}`);
-    lines.push('');
-    for (const month of plan.monthlyBlocks) {
-      lines.push(`=== ${month.monthName} · ${month.focus} ===`);
-      if (!month.weeks.length) {
-        lines.push('Sem detalhes gerados ainda.');
-      } else {
-        for (const week of month.weeks) {
-          lines.push(`Semana ${week.week}: ${week.theme}`);
-          for (const day of week.days) {
-            lines.push(`- ${day.dayOfWeek} (${day.focus}, ${day.duration}min)`);
-            for (const ex of day.exercises) {
-              lines.push(`  • ${ex.name} — ${ex.sets}x${ex.reps} · descanso ${ex.rest}`);
-            }
-          }
-        }
-      }
-      lines.push('');
-    }
-    return lines.join('\n');
-  }, [plan]);
-
-  const sharePlanAsText = useCallback(async () => {
-    if (!plan) return;
-    setExporting(true);
-    try {
-      const text = buildPlanExportText();
-      const file = new File(Paths.cache, `gymapp-plan-${Date.now()}.txt`);
-      file.write(text);
-      await Sharing.shareAsync(file.uri, {
-        mimeType: 'text/plain',
-        dialogTitle: 'Exportar plano como texto',
-      });
-    } catch {
-      Alert.alert('Erro', 'Não foi possível exportar o plano em texto.');
-    } finally {
-      setExporting(false);
-    }
-  }, [plan, buildPlanExportText]);
-
-  const sharePlanAsImage = useCallback(async () => {
-    if (!exportImageRef.current) return;
-    setExporting(true);
-    try {
-      const uri = await captureRef(exportImageRef, { format: 'png', quality: 0.95 });
-      await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: 'Exportar plano como imagem' });
-    } catch {
-      Alert.alert('Erro', 'Não foi possível exportar o plano em imagem.');
-    } finally {
-      setExporting(false);
-    }
-  }, []);
-
-  const openExportOptions = useCallback(() => {
-    Alert.alert('Exportar Plano', 'Escolha o formato de exportação', [
-      { text: 'Texto', onPress: sharePlanAsText },
-      { text: 'Imagem', onPress: sharePlanAsImage },
-      { text: 'Cancelar', style: 'cancel' },
-    ]);
-  }, [sharePlanAsText, sharePlanAsImage]);
-
   if (!plan) {
     return (
       <SafeAreaView style={s.safeArea} edges={['top', 'bottom']}>
@@ -324,6 +258,30 @@ export function HomeScreen({ navigation }: Props) {
   const generatedCount = monthlyBlocks.filter((b) => b.weeks.length > 0).length;
   const progress = generatedCount / 12;
 
+  // Calculate current month index based on plan.createdAt
+  const planStartDate = new Date(plan.createdAt);
+  const now = new Date();
+  const monthsElapsed = (now.getFullYear() - planStartDate.getFullYear()) * 12 + (now.getMonth() - planStartDate.getMonth());
+  const currentMonthIndex = Math.min(Math.max(0, monthsElapsed), 11);
+
+  // Find today's workout from plan
+  const todayDOW = DAY_MAP[now.getDay()];
+  let todayWorkout: WorkoutDay | null = null;
+  let todayContext: { monthIndex: number; weekIndex: number; dayIndex: number } | undefined;
+  const curMonth = monthlyBlocks[currentMonthIndex];
+  if (curMonth?.weeks?.length) {
+    const weeksElapsed = Math.floor((now.getTime() - planStartDate.getTime()) / (7 * 24 * 60 * 60 * 1000)) % curMonth.weeks.length;
+    const weekIdx = Math.min(Math.max(0, weeksElapsed), curMonth.weeks.length - 1);
+    const curWeek = curMonth.weeks[weekIdx];
+    if (curWeek?.days) {
+      const dayIdx = curWeek.days.findIndex(d => d.dayOfWeek === todayDOW);
+      if (dayIdx >= 0) {
+        todayWorkout = curWeek.days[dayIdx];
+        todayContext = { monthIndex: currentMonthIndex, weekIndex: weekIdx, dayIndex: dayIdx };
+      }
+    }
+  }
+
   return (
     <SafeAreaView style={s.safeArea} edges={['top', 'bottom']}>
     <ScrollView style={s.container} contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
@@ -338,8 +296,25 @@ export function HomeScreen({ navigation }: Props) {
           <Text style={s.iconBtnText}>⚙️</Text>
         </TouchableOpacity>
       </View>
-      <TouchableOpacity style={s.exportBtn} onPress={openExportOptions} disabled={exporting}>
-        <Text style={s.exportBtnText}>{exporting ? 'Exportando...' : '📤 Exportar Plano'}</Text>
+
+      {/* ── Acessar seu treino ── */}
+      <TouchableOpacity
+        style={s.todayBtn}
+        activeOpacity={0.85}
+        onPress={() => {
+          const w = todayWorkout ?? dailySuggestion?.workout ?? null;
+          const ctx = todayContext;
+          if (w) navigation.navigate('ActiveWorkout', { workout: w, context: ctx });
+          else Alert.alert('Treino do dia', 'Nenhum treino encontrado para hoje. Tente um treino rápido!');
+        }}
+      >
+        <Text style={s.todayBtnText}>▶  Acessar Seu Treino de Hoje</Text>
+        {todayWorkout && <Text style={s.todayBtnSub}>{todayWorkout.focus}</Text>}
+      </TouchableOpacity>
+
+      {/* ── Performance Analysis button ── */}
+      <TouchableOpacity style={s.exportBtn} onPress={() => navigation.navigate('PerformanceAnalysis')}>
+        <Text style={s.exportBtnText}>📊 Analisar Desempenho</Text>
       </TouchableOpacity>
 
       {/* ── Hero goal card ── */}
@@ -525,19 +500,6 @@ export function HomeScreen({ navigation }: Props) {
         <Text style={s.recordsArrow}>›</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity
-        style={s.widgetCard}
-        activeOpacity={0.82}
-        onPress={() => setShowWidgetGuide(true)}
-      >
-        <Text style={s.widgetIcon}>🧩</Text>
-        <View style={s.widgetInfo}>
-          <Text style={s.widgetTitle}>Widget</Text>
-          <Text style={s.widgetSub}>Prévia do treino de hoje + atalho de início rápido</Text>
-        </View>
-        <Text style={s.widgetArrow}>›</Text>
-      </TouchableOpacity>
-
       {/* ── Muscle fatigue link ── */}
       <TouchableOpacity style={s.fatigueCard} onPress={() => navigation.navigate('MuscleFatigue')} activeOpacity={0.82}>
         <Text style={s.fatigueIcon}>🔥</Text>
@@ -554,7 +516,7 @@ export function HomeScreen({ navigation }: Props) {
         {monthlyBlocks.map((month, idx) => {
           const ph = PHASE(idx);
           const hasWeeks = month.weeks.length > 0;
-          const isCurrent = idx === new Date().getMonth();
+          const isCurrent = idx === currentMonthIndex;
           return (
             <TouchableOpacity
               key={idx}
@@ -623,53 +585,6 @@ export function HomeScreen({ navigation }: Props) {
         </>
       )}
     </ScrollView>
-
-    <View style={s.hiddenCapture}>
-      <ViewShot ref={exportImageRef} options={{ format: 'png', quality: 0.95 }}>
-        <View style={s.exportCard}>
-          <Text style={s.exportTitle}>Plano de Treino</Text>
-          <Text style={s.exportSubtitle}>{p.name} • {goal.label}</Text>
-          {monthlyBlocks.slice(0, 6).map((month, idx) => (
-            <Text key={idx} style={s.exportLine}>
-              {month.monthName}: {month.focus}
-            </Text>
-          ))}
-          <Text style={s.exportHint}>Abra o app para ver o plano completo 💜</Text>
-        </View>
-      </ViewShot>
-    </View>
-
-    <Modal visible={showWidgetGuide} transparent animationType="fade">
-      <View style={s.modalOverlay}>
-        <View style={s.widgetSheet}>
-          <View style={s.modalHeader}>
-            <Text style={s.modalTitle}>🧩 Widget do Treino</Text>
-            <TouchableOpacity onPress={() => setShowWidgetGuide(false)}>
-              <Text style={s.modalClose}>✕</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={s.widgetPreview}>
-            <Text style={s.widgetPreviewLabel}>PRÉVIA</Text>
-            <Text style={s.widgetPreviewTitle}>{dailySuggestion?.title ?? 'Treino de hoje'}</Text>
-            <Text style={s.widgetPreviewSub}>{dailySuggestion?.reason ?? 'Resumo dinâmico do dia na tela inicial'}</Text>
-          </View>
-          {dailySuggestion?.workout ? (
-            <TouchableOpacity
-              style={s.widgetStartBtn}
-              onPress={() => {
-                setShowWidgetGuide(false);
-                navigation.navigate('ActiveWorkout', { workout: dailySuggestion.workout });
-              }}
-            >
-              <Text style={s.widgetStartText}>▶ Iniciar treino sugerido</Text>
-            </TouchableOpacity>
-          ) : null}
-          <Text style={s.widgetHint}>
-            Dica: use “Exportar Plano” para gerar o card e fixar na tela inicial enquanto o widget nativo evolui.
-          </Text>
-        </View>
-      </View>
-    </Modal>
 
     {/* ── Customizer Modal ── */}
     <Modal visible={showCustomizer} animationType="slide" transparent presentationStyle="overFullScreen">
@@ -807,6 +722,13 @@ const s = StyleSheet.create({
   iconBtnText: { fontSize: 18 },
   exportBtn: { backgroundColor: C.surface, borderRadius: 12, borderWidth: 1, borderColor: C.border, paddingVertical: 10, alignItems: 'center', marginBottom: 14 },
   exportBtnText: { color: C.primaryLight, fontSize: 14, fontWeight: '700' },
+  todayBtn: {
+    backgroundColor: C.primary, borderRadius: 16, paddingVertical: 16,
+    alignItems: 'center', marginBottom: 12,
+    shadowColor: C.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 12, elevation: 8,
+  },
+  todayBtnText: { color: '#fff', fontSize: 17, fontWeight: '800', letterSpacing: 0.3 },
+  todayBtnSub: { color: 'rgba(255,255,255,0.75)', fontSize: 12, marginTop: 4 },
 
   // Hero card
   heroCard: {

@@ -13,6 +13,15 @@ Notifications.setNotificationHandler({
         shouldShowList: true,
       };
     }
+    if (type === 'rest-end') {
+      return {
+        shouldShowAlert: false,
+        shouldShowBanner: false,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+        shouldShowList: true,
+      };
+    }
     return {
       shouldShowAlert: true,
       shouldPlaySound: true,
@@ -85,41 +94,16 @@ export async function setupNotifications(): Promise<void> {
   }
 }
 
-export async function startWorkoutNotification(elapsedSeconds: number = 0): Promise<void> {
-  try {
-    const startedAt = new Date(Date.now() - elapsedSeconds * 1000);
-    const startedAtLabel = startedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    await Notifications.scheduleNotificationAsync({
-      identifier: WORKOUT_NOTIF_ID,
-      content: {
-        title: '💪 Treino em andamento',
-        body: `Iniciado às ${startedAtLabel} · Timer ativo`,
-        sound: undefined,
-        categoryIdentifier: REST_CATEGORY_ID,
-        data: { type: 'workout-active' },
-        sticky: true,
-        autoDismiss: false,
-      },
-      trigger: null,
-    });
-  } catch {
-    // Notifications not available — fail silently
-  }
+export async function startWorkoutNotification(_elapsedSeconds: number = 0): Promise<void> {
+  // no-op
 }
 
-export async function updateWorkoutNotification(elapsedSeconds: number): Promise<void> {
-  const minute = Math.floor(elapsedSeconds / 60);
-  if (minute === _lastWorkoutMinuteNotified) return;
-  _lastWorkoutMinuteNotified = minute;
-  await startWorkoutNotification(elapsedSeconds);
+export async function updateWorkoutNotification(_elapsedSeconds: number): Promise<void> {
+  // no-op
 }
 
 export async function stopWorkoutNotification(): Promise<void> {
-  try {
-    await Notifications.cancelScheduledNotificationAsync(WORKOUT_NOTIF_ID);
-    await Notifications.dismissNotificationAsync(WORKOUT_NOTIF_ID);
-  } catch {}
-  _lastWorkoutMinuteNotified = -1;
+  // no-op
 }
 
 export async function scheduleRestEndNotification(seconds: number): Promise<void> {

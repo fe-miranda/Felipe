@@ -14,6 +14,7 @@ import { WorkoutHistoryScreen } from '../screens/WorkoutHistoryScreen';
 import { MuscleFatigueScreen } from '../screens/MuscleFatigueScreen';
 import { ChatScreen } from '../screens/ChatScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
+import { PerformanceAnalysisScreen } from '../screens/PerformanceAnalysisScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -95,6 +96,11 @@ export function AppNavigator({ initialRouteName = 'Welcome' }: Props) {
           name="Settings"
           component={SettingsScreen}
           options={{ title: 'Configurações' }}
+        />
+        <Stack.Screen
+          name="PerformanceAnalysis"
+          component={PerformanceAnalysisScreen}
+          options={{ title: 'Análise de Desempenho' }}
         />
       </Stack.Navigator>
     </NavigationContainer>
