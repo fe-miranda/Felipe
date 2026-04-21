@@ -50,10 +50,10 @@ describe('WelcomeScreen — rendering', () => {
 // ─── Navigation ────────────────────────────────────────────────────────────
 
 describe('WelcomeScreen — navigation', () => {
-  it('calls navigation.replace("Onboarding") when CTA is pressed', () => {
+  it('calls navigation.replace("NewPlan") when CTA is pressed', () => {
     const { getByText } = render(<WelcomeScreen navigation={mockNavigation as any} />);
     fireEvent.press(getByText(/Começar Agora/));
     expect(mockReplace).toHaveBeenCalledTimes(1);
-    expect(mockReplace).toHaveBeenCalledWith('Onboarding');
+    expect(mockReplace).toHaveBeenCalledWith('NewPlan');
   });
 });

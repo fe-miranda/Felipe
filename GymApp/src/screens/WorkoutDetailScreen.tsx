@@ -99,6 +99,22 @@ export function WorkoutDetailScreen({ navigation, route }: Props) {
     exercises: currentExercises,
   };
 
+  const deleteExercise = (idx: number) => {
+    Alert.alert(
+      'Remover exercício',
+      `Remover "${currentExercises[idx]?.name}" do treino?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Remover', style: 'destructive',
+          onPress: () => setEditableExercises((prev) =>
+            (prev.length ? prev : day.exercises.map((e) => ({ ...e }))).filter((_, i) => i !== idx),
+          ),
+        },
+      ],
+    );
+  };
+
   const openEditExercise = (idx: number) => {
     const ex = currentExercises[idx];
     setEditIndex(idx);
@@ -197,6 +213,9 @@ export function WorkoutDetailScreen({ navigation, route }: Props) {
               <Text style={s.exName}>{ex.name}</Text>
               <TouchableOpacity style={s.editExBtn} onPress={() => openEditExercise(idx)}>
                 <Text style={s.editExBtnText}>✎</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[s.editExBtn, { borderColor: 'rgba(239,68,68,0.3)', backgroundColor: 'rgba(239,68,68,0.08)' }]} onPress={() => deleteExercise(idx)}>
+                <Text style={{ fontSize: 12 }}>🗑</Text>
               </TouchableOpacity>
             </View>
 

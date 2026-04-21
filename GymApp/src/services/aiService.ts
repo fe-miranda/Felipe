@@ -625,3 +625,29 @@ function _buildImportedPlan(data: any, options?: ImportPlanOptions): AnnualPlan 
     userProfile: profile,
   };
 }
+
+
+export async function analyzePerformance(
+  totalWorkouts: number,
+  totalSets: number,
+  topPRs: string,
+  profileSummary: string,
+): Promise<string> {
+  const messages = [
+    {
+      role: 'system',
+      content: 'Você é um personal trainer especialista em análise de desempenho físico. Responda sempre em português brasileiro, de forma profissional, motivadora e prática.',
+    },
+    {
+      role: 'user',
+      content: `Analise meu desempenho fitness:
+- ${totalWorkouts} treinos completados
+- ${totalSets} séries no total
+- Recordes pessoais: ${topPRs || 'nenhum registrado ainda'}
+- Perfil: ${profileSummary}
+
+Faça uma análise em 3 parágrafos: progresso geral, pontos fortes identificados e recomendações concretas para as próximas semanas.`,
+    },
+  ];
+  return groqPost(messages, 600);
+}

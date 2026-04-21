@@ -12,6 +12,7 @@ const mockWorkouts: QuickWorkout[] = [
     color: '#EF4444',
     description: 'Alta intensidade',
     tag: 'Queima Rápida',
+    muscleGroups: ['Core', 'Quadríceps'],
     exercises: [
       { name: 'Burpee', sets: 4, reps: '10', rest: '30s' },
       { name: 'Mountain Climber', sets: 4, reps: '30s', rest: '20s', muscleGroups: ['Core'] },
@@ -26,6 +27,7 @@ const mockWorkouts: QuickWorkout[] = [
     color: '#EC4899',
     description: 'Abdômen',
     tag: 'Core',
+    muscleGroups: ['Core'],
     exercises: [
       { name: 'Prancha', sets: 4, reps: '45s', rest: '0s' },
       { name: 'Abdominal', sets: 4, reps: '20', rest: '0s', muscleGroups: ['Core'] },

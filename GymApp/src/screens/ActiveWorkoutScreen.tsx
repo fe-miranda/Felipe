@@ -313,6 +313,21 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
     ]);
   }, [navigation, clearPersistedSession]);
 
+  const deleteExercise = useCallback((exIdx: number) => {
+    Alert.alert(
+      'Remover exercício',
+      `Remover "${exercises[exIdx]?.name}" do treino?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Remover',
+          style: 'destructive',
+          onPress: () => setExercises((prev) => prev.filter((_, i) => i !== exIdx)),
+        },
+      ],
+    );
+  }, [exercises]);
+
   const addManualExercise = useCallback(() => {
     const targetSets = parseInt(newExerciseSets, 10);
     if (!newExerciseName.trim() || Number.isNaN(targetSets) || targetSets < 1 || targetSets > 20 || !newExerciseReps.trim() || !newExerciseRest.trim()) {
@@ -430,17 +445,34 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
           </TouchableOpacity>
         </View>
 
-        {/* Progress bar */}
+        {/* Timer bar */}
         <View style={s.timerBar}>
           <View style={s.timeCard}>
             <Text style={s.timeLabel}>Treino</Text>
             <Text style={s.timeValue}>{formatClock(elapsed)}</Text>
           </View>
-          <View style={s.timeCard}>
-            <Text style={s.timeLabel}>Descanso</Text>
-            <Text style={[s.timeValue, restActive ? s.timeValueRestActive : s.timeValueRestIdle]}>
-              {restActive ? formatClock(restRemaining) : `00:${String(restDuration).padStart(2, '0')}`}
-            </Text>
+          <View style={s.restBlock}>
+            <TouchableOpacity
+              style={[s.timeCard, s.restTouchable, restActive && s.restTouchableActive]}
+              onPress={() => restActive ? stopRest() : startRest()}
+              activeOpacity={0.8}
+            >
+              <Text style={s.timeLabel}>{restActive ? 'DESCANSO ✕' : 'DESCANSO ▶'}</Text>
+              <Text style={[s.timeValue, restActive ? s.timeValueRestActive : s.timeValueRestIdle]}>
+                {restActive ? formatClock(restRemaining) : formatClock(restDuration)}
+              </Text>
+            </TouchableOpacity>
+            <View style={s.restPresets}>
+              {[30, 60, 90].map((sec) => (
+                <TouchableOpacity
+                  key={sec}
+                  style={[s.presetChip, restDuration === sec && s.presetChipActive]}
+                  onPress={() => { setRestDuration(sec); if (!restActive) {} }}
+                >
+                  <Text style={[s.presetChipText, restDuration === sec && s.presetChipTextActive]}>{sec}s</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
           <View style={s.progressWrap}>
             <Text style={s.progressLabel}>{doneCount}/{totalSets}</Text>
@@ -465,11 +497,17 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
                   <Text style={s.exName}>{ex.name}</Text>
                   <Text style={s.exTarget}>{ex.targetSets}×{ex.targetReps} · {ex.rest}</Text>
                 </View>
-                <TouchableOpacity style={s.subBtn} onPress={() => openAlternatives(exIdx)}>
-                  <Text style={s.subBtnText}>↺</Text>
+                <TouchableOpacity style={s.exActionBtn} onPress={() => navigation.navigate('ExerciseHistory', { exerciseName: ex.name })}>
+                  <Text style={s.exActionBtnText}>📈</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={s.addSetBtn} onPress={() => addExtraSet(exIdx)}>
-                  <Text style={s.addSetBtnText}>＋S</Text>
+                <TouchableOpacity style={s.exActionBtn} onPress={() => openAlternatives(exIdx)}>
+                  <Text style={s.exActionBtnText}>↺</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={s.exActionBtn} onPress={() => addExtraSet(exIdx)}>
+                  <Text style={s.exActionBtnText}>＋S</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[s.exActionBtn, s.exDeleteBtn]} onPress={() => deleteExercise(exIdx)}>
+                  <Text style={s.exActionBtnText}>🗑</Text>
                 </TouchableOpacity>
               </View>
 
@@ -653,18 +691,23 @@ const s = StyleSheet.create({
   finishBtn: { backgroundColor: C.success, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 },
   finishBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 
-  timerBar: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  timerBar: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
   timeCard: {
-    backgroundColor: C.elevated,
-    borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    minWidth: 74,
-    alignItems: 'center',
+    backgroundColor: C.elevated, borderWidth: 1, borderColor: C.border,
+    borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, minWidth: 68, alignItems: 'center',
   },
-  timeLabel: { color: C.text3, fontSize: 10, fontWeight: '700' },
+  restBlock: { flex: 1, gap: 4 },
+  restTouchable: { flex: 0, width: '100%' },
+  restTouchableActive: { borderColor: `${C.warning}60`, backgroundColor: 'rgba(245,158,11,0.1)' },
+  restPresets: { flexDirection: 'row', gap: 4 },
+  presetChip: {
+    flex: 1, paddingVertical: 4, borderRadius: 8, alignItems: 'center',
+    backgroundColor: C.elevated, borderWidth: 1, borderColor: C.border,
+  },
+  presetChipActive: { backgroundColor: 'rgba(124,58,237,0.2)', borderColor: C.primary },
+  presetChipText: { color: C.text3, fontSize: 11, fontWeight: '700' },
+  presetChipTextActive: { color: C.primaryLight },
+  timeLabel: { color: C.text3, fontSize: 9, fontWeight: '700' },
   timeValue: { color: C.text1, fontSize: 14, fontWeight: '800', marginTop: 1 },
   timeValueRestActive: { color: C.warning },
   timeValueRestIdle: { color: C.primaryLight },
@@ -685,6 +728,9 @@ const s = StyleSheet.create({
   exMeta: { flex: 1 },
   exName: { color: C.text1, fontWeight: '700', fontSize: 15 },
   exTarget: { color: C.text3, fontSize: 12, marginTop: 2 },
+  exActionBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: C.elevated, borderWidth: 1, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },
+  exActionBtnText: { fontSize: 14, fontWeight: '700' },
+  exDeleteBtn: { borderColor: 'rgba(239,68,68,0.3)', backgroundColor: 'rgba(239,68,68,0.08)' },
   subBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: C.elevated, borderWidth: 1, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },
   subBtnText: { color: C.primaryLight, fontSize: 20, fontWeight: '700' },
   addSetBtn: { width: 42, height: 36, borderRadius: 10, backgroundColor: C.elevated, borderWidth: 1, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },

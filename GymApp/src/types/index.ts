@@ -11,6 +11,8 @@ export type FitnessLevel = 'beginner' | 'intermediate' | 'advanced';
 
 export type Gender = 'male' | 'female' | 'other';
 
+export type GroupType = 'biset' | 'triset' | 'superset';
+
 export interface UserProfile {
   name: string;
   age: number;
@@ -41,6 +43,8 @@ export interface Exercise {
   rest: string;
   muscleGroups?: string[];
   notes?: string;
+  groupId?: string;
+  groupType?: GroupType;
 }
 
 export interface WeeklyPlan {
@@ -84,6 +88,8 @@ export interface ExerciseLog {
   targetReps: string;
   rest: string;
   sets: SetLog[];
+  groupId?: string;
+  groupType?: GroupType;
 }
 
 export interface CompletedWorkout {
@@ -158,4 +164,6 @@ export type RootStackParamList = {
   MuscleFatigue: undefined;
   Chat: undefined;
   Settings: undefined;
+  ExerciseHistory: { exerciseName: string };
+  Performance: undefined;
 };
