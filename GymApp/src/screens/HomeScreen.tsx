@@ -195,20 +195,19 @@ export function HomeScreen({ navigation }: Props) {
   // navigates back from another screen.
   useFocusEffect(
     useCallback(() => {
+      const clearResume = () => { setResumeWorkout(null); setResumeContext(undefined); };
       AsyncStorage.getItem(ACTIVE_WORKOUT_SESSION_KEY).then((raw) => {
-        if (!raw) { setResumeWorkout(null); setResumeContext(undefined); return; }
+        if (!raw) { clearResume(); return; }
         try {
           const parsed = JSON.parse(raw);
           if (parsed?.workout?.focus && Array.isArray(parsed?.workout?.exercises)) {
             setResumeWorkout(parsed.workout);
             setResumeContext(parsed.context);
           } else {
-            setResumeWorkout(null);
-            setResumeContext(undefined);
+            clearResume();
           }
         } catch {
-          setResumeWorkout(null);
-          setResumeContext(undefined);
+          clearResume();
         }
       });
     }, []),

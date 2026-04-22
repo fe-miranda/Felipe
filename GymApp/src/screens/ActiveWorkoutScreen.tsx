@@ -107,8 +107,10 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   const workoutStartAtRef = useRef<number | null>(null);
   const restEndsAtRef = useRef<number | null>(null);
   const restCompletionFiredRef = useRef(false);
-  // Prevents persistSession from overwriting AsyncStorage before the restore
-  // effect has had a chance to load the saved session on mount.
+  // Guard: prevents persistSession from overwriting AsyncStorage before the
+  // restore effect has had a chance to read the saved session on mount.
+  // Without this, the initial render's state (buildLogs) would be persisted and
+  // overwrite the user's in-progress session before the restore reads it.
   const sessionLoadedRef = useRef(false);
 
   // Keep a stable ref so the notification callback always calls the latest startRest
