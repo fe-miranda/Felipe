@@ -11,14 +11,15 @@ import { RouteProp } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RootStackParamList, ExerciseLog, SetLog, CompletedWorkout } from '../types';
 import { getExerciseAlternatives } from '../services/aiService';
-import { saveWorkout } from '../services/workoutHistoryService';
+import { saveWorkout, loadHistory } from '../services/workoutHistoryService';
 import {
   setupNotifications, scheduleRestEndNotification, cancelRestNotification,
-  startWorkoutNotification, stopWorkoutNotification, triggerRestEndAlert,
+  triggerRestEndAlert,
   setRestActionCallback, setRestPauseActionCallback,
 } from '../services/notificationService';
 import { WorkoutSummaryCard } from '../components/WorkoutSummaryCard';
 import { WorkoutStoryCard } from '../components/WorkoutStoryCard';
+import { ExerciseHistoryModal } from '../components/ExerciseHistoryModal';
 import * as MediaLibrary from 'expo-media-library';
 import { analyzeWorkoutForPersonalRecords } from '../services/personalRecordsService';
 
@@ -93,6 +94,13 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   const [newExerciseSets, setNewExerciseSets] = useState('3');
   const [newExerciseReps, setNewExerciseReps] = useState('10-12');
   const [newExerciseRest, setNewExerciseRest] = useState('90s');
+  const [newExBlockType, setNewExBlockType] = useState('Normal');
+  const [newExName2, setNewExName2] = useState('');
+  const [newExName3, setNewExName3] = useState('');
+  const [newExName4, setNewExName4] = useState('');
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyExerciseName, setHistoryExerciseName] = useState('');
+  const [workoutHistory, setWorkoutHistory] = useState<CompletedWorkout[]>([]);
 
   const elapsedRef = useRef(0);
   elapsedRef.current = elapsed;
@@ -173,7 +181,6 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
           setRestActive(true);
           setRestRemaining(Math.max(0, Math.ceil((restEndsAt - Date.now()) / 1000)));
         }
-        await startWorkoutNotification(Math.max(0, Math.floor((Date.now() - workoutStartAt) / 1000)));
       } catch {}
     })();
   }, []);
@@ -193,6 +200,11 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
     });
     return () => sub.remove();
   }, [persistSession]);
+
+  // Load workout history for exercise history modal
+  useEffect(() => {
+    loadHistory().then(setWorkoutHistory).catch(() => {});
+  }, []);
 
   // Rest countdown based on absolute end timestamp
   useEffect(() => {
@@ -224,12 +236,11 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   // Keep ref in sync and register notification callback
   startRestRef.current = startRest;
   useEffect(() => {
-    setupNotifications().then(() => startWorkoutNotification(0));
+    setupNotifications();
     setRestActionCallback(() => startRestRef.current());
     setRestPauseActionCallback(() => stopRest());
     return () => {
       persistSession();
-      stopWorkoutNotification();
       setRestActionCallback(null);
       setRestPauseActionCallback(null);
     };
@@ -309,7 +320,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   const confirmExit = useCallback(() => {
     Alert.alert('Sair do treino', 'O progresso não será salvo. Deseja sair?', [
       { text: 'Continuar', style: 'cancel' },
-      { text: 'Sair', style: 'destructive', onPress: async () => { await clearPersistedSession(); stopWorkoutNotification(); navigation.goBack(); } },
+      { text: 'Sair', style: 'destructive', onPress: async () => { await clearPersistedSession(); navigation.goBack(); } },
     ]);
   }, [navigation, clearPersistedSession]);
 
@@ -334,22 +345,27 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
       Alert.alert('Atenção', 'Preencha nome, séries, reps e descanso corretamente.');
       return;
     }
-    setExercises((prev) => ([
-      ...prev,
-      {
-        name: newExerciseName.trim(),
-        targetSets,
-        targetReps: newExerciseReps.trim(),
-        rest: newExerciseRest.trim(),
-        sets: Array.from({ length: targetSets }, () => ({ load: '', reps: '', done: false })),
-      },
-    ]));
-    setNewExerciseName('');
-    setNewExerciseSets('3');
-    setNewExerciseReps('10-12');
-    setNewExerciseRest('90s');
+    const extraCount = newExBlockType === 'Biset' ? 1 : newExBlockType === 'Triset' ? 2 : newExBlockType === 'Superset' ? 3 : 0;
+    const names = [newExerciseName.trim(), newExName2.trim(), newExName3.trim(), newExName4.trim()].slice(0, extraCount + 1);
+    if (extraCount > 0 && names.some((n, i) => i > 0 && !n)) {
+      Alert.alert('Atenção', 'Preencha os nomes de todos os exercícios do bloco.');
+      return;
+    }
+    const total = names.length;
+    const newLogs: ExerciseLog[] = names.map((n, i) => ({
+      name: n,
+      targetSets,
+      targetReps: newExerciseReps.trim(),
+      rest: total > 1 && i < total - 1 ? '0s' : newExerciseRest.trim(),
+      blockType: newExBlockType !== 'Normal' ? newExBlockType : undefined,
+      sets: Array.from({ length: targetSets }, () => ({ load: '', reps: '', done: false })),
+    }));
+    setExercises((prev) => [...prev, ...newLogs]);
+    setNewExerciseName(''); setNewExName2(''); setNewExName3(''); setNewExName4('');
+    setNewExerciseSets('3'); setNewExerciseReps('10-12'); setNewExerciseRest('90s');
+    setNewExBlockType('Normal');
     setShowAddExercise(false);
-  }, [newExerciseName, newExerciseSets, newExerciseReps, newExerciseRest]);
+  }, [newExerciseName, newExerciseSets, newExerciseReps, newExerciseRest, newExBlockType, newExName2, newExName3, newExName4]);
 
   const finishWorkout = useCallback(() => {
     const done = exercises.reduce((a, e) => a + e.sets.filter(s => s.done).length, 0);
@@ -362,7 +378,6 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
         {
           text: 'Salvar',
           onPress: async () => {
-            stopWorkoutNotification();
             await clearPersistedSession();
             const log: CompletedWorkout = {
               id: String(Date.now()),
@@ -481,6 +496,18 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
             </View>
           </View>
         </View>
+        {/* Rest duration pills */}
+        <View style={s.restPills}>
+          {[30, 60, 90].map((d) => (
+            <TouchableOpacity
+              key={d}
+              style={[s.restPill, restDuration === d && s.restPillActive]}
+              onPress={() => setRestDuration(d)}
+            >
+              <Text style={[s.restPillText, restDuration === d && s.restPillTextActive]}>{d}s</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
       </View>
 
       {/* ── Exercise list ── */}
@@ -508,6 +535,27 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
                 </TouchableOpacity>
                 <TouchableOpacity style={[s.exActionBtn, s.exDeleteBtn]} onPress={() => deleteExercise(exIdx)}>
                   <Text style={s.exActionBtnText}>🗑</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={s.addSetBtn}
+                  onPress={() => { setHistoryExerciseName(ex.name); setShowHistoryModal(true); }}
+                >
+                  <Text style={{ color: C.primaryLight, fontSize: 14 }}>📊</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[s.addSetBtn, { opacity: exercises.length <= 1 ? 0.4 : 1 }]}
+                  disabled={exercises.length <= 1}
+                  onPress={() => {
+                    Alert.alert('Remover exercício', 'Deseja remover este exercício?', [
+                      { text: 'Cancelar', style: 'cancel' },
+                      {
+                        text: 'Remover', style: 'destructive',
+                        onPress: () => setExercises((prev) => prev.filter((_, i) => i !== exIdx)),
+                      },
+                    ]);
+                  }}
+                >
+                  <Text style={{ color: '#EF4444', fontSize: 14 }}>🗑</Text>
                 </TouchableOpacity>
               </View>
 
@@ -638,14 +686,42 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
         <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setShowAddExercise(false)}>
           <View style={s.cfgBox} onStartShouldSetResponder={() => true}>
             <Text style={s.cfgTitle}>Adicionar Exercício</Text>
+
+            {/* Block type selector */}
+            <Text style={{ color: C.text3, fontSize: 11, fontWeight: '700', marginBottom: 6, textAlign: 'center' }}>TIPO DE BLOCO</Text>
+            <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+              {['Normal', 'Biset', 'Triset', 'Superset'].map((bt) => (
+                <TouchableOpacity
+                  key={bt}
+                  style={{
+                    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20,
+                    backgroundColor: newExBlockType === bt ? C.primary : C.elevated,
+                    borderWidth: 1, borderColor: newExBlockType === bt ? C.primary : C.border,
+                  }}
+                  onPress={() => setNewExBlockType(bt)}
+                >
+                  <Text style={{ color: newExBlockType === bt ? '#fff' : C.text2, fontSize: 12, fontWeight: '700' }}>{bt}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
             <TextInput
               style={s.cfgInput}
               value={newExerciseName}
               onChangeText={setNewExerciseName}
-              placeholder="Nome do exercício"
+              placeholder={newExBlockType !== 'Normal' ? 'Exercício 1' : 'Nome do exercício'}
               placeholderTextColor={C.text3}
             />
-            <View style={s.quickInputRow}>
+            {(newExBlockType === 'Biset' || newExBlockType === 'Triset' || newExBlockType === 'Superset') && (
+              <TextInput style={[s.cfgInput, { marginTop: 6 }]} value={newExName2} onChangeText={setNewExName2} placeholder="Exercício 2" placeholderTextColor={C.text3} />
+            )}
+            {(newExBlockType === 'Triset' || newExBlockType === 'Superset') && (
+              <TextInput style={[s.cfgInput, { marginTop: 6 }]} value={newExName3} onChangeText={setNewExName3} placeholder="Exercício 3" placeholderTextColor={C.text3} />
+            )}
+            {newExBlockType === 'Superset' && (
+              <TextInput style={[s.cfgInput, { marginTop: 6 }]} value={newExName4} onChangeText={setNewExName4} placeholder="Exercício 4" placeholderTextColor={C.text3} />
+            )}
+            <View style={[s.quickInputRow, { marginTop: 6 }]}>
               <TextInput
                 style={[s.cfgInput, s.quickInput]}
                 value={newExerciseSets}
@@ -663,18 +739,25 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
               />
             </View>
             <TextInput
-              style={s.cfgInput}
+              style={[s.cfgInput, { marginTop: 6 }]}
               value={newExerciseRest}
               onChangeText={setNewExerciseRest}
               placeholder="Descanso (ex: 90s)"
               placeholderTextColor={C.text3}
             />
-            <TouchableOpacity style={s.cfgApply} onPress={addManualExercise}>
+            <TouchableOpacity style={[s.cfgApply, { marginTop: 10 }]} onPress={addManualExercise}>
               <Text style={s.cfgApplyText}>Adicionar</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
       </Modal>
+
+      <ExerciseHistoryModal
+        visible={showHistoryModal}
+        onClose={() => setShowHistoryModal(false)}
+        exerciseName={historyExerciseName}
+        history={workoutHistory}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -691,7 +774,12 @@ const s = StyleSheet.create({
   finishBtn: { backgroundColor: C.success, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 },
   finishBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 
-  timerBar: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
+  timerBar: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  restPills: { flexDirection: 'row', gap: 6, marginTop: 8, justifyContent: 'center' },
+  restPill: { paddingHorizontal: 14, paddingVertical: 5, borderRadius: 20, backgroundColor: C.elevated, borderWidth: 1, borderColor: C.border },
+  restPillActive: { backgroundColor: C.primary, borderColor: C.primary },
+  restPillText: { color: C.text2, fontSize: 12, fontWeight: '700' },
+  restPillTextActive: { color: '#fff' },
   timeCard: {
     backgroundColor: C.elevated, borderWidth: 1, borderColor: C.border,
     borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, minWidth: 68, alignItems: 'center',

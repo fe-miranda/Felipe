@@ -2,13 +2,34 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
+  handleNotification: async (notification) => {
+    const type = notification.request.content.data?.type;
+    if (type === 'workout-active') {
+      return {
+        shouldShowAlert: false,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+        shouldShowBanner: false,
+        shouldShowList: true,
+      };
+    }
+    if (type === 'rest-end') {
+      return {
+        shouldShowAlert: false,
+        shouldShowBanner: false,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+        shouldShowList: true,
+      };
+    }
+    return {
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    };
+  },
 });
 
 let _restNotifId: string | null = null;
@@ -23,6 +44,38 @@ export async function setupNotifications(): Promise<void> {
     });
   }
   await Notifications.requestPermissionsAsync();
+
+  await Notifications.setNotificationCategoryAsync(REST_CATEGORY_ID, [
+    {
+      identifier: 'START_REST',
+      buttonTitle: '▶ Iniciar Descanso',
+      options: { opensAppToForeground: true },
+    },
+    {
+      identifier: 'PAUSE_REST',
+      buttonTitle: '⏸ Pausar Descanso',
+      options: { opensAppToForeground: true },
+    },
+  ]);
+
+  if (!_responseListener) {
+    _responseListener = Notifications.addNotificationResponseReceivedListener((response) => {
+      if (response.actionIdentifier === 'START_REST' && _restActionStartCb) _restActionStartCb();
+      if (response.actionIdentifier === 'PAUSE_REST' && _restActionPauseCb) _restActionPauseCb();
+    });
+  }
+}
+
+export async function startWorkoutNotification(_elapsedSeconds: number = 0): Promise<void> {
+  // no-op
+}
+
+export async function updateWorkoutNotification(_elapsedSeconds: number): Promise<void> {
+  // no-op
+}
+
+export async function stopWorkoutNotification(): Promise<void> {
+  // no-op
 }
 
 export async function scheduleRestEndNotification(seconds: number): Promise<void> {

@@ -3,8 +3,10 @@ import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Modal, TextInput,
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Exercise, RootStackParamList } from '../types';
+import { Exercise, RootStackParamList, CompletedWorkout } from '../types';
 import { usePlan } from '../hooks/usePlan';
+import { loadHistory } from '../services/workoutHistoryService';
+import { ExerciseHistoryModal } from '../components/ExerciseHistoryModal';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'WorkoutDetail'>;
@@ -44,11 +46,20 @@ export function WorkoutDetailScreen({ navigation, route }: Props) {
   const [newReps, setNewReps] = useState('10-12');
   const [newRest, setNewRest] = useState('90s');
   const [newNotes, setNewNotes] = useState('');
+  const [newBlockType, setNewBlockType] = useState('Normal');
+  const [newName2, setNewName2] = useState('');
+  const [newName3, setNewName3] = useState('');
+  const [newName4, setNewName4] = useState('');
+
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyExerciseName, setHistoryExerciseName] = useState('');
+  const [workoutHistory, setWorkoutHistory] = useState<CompletedWorkout[]>([]);
 
   const [planLoading, setPlanLoading] = useState(true);
 
   useEffect(() => {
     loadStoredPlan().finally(() => setPlanLoading(false));
+    loadHistory().then(setWorkoutHistory).catch(() => {});
   }, []);
   useEffect(() => {
     if (!plan) return;
@@ -150,21 +161,25 @@ export function WorkoutDetailScreen({ navigation, route }: Props) {
       Alert.alert('Atenção', 'Preencha nome, séries, reps e descanso corretamente.');
       return;
     }
-    setEditableExercises((prev) => ([
-      ...prev,
-      {
-        name: newName.trim(),
-        sets: parsedSets,
-        reps: newReps.trim(),
-        rest: newRest.trim(),
-        notes: newNotes.trim() || undefined,
-      },
-    ]));
-    setNewName('');
-    setNewSets('3');
-    setNewReps('10-12');
-    setNewRest('90s');
-    setNewNotes('');
+    const extraCount = newBlockType === 'Biset' ? 1 : newBlockType === 'Triset' ? 2 : newBlockType === 'Superset' ? 3 : 0;
+    const names = [newName.trim(), newName2.trim(), newName3.trim(), newName4.trim()].slice(0, extraCount + 1);
+    if (extraCount > 0 && names.some((n, i) => i > 0 && !n)) {
+      Alert.alert('Atenção', 'Preencha os nomes de todos os exercícios do bloco.');
+      return;
+    }
+    const total = names.length;
+    const newExercises: Exercise[] = names.map((n, i) => ({
+      name: n,
+      sets: parsedSets,
+      reps: newReps.trim(),
+      rest: total > 1 && i < total - 1 ? '0s' : newRest.trim(),
+      notes: total > 1 ? `${newBlockType} ${i + 1}/${total}` : newNotes.trim() || undefined,
+      blockType: newBlockType !== 'Normal' ? newBlockType : undefined,
+    }));
+    setEditableExercises((prev) => ([...prev, ...newExercises]));
+    setNewName(''); setNewName2(''); setNewName3(''); setNewName4('');
+    setNewSets('3'); setNewReps('10-12'); setNewRest('90s'); setNewNotes('');
+    setNewBlockType('Normal');
     setShowAddModal(false);
   };
 
@@ -214,8 +229,29 @@ export function WorkoutDetailScreen({ navigation, route }: Props) {
               <TouchableOpacity style={s.editExBtn} onPress={() => openEditExercise(idx)}>
                 <Text style={s.editExBtnText}>✎</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[s.editExBtn, { borderColor: 'rgba(239,68,68,0.3)', backgroundColor: 'rgba(239,68,68,0.08)' }]} onPress={() => deleteExercise(idx)}>
-                <Text style={{ fontSize: 12 }}>🗑</Text>
+              <TouchableOpacity
+                style={[s.editExBtn, { marginLeft: 4 }]}
+                onPress={() => {
+                  setHistoryExerciseName(ex.name);
+                  setShowHistoryModal(true);
+                }}
+              >
+                <Text style={s.editExBtnText}>📊</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.editExBtn, { marginLeft: 4, borderColor: '#EF444440' }]}
+                onPress={() => {
+                  Alert.alert('Excluir exercício', 'Deseja remover este exercício?', [
+                    { text: 'Cancelar', style: 'cancel' },
+                    {
+                      text: 'Remover',
+                      style: 'destructive',
+                      onPress: () => setEditableExercises((prev) => prev.filter((_, i) => i !== idx)),
+                    },
+                  ]);
+                }}
+              >
+                <Text style={[s.editExBtnText, { color: '#EF4444' }]}>🗑</Text>
               </TouchableOpacity>
             </View>
 
@@ -297,19 +333,61 @@ export function WorkoutDetailScreen({ navigation, route }: Props) {
         <TouchableOpacity style={s.overlay} activeOpacity={1} onPress={() => setShowAddModal(false)}>
           <View style={s.modalCard} onStartShouldSetResponder={() => true}>
             <Text style={s.modalTitle}>Adicionar exercício</Text>
-            <TextInput style={s.modalInput} value={newName} onChangeText={setNewName} placeholder="Nome" placeholderTextColor={C.text3} />
+
+            {/* Block type selector */}
+            <Text style={{ color: C.text3, fontSize: 11, fontWeight: '700', marginBottom: 6 }}>TIPO DE BLOCO</Text>
+            <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+              {['Normal', 'Biset', 'Triset', 'Superset'].map((bt) => (
+                <TouchableOpacity
+                  key={bt}
+                  style={{
+                    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
+                    backgroundColor: newBlockType === bt ? C.primary : C.elevated,
+                    borderWidth: 1, borderColor: newBlockType === bt ? C.primary : C.border,
+                  }}
+                  onPress={() => setNewBlockType(bt)}
+                >
+                  <Text style={{ color: newBlockType === bt ? '#fff' : C.text2, fontSize: 12, fontWeight: '700' }}>{bt}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TextInput style={s.modalInput} value={newName} onChangeText={setNewName}
+              placeholder={newBlockType !== 'Normal' ? 'Nome exercício 1' : 'Nome'} placeholderTextColor={C.text3} />
+            {(newBlockType === 'Biset' || newBlockType === 'Triset' || newBlockType === 'Superset') && (
+              <TextInput style={s.modalInput} value={newName2} onChangeText={setNewName2}
+                placeholder="Nome exercício 2" placeholderTextColor={C.text3} />
+            )}
+            {(newBlockType === 'Triset' || newBlockType === 'Superset') && (
+              <TextInput style={s.modalInput} value={newName3} onChangeText={setNewName3}
+                placeholder="Nome exercício 3" placeholderTextColor={C.text3} />
+            )}
+            {newBlockType === 'Superset' && (
+              <TextInput style={s.modalInput} value={newName4} onChangeText={setNewName4}
+                placeholder="Nome exercício 4" placeholderTextColor={C.text3} />
+            )}
+
             <View style={s.modalRow}>
               <TextInput style={[s.modalInput, s.modalHalf]} value={newSets} onChangeText={setNewSets} placeholder="Séries" placeholderTextColor={C.text3} keyboardType="numeric" />
               <TextInput style={[s.modalInput, s.modalHalf]} value={newReps} onChangeText={setNewReps} placeholder="Reps" placeholderTextColor={C.text3} />
             </View>
             <TextInput style={s.modalInput} value={newRest} onChangeText={setNewRest} placeholder="Descanso (ex: 90s)" placeholderTextColor={C.text3} />
-            <TextInput style={s.modalInput} value={newNotes} onChangeText={setNewNotes} placeholder="Observações (opcional)" placeholderTextColor={C.text3} />
+            {newBlockType === 'Normal' && (
+              <TextInput style={s.modalInput} value={newNotes} onChangeText={setNewNotes} placeholder="Observações (opcional)" placeholderTextColor={C.text3} />
+            )}
             <TouchableOpacity style={s.modalBtn} onPress={addExercise}>
               <Text style={s.modalBtnText}>Adicionar</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
       </Modal>
+
+      <ExerciseHistoryModal
+        visible={showHistoryModal}
+        onClose={() => setShowHistoryModal(false)}
+        exerciseName={historyExerciseName}
+        history={workoutHistory}
+      />
     </>
   );
 }

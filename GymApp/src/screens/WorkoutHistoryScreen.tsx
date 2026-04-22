@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import Svg, { Rect, Text as SvgText, G, Line, Polyline, Circle as SvgCircle } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RootStackParamList, CompletedWorkout } from '../types';
 import { loadHistory, deleteWorkout } from '../services/workoutHistoryService';
@@ -26,6 +27,73 @@ function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString('pt-BR', {
     weekday: 'short', day: 'numeric', month: 'short',
   });
+}
+
+const DAY_LABELS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+const CHART_W = 280;
+const BAR_H = 80;
+
+function WeeklyActivityChart({ history }: { history: CompletedWorkout[] }) {
+  // Count workouts per day of week in last 7 days
+  const now = new Date();
+  const counts = Array(7).fill(0);
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(now);
+    d.setDate(now.getDate() - (6 - i));
+    const dayStr = d.toISOString().slice(0, 10);
+    counts[i] = history.filter(w => w.date.slice(0, 10) === dayStr).length;
+  }
+  const maxCount = Math.max(...counts, 1);
+  const barW = (CHART_W - 8 * 8) / 7;
+
+  return (
+    <Svg width={CHART_W} height={BAR_H + 24}>
+      {counts.map((c, i) => {
+        const h = Math.max(4, (c / maxCount) * BAR_H);
+        const x = 8 + i * (barW + 8);
+        const y = BAR_H - h;
+        return (
+          <G key={i}>
+            <Rect x={x} y={y} width={barW} height={h} rx={4}
+              fill={c > 0 ? C.primary : C.elevated} opacity={c > 0 ? 0.9 : 1}
+            />
+            <SvgText x={x + barW / 2} y={BAR_H + 14} fill={C.text3} fontSize={9} textAnchor="middle">
+              {DAY_LABELS[i]}
+            </SvgText>
+            {c > 0 && (
+              <SvgText x={x + barW / 2} y={y - 3} fill={C.primaryLight} fontSize={9} textAnchor="middle" fontWeight="700">
+                {c}
+              </SvgText>
+            )}
+          </G>
+        );
+      })}
+    </Svg>
+  );
+}
+
+const LINE_W = 280;
+const LINE_H = 80;
+
+function VolumeLineChart({ history }: { history: CompletedWorkout[] }) {
+  const data = history.slice(-10).map(w => w.exercises.reduce((a, e) => a + e.sets.filter(s => s.done).length, 0));
+  if (data.length < 2) return null;
+  const maxVal = Math.max(...data, 1);
+  const stepX = LINE_W / (data.length - 1);
+  const points = data.map((v, i) => `${i * stepX},${LINE_H - (v / maxVal) * LINE_H}`).join(' ');
+
+  return (
+    <Svg width={LINE_W} height={LINE_H + 16}>
+      <Line x1={0} y1={LINE_H / 2} x2={LINE_W} y2={LINE_H / 2} stroke={C.border} strokeWidth={0.5} strokeDasharray="4,4" />
+      <Polyline points={points} fill="none" stroke={C.primary} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+      {data.map((v, i) => (
+        <G key={i}>
+          <SvgCircle cx={i * stepX} cy={LINE_H - (v / maxVal) * LINE_H} r={4} fill={C.primary} />
+          <SvgText x={i * stepX} y={LINE_H + 13} fill={C.text3} fontSize={8} textAnchor="middle">{v}</SvgText>
+        </G>
+      ))}
+    </Svg>
+  );
 }
 
 function calcStreak(history: CompletedWorkout[]): number {
@@ -109,6 +177,26 @@ export function WorkoutHistoryScreen({ navigation }: Props) {
           </View>
         ))}
       </View>
+
+      {/* ── Weekly Activity Chart ── */}
+      {history.length > 0 && (
+        <View style={s.chartCard}>
+          <Text style={s.chartTitle}>📅 Atividade Semanal</Text>
+          <View style={s.chartInner}>
+            <WeeklyActivityChart history={history} />
+          </View>
+        </View>
+      )}
+
+      {/* ── Volume Chart ── */}
+      {history.length >= 2 && (
+        <View style={s.chartCard}>
+          <Text style={s.chartTitle}>📈 Volume por Treino (séries)</Text>
+          <View style={s.chartInner}>
+            <VolumeLineChart history={history} />
+          </View>
+        </View>
+      )}
 
       {history.length === 0 ? (
         <View style={s.empty}>
@@ -202,6 +290,10 @@ const s = StyleSheet.create({
   statIcon: { fontSize: 20, marginBottom: 4 },
   statValue: { color: C.primary, fontSize: 20, fontWeight: '900' },
   statLabel: { color: C.text3, fontSize: 10, marginTop: 2 },
+
+  chartCard: { backgroundColor: C.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: C.border },
+  chartTitle: { color: C.text1, fontSize: 14, fontWeight: '800', marginBottom: 12 },
+  chartInner: { alignItems: 'center' },
 
   empty: { alignItems: 'center', paddingVertical: 64, gap: 12 },
   emptyEmoji: { fontSize: 60 },

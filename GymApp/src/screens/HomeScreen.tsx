@@ -68,9 +68,26 @@ function fmtDuration(s: number): string {
 
 type Props = { navigation: NativeStackNavigationProp<RootStackParamList, 'Home'> };
 
+const DAY_MAP: Record<number, string> = {
+  0: 'Domingo', 1: 'Segunda', 2: 'Terça', 3: 'Quarta',
+  4: 'Quinta', 5: 'Sexta', 6: 'Sábado',
+};
+
 export function HomeScreen({ navigation }: Props) {
   const { plan, loadStoredPlan, clearPlan } = usePlan();
   const [recentWorkouts, setRecentWorkouts] = useState<CompletedWorkout[]>([]);
+  const [quickFilter, setQuickFilter] = useState('Todos');
+  const [dailySuggestion, setDailySuggestion] = useState<DailySuggestion | null>(null);
+  const [loadingSuggestion, setLoadingSuggestion] = useState(false);
+  const [showCustomizer, setShowCustomizer] = useState(false);
+  const [custGroups, setCustGroups] = useState<string[]>([]);
+  const [custStrategy, setCustStrategy] = useState('');
+  const [custDuration, setCustDuration] = useState(30);
+  const [custEquipment, setCustEquipment] = useState('academia');
+  const [custLoading, setCustLoading] = useState(false);
+  const [custWorkout, setCustWorkout] = useState<WorkoutDay | null>(null);
+  const [resumeWorkout, setResumeWorkout] = useState<WorkoutDay | null>(null);
+  const [resumeContext, setResumeContext] = useState<{ monthIndex: number; weekIndex: number; dayIndex: number } | undefined>(undefined);
 
   const reloadHistory = useCallback(async () => {
     const hist = await loadHistory();
@@ -110,28 +127,29 @@ export function HomeScreen({ navigation }: Props) {
   const generatedCount = monthlyBlocks.filter((b) => b.weeks.length > 0).length;
   const progress = generatedCount / 12;
 
-  // Calendar: calculate current month index relative to plan start
-  const planStart = new Date(plan.createdAt);
+  // Calculate current month index based on plan.createdAt
+  const planStartDate = new Date(plan.createdAt);
   const now = new Date();
-  const monthsElapsed = (now.getFullYear() - planStart.getFullYear()) * 12
-    + (now.getMonth() - planStart.getMonth());
-  const currentMonthIdx = Math.min(Math.max(0, monthsElapsed), monthlyBlocks.length - 1);
-  const planStartMonth = planStart.getMonth();
+  const monthsElapsed = (now.getFullYear() - planStartDate.getFullYear()) * 12 + (now.getMonth() - planStartDate.getMonth());
+  const currentMonthIndex = Math.min(Math.max(0, monthsElapsed), 11);
 
-  // Find today's workout in the plan
-  const todayDayOfWeek = DAYS_PT[now.getDay()];
-  const currentMonth = monthlyBlocks[currentMonthIdx];
-  const currentWeekIdx = currentMonth?.weeks.length > 0
-    ? Math.min(
-        Math.floor((now.getDate() - 1) / 7),
-        currentMonth.weeks.length - 1,
-      )
-    : null;
-  const todayWorkout = currentWeekIdx !== null
-    ? currentMonth.weeks[currentWeekIdx]?.days.find(
-        (d) => d.dayOfWeek.startsWith(todayDayOfWeek),
-      ) ?? null
-    : null;
+  // Find today's workout from plan
+  const todayDOW = DAY_MAP[now.getDay()];
+  let todayWorkout: WorkoutDay | null = null;
+  let todayContext: { monthIndex: number; weekIndex: number; dayIndex: number } | undefined;
+  const curMonth = monthlyBlocks[currentMonthIndex];
+  if (curMonth?.weeks?.length) {
+    const weeksElapsed = Math.floor((now.getTime() - planStartDate.getTime()) / (7 * 24 * 60 * 60 * 1000)) % curMonth.weeks.length;
+    const weekIdx = Math.min(Math.max(0, weeksElapsed), curMonth.weeks.length - 1);
+    const curWeek = curMonth.weeks[weekIdx];
+    if (curWeek?.days) {
+      const dayIdx = curWeek.days.findIndex(d => d.dayOfWeek === todayDOW);
+      if (dayIdx >= 0) {
+        todayWorkout = curWeek.days[dayIdx];
+        todayContext = { monthIndex: currentMonthIndex, weekIndex: weekIdx, dayIndex: dayIdx };
+      }
+    }
+  }
 
   return (
     <SafeAreaView style={s.safeArea} edges={['top', 'bottom']}>
@@ -147,6 +165,26 @@ export function HomeScreen({ navigation }: Props) {
           <Text style={s.iconBtnText}>⚙️</Text>
         </TouchableOpacity>
       </View>
+
+      {/* ── Acessar seu treino ── */}
+      <TouchableOpacity
+        style={s.todayBtn}
+        activeOpacity={0.85}
+        onPress={() => {
+          const w = todayWorkout ?? dailySuggestion?.workout ?? null;
+          const ctx = todayContext;
+          if (w) navigation.navigate('ActiveWorkout', { workout: w, context: ctx });
+          else Alert.alert('Treino do dia', 'Nenhum treino encontrado para hoje. Tente um treino rápido!');
+        }}
+      >
+        <Text style={s.todayBtnText}>▶  Acessar Seu Treino de Hoje</Text>
+        {todayWorkout && <Text style={s.todayBtnSub}>{todayWorkout.focus}</Text>}
+      </TouchableOpacity>
+
+      {/* ── Performance Analysis button ── */}
+      <TouchableOpacity style={s.exportBtn} onPress={() => navigation.navigate('PerformanceAnalysis')}>
+        <Text style={s.exportBtnText}>📊 Analisar Desempenho</Text>
+      </TouchableOpacity>
 
       {/* ── Hero goal card ── */}
       <View style={s.heroCard}>
@@ -285,14 +323,32 @@ export function HomeScreen({ navigation }: Props) {
         })
       )}
 
+      <TouchableOpacity style={s.recordsCard} onPress={() => navigation.navigate('WorkoutHistory')} activeOpacity={0.82}>
+        <Text style={s.recordsIcon}>🏆</Text>
+        <View style={s.recordsInfo}>
+          <Text style={s.recordsTitle}>Recordes Pessoais</Text>
+          <Text style={s.recordsSub}>A seção de recordes fica no Histórico de Treinos</Text>
+        </View>
+        <Text style={s.recordsArrow}>›</Text>
+      </TouchableOpacity>
+
+      {/* ── Muscle fatigue link ── */}
+      <TouchableOpacity style={s.fatigueCard} onPress={() => navigation.navigate('MuscleFatigue')} activeOpacity={0.82}>
+        <Text style={s.fatigueIcon}>🔥</Text>
+        <View style={s.fatigueInfo}>
+          <Text style={s.fatigueTitle}>Fadiga Muscular</Text>
+          <Text style={s.fatigueSub}>Veja quais músculos precisam de descanso</Text>
+        </View>
+        <Text style={s.fatigueArrow}>›</Text>
+      </TouchableOpacity>
+
       {/* ── Month grid ── */}
       <Text style={[s.sectionTitle, { marginTop: 8 }]}>📅 Plano Anual</Text>
       <View style={s.monthGrid}>
         {monthlyBlocks.map((month, idx) => {
           const ph = PHASE(idx);
           const hasWeeks = month.weeks.length > 0;
-          const calendarMonth = (planStartMonth + idx) % 12;
-          const isCurrent = idx === currentMonthIdx;
+          const isCurrent = idx === currentMonthIndex;
           return (
             <TouchableOpacity
               key={idx}
@@ -358,6 +414,118 @@ export function HomeScreen({ navigation }: Props) {
         </>
       )}
     </ScrollView>
+
+    {/* ── Customizer Modal ── */}
+    <Modal visible={showCustomizer} animationType="slide" transparent presentationStyle="overFullScreen">
+      <View style={s.modalOverlay}>
+        <View style={s.modalSheet}>
+          <View style={s.modalHeader}>
+            <Text style={s.modalTitle}>🎯 Personalizar Treino</Text>
+            <TouchableOpacity onPress={() => setShowCustomizer(false)}>
+              <Text style={s.modalClose}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {custWorkout ? (
+              <View style={s.custResult}>
+                <Text style={s.custResultTitle}>{custWorkout.focus}</Text>
+                <Text style={s.custResultSub}>{custWorkout.duration} min · {custWorkout.exercises.length} exercícios</Text>
+                {custWorkout.exercises.map((ex, i) => (
+                  <View key={i} style={s.custExRow}>
+                    <Text style={s.custExName}>{ex.name}</Text>
+                    <Text style={s.custExMeta}>{ex.sets}×{ex.reps}</Text>
+                  </View>
+                ))}
+                <TouchableOpacity
+                  style={s.custStartBtn}
+                  onPress={() => { setShowCustomizer(false); navigation.navigate('ActiveWorkout', { workout: custWorkout }); }}
+                >
+                  <Text style={s.custStartBtnText}>▶  Iniciar Treino</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={s.custRegenBtn} onPress={() => setCustWorkout(null)}>
+                  <Text style={s.custRegenBtnText}>↺  Gerar outro</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View>
+                <Text style={s.custSection}>Grupos Musculares</Text>
+                <View style={s.custPills}>
+                  {['Peito','Costas','Ombro','Bíceps','Tríceps','Pernas','Glúteo','Abdômen','Panturrilha'].map((g) => {
+                    const sel = custGroups.includes(g);
+                    return (
+                      <TouchableOpacity
+                        key={g}
+                        style={[s.custPill, sel && s.custPillActive]}
+                        onPress={() => setCustGroups(sel ? custGroups.filter(x => x !== g) : [...custGroups, g])}
+                      >
+                        <Text style={[s.custPillText, sel && s.custPillTextActive]}>{g}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <Text style={s.custSection}>Estratégia</Text>
+                <View style={s.custPills}>
+                  {['Normal','HIIT','Biset','Triset','Pirâmide','Dropset'].map((st) => {
+                    const sel = custStrategy === st;
+                    return (
+                      <TouchableOpacity
+                        key={st}
+                        style={[s.custPill, sel && s.custPillActive]}
+                        onPress={() => setCustStrategy(sel ? '' : st)}
+                      >
+                        <Text style={[s.custPillText, sel && s.custPillTextActive]}>{st}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <Text style={s.custSection}>Duração</Text>
+                <View style={s.custRow}>
+                  {[20, 30, 45, 60].map((d) => (
+                    <TouchableOpacity
+                      key={d}
+                      style={[s.custDurBtn, custDuration === d && s.custDurBtnActive]}
+                      onPress={() => setCustDuration(d)}
+                    >
+                      <Text style={[s.custDurText, custDuration === d && s.custDurTextActive]}>{d}min</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={s.custSection}>Equipamento</Text>
+                <View style={s.custPills}>
+                  {['academia','casa (sem equipamento)','halters apenas','calistenia'].map((eq) => {
+                    const sel = custEquipment === eq;
+                    return (
+                      <TouchableOpacity
+                        key={eq}
+                        style={[s.custPill, sel && s.custPillActive]}
+                        onPress={() => setCustEquipment(eq)}
+                      >
+                        <Text style={[s.custPillText, sel && s.custPillTextActive]}>{eq}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <TouchableOpacity
+                  style={[s.custGenBtn, custLoading && { opacity: 0.6 }]}
+                  onPress={handleGenerateCustom}
+                  disabled={custLoading}
+                >
+                  {custLoading ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={s.custGenBtnText}>🤖  Gerar Treino com IA</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
     </SafeAreaView>
   );
 }
@@ -379,6 +547,15 @@ const s = StyleSheet.create({
   greetingSub: { color: C.text3, fontSize: 12, marginTop: 2 },
   iconBtn: { width: 38, height: 38, borderRadius: 10, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.border },
   iconBtnText: { fontSize: 18 },
+  exportBtn: { backgroundColor: C.surface, borderRadius: 12, borderWidth: 1, borderColor: C.border, paddingVertical: 10, alignItems: 'center', marginBottom: 14 },
+  exportBtnText: { color: C.primaryLight, fontSize: 14, fontWeight: '700' },
+  todayBtn: {
+    backgroundColor: C.primary, borderRadius: 16, paddingVertical: 16,
+    alignItems: 'center', marginBottom: 12,
+    shadowColor: C.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 12, elevation: 8,
+  },
+  todayBtnText: { color: '#fff', fontSize: 17, fontWeight: '800', letterSpacing: 0.3 },
+  todayBtnSub: { color: 'rgba(255,255,255,0.75)', fontSize: 12, marginTop: 4 },
 
   heroCard: {
     backgroundColor: C.surface, borderRadius: 20, padding: 20, marginBottom: 14,
