@@ -17,15 +17,16 @@
       "^expo/src/winter$": "<rootDir>/__mocks__/expo-winter.js",
       "^expo/src/winter/ImportMetaRegistry$": "<rootDir>/__mocks__/expo-import-meta-registry.js",
       "^react-native-safe-area-context$": "<rootDir>/__mocks__/react-native-safe-area-context.js",
-        "^expo-notifications$": "<rootDir>/__mocks__/expo-notifications.js",
-        "^expo-sharing$": "<rootDir>/__mocks__/expo-sharing.js",
-        "^expo-file-system$": "<rootDir>/__mocks__/expo-file-system.js",
-        "^expo-file-system/legacy$": "<rootDir>/__mocks__/expo-file-system.js",
-        "^react-native-view-shot$": "<rootDir>/__mocks__/react-native-view-shot.js",
-        "^react-native-svg$": "<rootDir>/__mocks__/react-native-svg.js",
-        "^react-native-ble-plx$": "<rootDir>/__mocks__/react-native-ble-plx.js",
+      "^expo-notifications$": "<rootDir>/__mocks__/expo-notifications.js",
+      "^expo-sharing$": "<rootDir>/__mocks__/expo-sharing.js",
+      "^expo-file-system$": "<rootDir>/__mocks__/expo-file-system.js",
+      "^expo-file-system/legacy$": "<rootDir>/__mocks__/expo-file-system.js",
+      "^react-native-view-shot$": "<rootDir>/__mocks__/react-native-view-shot.js",
+      "^react-native-svg$": "<rootDir>/__mocks__/react-native-svg.js",
+      "^react-native-ble-plx$": "<rootDir>/__mocks__/react-native-ble-plx.js",
       "^expo-media-library$": "<rootDir>/__mocks__/expo-media-library.js",
-      "^expo-image-picker$": "<rootDir>/__mocks__/expo-image-picker.js"
+      "^expo-image-picker$": "<rootDir>/__mocks__/expo-image-picker.js",
+      "^expo-av$": "<rootDir>/__mocks__/expo-av.js"
     }
   },
   "dependencies": {
@@ -34,6 +35,7 @@
     "@react-navigation/native": "^7.2.2",
     "@react-navigation/native-stack": "^7.14.10",
     "expo": "~55.0.15",
+    "expo-av": "~14.0.7",
     "expo-image-picker": "~16.1.0",
     "expo-media-library": "~55.0.14",
     "expo-notifications": "~55.0.19",

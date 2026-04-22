@@ -1,4 +1,5 @@
 import * as Notifications from 'expo-notifications';
+import { Audio } from 'expo-av';
 import { Platform } from 'react-native';
 
 Notifications.setNotificationHandler({
@@ -41,10 +42,33 @@ let _restActionStartCb: (() => void) | null = null;
 let _restActionPauseCb: (() => void) | null = null;
 let _responseListener: Notifications.EventSubscription | null = null;
 
-function fmtElapsed(seconds: number): string {
-  const m = Math.floor(seconds / 60).toString().padStart(2, '0');
-  const s = (seconds % 60).toString().padStart(2, '0');
-  return `${m}:${s}`;
+// Play a short beep through the active audio output (headphones / Bluetooth).
+// Falls back silently if expo-av is unavailable.
+async function playRestEndSound(): Promise<void> {
+  let sound: Awaited<ReturnType<typeof Audio.Sound.createAsync>>['sound'] | null = null;
+  try {
+    await Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+      shouldDuckAndroid: false,
+    });
+    ({ sound } = await Audio.Sound.createAsync(
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require('../../assets/rest_end_beep.wav'),
+      { shouldPlay: true, volume: 1.0 },
+    ));
+    sound.setOnPlaybackStatusUpdate((status) => {
+      if (!status.isLoaded) return;
+      if (status.didJustFinish) {
+        sound?.setOnPlaybackStatusUpdate(null);
+        sound?.unloadAsync().catch(() => {});
+      }
+    });
+  } catch {
+    // Fail silently – notification sound will still fire for background case
+    sound?.setOnPlaybackStatusUpdate(null);
+    sound?.unloadAsync().catch(() => {});
+  }
 }
 
 export function setRestActionCallback(cb: (() => void) | null): void {
@@ -149,6 +173,8 @@ export async function cancelRestNotification(): Promise<void> {
 }
 
 export async function triggerRestEndAlert(): Promise<void> {
+  // Play sound directly through the active audio output (headphones / Bluetooth).
+  await playRestEndSound();
   try {
     await Notifications.scheduleNotificationAsync({
       content: {
