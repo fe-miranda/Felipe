@@ -15,8 +15,8 @@ Notifications.setNotificationHandler({
     }
     if (type === 'rest-end') {
       return {
-        shouldShowAlert: false,
-        shouldShowBanner: false,
+        shouldShowAlert: true,
+        shouldShowBanner: true,
         shouldPlaySound: true,
         shouldSetBadge: false,
         shouldShowList: true,
@@ -57,11 +57,20 @@ export function setRestPauseActionCallback(cb: (() => void) | null): void {
 
 export async function setupNotifications(): Promise<void> {
   if (Platform.OS === 'android') {
+    // Use ALARM audio usage (usage=4) so the sound plays even when the phone
+    // is on silent or vibrate mode — same behaviour as media/music playback.
     await Notifications.setNotificationChannelAsync('rest-timer', {
-      name: 'Timer de Descanso',
-      importance: Notifications.AndroidImportance.HIGH,
+      name: 'Alarme de Descanso',
+      importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
       sound: 'default',
+      bypassDnd: true,
+      // audioAttributes.usage=4 → USAGE_ALARM (bypasses ringer/silent/vibrate)
+      audioAttributes: {
+        usage: (Notifications as any).AndroidAudioUsage?.ALARM ?? 4,
+        contentType: (Notifications as any).AndroidAudioContentType?.SONIFICATION ?? 4,
+      },
+      lockscreenVisibility: (Notifications as any).AndroidNotificationVisibility?.PUBLIC ?? 1,
     });
     await Notifications.setNotificationChannelAsync('workout-active', {
       name: 'Treino Ativo',
@@ -114,12 +123,17 @@ export async function scheduleRestEndNotification(seconds: number): Promise<void
         title: '⏰ Descansou!',
         body: 'Hora de voltar ao treino 💪',
         sound: 'default',
+        // iOS: request sound even in "Do Not Disturb" (requires entitlement for
+        // truly critical alerts, but this maximises chances of audible playback)
+        ...(Platform.OS === 'ios' ? { interruptionLevel: 'timeSensitive' } : {}),
         data: { type: 'rest-end' },
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
         seconds: Math.max(1, Math.round(seconds)),
         repeats: false,
+        // Android: use the ALARM channel so it rings even in silent/vibrate mode
+        ...(Platform.OS === 'android' ? { channelId: 'rest-timer' } : {}),
       },
     });
   } catch {
@@ -141,9 +155,12 @@ export async function triggerRestEndAlert(): Promise<void> {
         title: '⏰ Descanso finalizado',
         body: 'Hora de voltar ao treino 💪',
         sound: 'default',
+        ...(Platform.OS === 'ios' ? { interruptionLevel: 'timeSensitive' } : {}),
         data: { type: 'rest-end' },
       },
-      trigger: null,
+      trigger: Platform.OS === 'android'
+        ? { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 1, repeats: false, channelId: 'rest-timer' }
+        : null,
     });
   } catch {
     // Notifications not available — fail silently

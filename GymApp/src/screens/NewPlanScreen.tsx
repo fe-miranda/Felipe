@@ -221,6 +221,10 @@ export function NewPlanScreen({ navigation }: Props) {
   }
 
   if (mode === 'text') {
+    const charCount = planText.length;
+    const wordCount = planText.trim() ? planText.trim().split(/\s+/).length : 0;
+    const hasContent = planText.trim().length > 10;
+
     return (
       <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
         <ScrollView style={s.container} contentContainerStyle={s.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
@@ -233,34 +237,85 @@ export function NewPlanScreen({ navigation }: Props) {
             <Text style={s.sectionTitle}>Importar via Texto</Text>
           </View>
           <Text style={s.sectionDesc}>
-            Cole abaixo o texto do seu plano de treino (de qualquer formato). A IA irá interpretar e converter para o app.
+            Cole o texto do seu plano de treino em qualquer formato. A IA interpreta e converte automaticamente para o app.
           </Text>
 
-          <TextInput
-            style={s.textArea}
-            placeholder={'Exemplo:\nSegunda – Peito e Tríceps\n• Supino Reto: 4x10\n• Crucifixo: 3x12\n...'}
-            placeholderTextColor={C.text3}
-            multiline
-            numberOfLines={12}
-            value={planText}
-            onChangeText={setPlanText}
-            editable={!loading}
-            textAlignVertical="top"
-          />
+          {/* Format hints */}
+          <View style={s.hintCard}>
+            <Text style={s.hintTitle}>💡 Formatos aceitos</Text>
+            {[
+              '📅  Planilha de academia (Segunda, Terça…)',
+              '📄  PDF / texto copiado de app',
+              '🤖  Plano gerado por ChatGPT ou similar',
+              '✏️  Lista manual de exercícios',
+            ].map((h, i) => (
+              <View key={i} style={s.hintRow}>
+                <Text style={s.hintText}>{h}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* Text area with clear button */}
+          <View style={s.textAreaWrap}>
+            <TextInput
+              style={s.textArea}
+              placeholder={
+                'Exemplo:\n\n' +
+                'Segunda – Peito e Tríceps\n' +
+                '• Supino Reto: 4x10 (90s)\n' +
+                '• Crucifixo Inclinado: 3x12\n' +
+                '• Tríceps Pulley: 4x12 (60s)\n\n' +
+                'Terça – Costas e Bíceps\n' +
+                '• Puxada Frontal: 4x10\n' +
+                '• Remada Curvada: 4x10\n' +
+                '• Rosca Direta: 3x12\n...'
+              }
+              placeholderTextColor={C.text3}
+              multiline
+              numberOfLines={14}
+              value={planText}
+              onChangeText={setPlanText}
+              editable={!loading}
+              textAlignVertical="top"
+            />
+            {/* Character count + clear */}
+            <View style={s.textAreaFooter}>
+              <Text style={s.charCount}>{wordCount} palavras · {charCount} caracteres</Text>
+              {hasContent && !loading && (
+                <TouchableOpacity onPress={() => setPlanText('')} style={s.clearBtn}>
+                  <Text style={s.clearBtnText}>✕ Limpar</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          {/* Preview snippet */}
+          {hasContent && (
+            <View style={s.previewCard}>
+              <Text style={s.previewLabel}>PRÉVIA DO TEXTO</Text>
+              <Text style={s.previewText} numberOfLines={4}>{planText.trim().slice(0, 200)}{planText.length > 200 ? '…' : ''}</Text>
+            </View>
+          )}
 
           <TouchableOpacity
-            style={[s.importBtn, loading && s.importBtnDisabled]}
+            style={[s.importBtn, (loading || !hasContent) && s.importBtnDisabled]}
             onPress={handleImportText}
-            disabled={loading}
+            disabled={loading || !hasContent}
             activeOpacity={0.85}
           >
             {loading
               ? <ActivityIndicator color="#fff" />
-              : <Text style={s.importBtnText}>🤖  Importar Plano</Text>}
+              : <Text style={s.importBtnText}>🤖  Importar Plano com IA</Text>}
           </TouchableOpacity>
 
           {loading && (
-            <Text style={s.loadingHint}>Analisando seu plano… isso pode levar alguns segundos.</Text>
+            <View style={s.loadingCard}>
+              <ActivityIndicator color={C.primaryLight} size="small" />
+              <View>
+                <Text style={s.loadingHint}>Analisando seu plano…</Text>
+                <Text style={s.loadingHintSub}>Isso pode levar 10–30 segundos.</Text>
+              </View>
+            </View>
           )}
         </ScrollView>
         <Modal visible={showImportForm} transparent animationType="slide">
@@ -530,19 +585,54 @@ const s = StyleSheet.create({
   sectionDesc: { color: C.text2, fontSize: 14, lineHeight: 21, marginBottom: 18 },
 
   textArea: {
-    backgroundColor: C.surface, borderWidth: 1, borderColor: C.border,
-    borderRadius: 14, padding: 14, color: C.text1, fontSize: 14,
-    minHeight: 200, marginBottom: 16,
+    padding: 14, color: C.text1, fontSize: 14,
+    minHeight: 220,
   },
+  textAreaWrap: {
+    backgroundColor: C.surface, borderWidth: 1, borderColor: C.border,
+    borderRadius: 14, marginBottom: 14, overflow: 'hidden',
+  },
+  textAreaFooter: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderTopWidth: 1, borderTopColor: C.border,
+  },
+  charCount: { color: C.text3, fontSize: 11 },
+  clearBtn: {
+    backgroundColor: C.elevated, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4,
+    borderWidth: 1, borderColor: C.border,
+  },
+  clearBtnText: { color: C.text2, fontSize: 11, fontWeight: '700' },
+
+  hintCard: {
+    backgroundColor: C.elevated, borderRadius: 12, padding: 14, marginBottom: 14,
+    borderWidth: 1, borderColor: 'rgba(124,58,237,0.3)', gap: 6,
+  },
+  hintTitle: { color: C.primaryLight, fontSize: 12, fontWeight: '800', letterSpacing: 0.5, marginBottom: 4 },
+  hintRow: {},
+  hintText: { color: C.text2, fontSize: 13 },
+
+  previewCard: {
+    backgroundColor: C.elevated, borderRadius: 12, padding: 12, marginBottom: 14,
+    borderWidth: 1, borderColor: C.border,
+  },
+  previewLabel: { color: C.text3, fontSize: 10, fontWeight: '800', letterSpacing: 1, marginBottom: 6 },
+  previewText: { color: C.text2, fontSize: 12, lineHeight: 18 },
+
+  loadingCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: C.elevated, borderRadius: 12, padding: 14, marginTop: 8,
+    borderWidth: 1, borderColor: 'rgba(124,58,237,0.3)',
+  },
+  loadingHint: { color: C.primaryLight, fontSize: 13, fontWeight: '700' },
+  loadingHintSub: { color: C.text3, fontSize: 12, marginTop: 2 },
 
   importBtn: {
     backgroundColor: C.primary, borderRadius: 14, padding: 16, alignItems: 'center',
     shadowColor: C.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 6,
   },
-  importBtnDisabled: { opacity: 0.5 },
+  importBtnDisabled: { opacity: 0.45 },
   importBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
-
-  loadingHint: { color: C.text3, fontSize: 13, textAlign: 'center', marginTop: 12 },
 
   imageGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 14 },
   imageWrapper: { position: 'relative', width: 100, height: 100 },
