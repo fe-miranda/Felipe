@@ -94,6 +94,21 @@ declare module 'react-native-svg' {
     children?: React.ReactNode;
   }
 
+  export interface LineProps extends CommonSvgProps {
+    x1?: string | number;
+    y1?: string | number;
+    x2?: string | number;
+    y2?: string | number;
+  }
+
+  export interface PolylineProps extends CommonSvgProps {
+    points?: string;
+  }
+
+  export interface PolygonProps extends CommonSvgProps {
+    points?: string;
+  }
+
   const Svg: React.ComponentType<SvgProps>;
   const Path: React.ComponentType<PathProps>;
   const Circle: React.ComponentType<CircleProps>;
@@ -105,9 +120,12 @@ declare module 'react-native-svg' {
   const Stop: React.ComponentType<StopProps>;
   const ClipPath: React.ComponentType<ClipPathProps>;
   const Text: React.ComponentType<TextProps>;
+  const Line: React.ComponentType<LineProps>;
+  const Polyline: React.ComponentType<PolylineProps>;
+  const Polygon: React.ComponentType<PolygonProps>;
 
   export default Svg;
-  export { Svg, Path, Circle, Ellipse, Rect, G, Defs, LinearGradient, Stop, ClipPath, Text };
+  export { Svg, Path, Circle, Ellipse, Rect, G, Defs, LinearGradient, Stop, ClipPath, Text, Line, Polyline, Polygon };
 }
 
 declare module 'expo-image-picker' {

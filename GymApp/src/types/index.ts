@@ -11,8 +11,6 @@ export type FitnessLevel = 'beginner' | 'intermediate' | 'advanced';
 
 export type Gender = 'male' | 'female' | 'other';
 
-export type GroupType = 'biset' | 'triset' | 'superset';
-
 export interface UserProfile {
   name: string;
   age: number;
@@ -163,4 +161,6 @@ export type RootStackParamList = {
   Chat: undefined;
   Settings: undefined;
   PerformanceAnalysis: undefined;
+  ExerciseHistory: { exerciseName: string };
+  Performance: undefined;
 };

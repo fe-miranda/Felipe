@@ -32,7 +32,28 @@ Notifications.setNotificationHandler({
   },
 });
 
+const WORKOUT_NOTIF_ID = 'gymapp-workout-active';
+const REST_CATEGORY_ID = 'workout-active';
+let _lastWorkoutMinuteNotified = -1;
+
 let _restNotifId: string | null = null;
+let _restActionStartCb: (() => void) | null = null;
+let _restActionPauseCb: (() => void) | null = null;
+let _responseListener: Notifications.EventSubscription | null = null;
+
+function fmtElapsed(seconds: number): string {
+  const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+  const s = (seconds % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
+}
+
+export function setRestActionCallback(cb: (() => void) | null): void {
+  _restActionStartCb = cb;
+}
+
+export function setRestPauseActionCallback(cb: (() => void) | null): void {
+  _restActionPauseCb = cb;
+}
 
 export async function setupNotifications(): Promise<void> {
   if (Platform.OS === 'android') {
@@ -42,7 +63,14 @@ export async function setupNotifications(): Promise<void> {
       vibrationPattern: [0, 250, 250, 250],
       sound: 'default',
     });
+    await Notifications.setNotificationChannelAsync('workout-active', {
+      name: 'Treino Ativo',
+      importance: Notifications.AndroidImportance.LOW,
+      sound: null,
+      vibrationPattern: [0],
+    });
   }
+
   await Notifications.requestPermissionsAsync();
 
   await Notifications.setNotificationCategoryAsync(REST_CATEGORY_ID, [
@@ -106,23 +134,18 @@ export async function cancelRestNotification(): Promise<void> {
   }
 }
 
-// Workout progress notifications removed — timer runs in-app via AppState
-export async function startWorkoutNotification(_elapsed: number = 0): Promise<void> {}
-export async function updateWorkoutNotification(_elapsed: number): Promise<void> {}
-export async function stopWorkoutNotification(): Promise<void> {}
-export function setRestActionCallback(_cb: (() => void) | null): void {}
-export function setRestPauseActionCallback(_cb: (() => void) | null): void {}
-
 export async function triggerRestEndAlert(): Promise<void> {
   try {
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: '⏰ Descanso finalizado!',
+        title: '⏰ Descanso finalizado',
         body: 'Hora de voltar ao treino 💪',
         sound: 'default',
         data: { type: 'rest-end' },
       },
       trigger: null,
     });
-  } catch {}
+  } catch {
+    // Notifications not available — fail silently
+  }
 }
