@@ -263,6 +263,8 @@ export function HomeScreen({ navigation }: Props) {
   const now = new Date();
   const monthsElapsed = (now.getFullYear() - planStartDate.getFullYear()) * 12 + (now.getMonth() - planStartDate.getMonth());
   const currentMonthIndex = Math.min(Math.max(0, monthsElapsed), 11);
+  // Real calendar month for index 0 is plan's start month
+  const planStartCalendarMonth = planStartDate.getMonth(); // 0-11
 
   // Find today's workout from plan
   const todayDOW = DAY_MAP[now.getDay()];
@@ -310,6 +312,16 @@ export function HomeScreen({ navigation }: Props) {
       >
         <Text style={s.todayBtnText}>▶  Acessar Seu Treino de Hoje</Text>
         {todayWorkout && <Text style={s.todayBtnSub}>{todayWorkout.focus}</Text>}
+      </TouchableOpacity>
+
+      {/* ── Acessar plano de treinos ── */}
+      <TouchableOpacity
+        style={s.planBtn}
+        activeOpacity={0.85}
+        onPress={() => navigation.navigate('MonthDetail', { monthIndex: currentMonthIndex })}
+      >
+        <Text style={s.planBtnText}>📅  Acessar Seu Plano de Treinos</Text>
+        <Text style={s.planBtnSub}>{MONTH_ABBR[(planStartCalendarMonth + currentMonthIndex) % 12]} · Mês {currentMonthIndex + 1} de {monthlyBlocks.length}</Text>
       </TouchableOpacity>
 
       {/* ── Performance Analysis button ── */}
@@ -517,6 +529,8 @@ export function HomeScreen({ navigation }: Props) {
           const ph = PHASE(idx);
           const hasWeeks = month.weeks.length > 0;
           const isCurrent = idx === currentMonthIndex;
+          // Show the real calendar month name based on when the plan started
+          const calMonthAbbr = MONTH_ABBR[(planStartCalendarMonth + idx) % 12];
           return (
             <TouchableOpacity
               key={idx}
@@ -527,7 +541,7 @@ export function HomeScreen({ navigation }: Props) {
               {/* Phase accent bar */}
               <View style={[s.phaseBar, { backgroundColor: ph.color }]} />
 
-              <Text style={[s.monthNum, { color: ph.color }]}>{MONTH_ABBR[idx]}</Text>
+              <Text style={[s.monthNum, { color: ph.color }]}>{calMonthAbbr}</Text>
               <Text style={s.monthFocus} numberOfLines={1}>{month.focus}</Text>
 
               <View style={[s.monthStatus, hasWeeks ? { backgroundColor: C.successBg } : { backgroundColor: C.elevated }]}>
@@ -724,11 +738,19 @@ const s = StyleSheet.create({
   exportBtnText: { color: C.primaryLight, fontSize: 14, fontWeight: '700' },
   todayBtn: {
     backgroundColor: C.primary, borderRadius: 16, paddingVertical: 16,
-    alignItems: 'center', marginBottom: 12,
+    alignItems: 'center', marginBottom: 10,
     shadowColor: C.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 12, elevation: 8,
   },
   todayBtnText: { color: '#fff', fontSize: 17, fontWeight: '800', letterSpacing: 0.3 },
   todayBtnSub: { color: 'rgba(255,255,255,0.75)', fontSize: 12, marginTop: 4 },
+
+  planBtn: {
+    backgroundColor: C.elevated, borderRadius: 16, paddingVertical: 14,
+    alignItems: 'center', marginBottom: 12,
+    borderWidth: 1, borderColor: 'rgba(124,58,237,0.45)',
+  },
+  planBtnText: { color: C.primaryLight, fontSize: 15, fontWeight: '700', letterSpacing: 0.2 },
+  planBtnSub: { color: C.text3, fontSize: 11, marginTop: 4 },
 
   // Hero card
   heroCard: {
