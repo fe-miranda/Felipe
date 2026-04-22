@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
 import { RootStackParamList, QuickWorkout, WorkoutDay, CompletedWorkout } from '../types';
 import { usePlan } from '../hooks/usePlan';
 import { setRuntimeApiKey, getDailySuggestion, generateCustomWorkout, DailySuggestion } from '../services/aiService';
@@ -186,18 +187,32 @@ export function HomeScreen({ navigation }: Props) {
   useEffect(() => {
     loadStoredPlan();
     AsyncStorage.getItem(CUSTOM_KEY_STORAGE).then((k) => { if (k) setRuntimeApiKey(k); });
-    AsyncStorage.getItem(ACTIVE_WORKOUT_SESSION_KEY).then((raw) => {
-      if (!raw) return;
-      try {
-        const parsed = JSON.parse(raw);
-        if (parsed?.workout?.focus && Array.isArray(parsed?.workout?.exercises)) {
-          setResumeWorkout(parsed.workout);
-          setResumeContext(parsed.context);
-        }
-      } catch {}
-    });
     reloadHistory();
   }, []);
+
+  // Re-check the active session every time the screen gains focus so the
+  // "resume session" card appears / disappears correctly when the user
+  // navigates back from another screen.
+  useFocusEffect(
+    useCallback(() => {
+      AsyncStorage.getItem(ACTIVE_WORKOUT_SESSION_KEY).then((raw) => {
+        if (!raw) { setResumeWorkout(null); setResumeContext(undefined); return; }
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed?.workout?.focus && Array.isArray(parsed?.workout?.exercises)) {
+            setResumeWorkout(parsed.workout);
+            setResumeContext(parsed.context);
+          } else {
+            setResumeWorkout(null);
+            setResumeContext(undefined);
+          }
+        } catch {
+          setResumeWorkout(null);
+          setResumeContext(undefined);
+        }
+      });
+    }, []),
+  );
 
   useEffect(() => {
     if (!plan) return;

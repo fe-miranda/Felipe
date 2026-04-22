@@ -107,6 +107,9 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   const workoutStartAtRef = useRef<number | null>(null);
   const restEndsAtRef = useRef<number | null>(null);
   const restCompletionFiredRef = useRef(false);
+  // Prevents persistSession from overwriting AsyncStorage before the restore
+  // effect has had a chance to load the saved session on mount.
+  const sessionLoadedRef = useRef(false);
 
   // Keep a stable ref so the notification callback always calls the latest startRest
   const startRestRef = useRef<() => void>(() => {});
@@ -118,6 +121,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   }, []);
 
   const persistSession = useCallback(async () => {
+    if (!sessionLoadedRef.current) return;
     try {
       await AsyncStorage.setItem(
         ACTIVE_WORKOUT_SESSION_KEY,
@@ -162,9 +166,9 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
     (async () => {
       try {
         const raw = await AsyncStorage.getItem(ACTIVE_WORKOUT_SESSION_KEY);
-        if (!raw) return;
+        if (!raw) { sessionLoadedRef.current = true; return; }
         const saved = JSON.parse(raw);
-        if (!saved?.workout || !Array.isArray(saved?.exercises)) return;
+        if (!saved?.workout || !Array.isArray(saved?.exercises)) { sessionLoadedRef.current = true; return; }
         setExercises(saved.exercises);
         const workoutStartAt = typeof saved.workoutStartAt === 'number'
           ? saved.workoutStartAt
@@ -182,6 +186,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
           setRestRemaining(Math.max(0, Math.ceil((restEndsAt - Date.now()) / 1000)));
         }
       } catch {}
+      sessionLoadedRef.current = true;
     })();
   }, []);
 
