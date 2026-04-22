@@ -264,7 +264,7 @@ export function HomeScreen({ navigation }: Props) {
   const monthsElapsed = (now.getFullYear() - planStartDate.getFullYear()) * 12 + (now.getMonth() - planStartDate.getMonth());
   const currentMonthIndex = Math.min(Math.max(0, monthsElapsed), 11);
   // Real calendar month for index 0 is plan's start month
-  const planStartCalendarMonth = planStartDate.getMonth(); // 0-11
+  const startMonth = planStartDate.getMonth(); // 0-11
 
   // Find today's workout from plan
   const todayDOW = DAY_MAP[now.getDay()];
@@ -321,7 +321,7 @@ export function HomeScreen({ navigation }: Props) {
         onPress={() => navigation.navigate('MonthDetail', { monthIndex: currentMonthIndex })}
       >
         <Text style={s.planBtnText}>📅  Acessar Seu Plano de Treinos</Text>
-        <Text style={s.planBtnSub}>{MONTH_ABBR[(planStartCalendarMonth + currentMonthIndex) % 12]} · Mês {currentMonthIndex + 1} de {monthlyBlocks.length}</Text>
+        <Text style={s.planBtnSub}>{MONTH_ABBR[(startMonth + currentMonthIndex) % 12]} · Mês {currentMonthIndex + 1} de {monthlyBlocks.length}</Text>
       </TouchableOpacity>
 
       {/* ── Performance Analysis button ── */}
@@ -530,7 +530,7 @@ export function HomeScreen({ navigation }: Props) {
           const hasWeeks = month.weeks.length > 0;
           const isCurrent = idx === currentMonthIndex;
           // Show the real calendar month name based on when the plan started
-          const calMonthAbbr = MONTH_ABBR[(planStartCalendarMonth + idx) % 12];
+          const calMonthAbbr = MONTH_ABBR[(startMonth + idx) % 12];
           return (
             <TouchableOpacity
               key={idx}
