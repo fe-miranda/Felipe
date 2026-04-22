@@ -50,6 +50,11 @@ jobs:
         run: |
           sed -i 's|distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.13-bin.zip|' gradle/wrapper/gradle-wrapper.properties
 
+      - name: Patch build.gradle — remove hermesCommand (bundled with RN 0.71+, node resolve returns null)
+        working-directory: GymApp/android
+        run: |
+          sed -i '/hermesCommand\s*=/d' app/build.gradle
+
       - name: Make gradlew executable
         working-directory: GymApp/android
         run: chmod +x gradlew
