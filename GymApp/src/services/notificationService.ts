@@ -71,6 +71,33 @@ async function playRestEndSound(): Promise<void> {
   }
 }
 
+// Play a single short countdown beep (used for 3-2-1 countdown before rest ends).
+export async function playCountdownBeep(): Promise<void> {
+  let sound: Awaited<ReturnType<typeof Audio.Sound.createAsync>>['sound'] | null = null;
+  try {
+    await Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+      shouldDuckAndroid: false,
+    });
+    ({ sound } = await Audio.Sound.createAsync(
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require('../../assets/rest_end_beep.wav'),
+      { shouldPlay: true, volume: 0.6 },
+    ));
+    sound.setOnPlaybackStatusUpdate((status) => {
+      if (!status.isLoaded) return;
+      if (status.didJustFinish) {
+        sound?.setOnPlaybackStatusUpdate(null);
+        sound?.unloadAsync().catch(() => {});
+      }
+    });
+  } catch {
+    sound?.setOnPlaybackStatusUpdate(null);
+    sound?.unloadAsync().catch(() => {});
+  }
+}
+
 export function setRestActionCallback(cb: (() => void) | null): void {
   _restActionStartCb = cb;
 }

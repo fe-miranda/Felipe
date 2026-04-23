@@ -252,6 +252,54 @@ export function HomeScreen({ navigation }: Props) {
     ]);
   };
 
+  const navigateToWorkout = useCallback(async (
+    workout: WorkoutDay,
+    context?: { monthIndex: number; weekIndex: number; dayIndex: number },
+  ) => {
+    const raw = await AsyncStorage.getItem(ACTIVE_WORKOUT_SESSION_KEY);
+    if (!raw) {
+      navigation.navigate('ActiveWorkout', { workout, context });
+      return;
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      if (!parsed?.workout?.focus) {
+        navigation.navigate('ActiveWorkout', { workout, context });
+        return;
+      }
+      // Same workout — just resume it
+      if (parsed.workout.focus === workout.focus) {
+        navigation.navigate('ActiveWorkout', { workout, context });
+        return;
+      }
+      Alert.alert(
+        'Treino em Andamento',
+        `Você tem um treino em andamento: "${parsed.workout.focus}". O que deseja fazer?`,
+        [
+          {
+            text: 'Cancelar treino anterior',
+            style: 'destructive',
+            onPress: async () => {
+              await AsyncStorage.removeItem(ACTIVE_WORKOUT_SESSION_KEY);
+              setResumeWorkout(null);
+              setResumeContext(undefined);
+              navigation.navigate('ActiveWorkout', { workout, context });
+            },
+          },
+          {
+            text: 'Retomar treino anterior',
+            onPress: () => {
+              navigation.navigate('ActiveWorkout', { workout: parsed.workout, context: parsed.context });
+            },
+          },
+          { text: 'Voltar', style: 'cancel' },
+        ],
+      );
+    } catch {
+      navigation.navigate('ActiveWorkout', { workout, context });
+    }
+  }, [navigation]);
+
   if (!plan) {
     return (
       <SafeAreaView style={s.safeArea} edges={['top', 'bottom']}>
@@ -269,14 +317,15 @@ export function HomeScreen({ navigation }: Props) {
 
   const { userProfile: p, monthlyBlocks, overallGoal, nutritionTips, recoveryTips } = plan;
   const goal = GOAL_META[p.goal] ?? { icon: '🎯', label: p.goal };
+  const totalMonths = plan.totalMonths ?? monthlyBlocks.length ?? 12;
   const generatedCount = monthlyBlocks.filter((b) => b.weeks.length > 0).length;
-  const progress = generatedCount / 12;
+  const progress = generatedCount / totalMonths;
 
   // Calculate current month index based on plan.createdAt
   const planStartDate = new Date(plan.createdAt);
   const now = new Date();
   const monthsElapsed = (now.getFullYear() - planStartDate.getFullYear()) * 12 + (now.getMonth() - planStartDate.getMonth());
-  const currentMonthIndex = Math.min(Math.max(0, monthsElapsed), 11);
+  const currentMonthIndex = Math.min(Math.max(0, monthsElapsed), totalMonths - 1);
   // Real calendar month for index 0 is plan's start month
   const startMonth = planStartDate.getMonth(); // 0-11
 
@@ -306,7 +355,7 @@ export function HomeScreen({ navigation }: Props) {
       <View style={s.topBar}>
         <View>
           <Text style={s.greeting}>{greeting()}, {p.name} 👋</Text>
-          <Text style={s.greetingSub}>Seu plano de 12 meses está ativo</Text>
+          <Text style={s.greetingSub}>Seu plano de {totalMonths} {totalMonths === 1 ? 'mês' : 'meses'} está ativo</Text>
         </View>
         <TouchableOpacity style={s.iconBtn} onPress={() => navigation.navigate('Settings')} testID="btn-settings">
           <Text style={s.iconBtnText}>⚙️</Text>
@@ -320,7 +369,7 @@ export function HomeScreen({ navigation }: Props) {
         onPress={() => {
           const w = todayWorkout ?? dailySuggestion?.workout ?? null;
           const ctx = todayContext;
-          if (w) navigation.navigate('ActiveWorkout', { workout: w, context: ctx });
+          if (w) navigateToWorkout(w, ctx);
           else Alert.alert('Treino do dia', 'Nenhum treino encontrado para hoje. Tente um treino rápido!');
         }}
       >
@@ -362,7 +411,7 @@ export function HomeScreen({ navigation }: Props) {
         <View style={s.progressSection}>
           <View style={s.progressHeader}>
             <Text style={s.progressLabel}>Meses com treinos detalhados</Text>
-            <Text style={s.progressCount}>{generatedCount}/12</Text>
+            <Text style={s.progressCount}>{generatedCount}/{totalMonths}</Text>
           </View>
           <View style={s.progressTrack}>
             <View style={[s.progressFill, { width: `${progress * 100}%` }]} />
@@ -374,8 +423,8 @@ export function HomeScreen({ navigation }: Props) {
       <View style={s.statsRow}>
         {[
           { icon: '📅', value: `${p.daysPerWeek}×`, label: 'por semana' },
-          { icon: '📆', value: '12',               label: 'meses' },
-          { icon: '🏆', value: `${p.daysPerWeek * 48}`, label: 'treinos' },
+          { icon: '📆', value: String(totalMonths), label: totalMonths === 1 ? 'mês' : 'meses' },
+          { icon: '🏆', value: `${p.daysPerWeek * totalMonths * 4}`, label: 'treinos' },
         ].map((stat, i) => (
           <View key={i} style={s.statCard}>
             <Text style={s.statIcon}>{stat.icon}</Text>
@@ -434,7 +483,7 @@ export function HomeScreen({ navigation }: Props) {
               <Text style={s.suggestionReason}>{dailySuggestion.reason}</Text>
               <TouchableOpacity
                 style={s.suggestionBtn}
-                onPress={() => navigation.navigate('ActiveWorkout', { workout: dailySuggestion.workout })}
+                onPress={() => navigateToWorkout(dailySuggestion.workout)}
               >
                 <Text style={s.suggestionBtnText}>▶  Iniciar Agora</Text>
               </TouchableOpacity>
@@ -473,7 +522,7 @@ export function HomeScreen({ navigation }: Props) {
             key={q.id}
             style={[s.quickCard, { borderColor: `${q.color}40` }]}
             activeOpacity={0.82}
-            onPress={() => navigation.navigate('ActiveWorkout', { workout: quickToWorkoutDay(q) })}
+            onPress={() => navigateToWorkout(quickToWorkoutDay(q))}
           >
             <View style={[s.quickIconWrap, { backgroundColor: `${q.color}20` }]}>
               <Text style={s.quickIcon}>{q.icon}</Text>
@@ -537,7 +586,7 @@ export function HomeScreen({ navigation }: Props) {
       </TouchableOpacity>
 
       {/* ── Month grid ── */}
-      <Text style={[s.sectionTitle, { marginTop: 8 }]}>📅 Plano Anual</Text>
+      <Text style={[s.sectionTitle, { marginTop: 8 }]}>📅 Plano de {totalMonths} {totalMonths === 1 ? 'Mês' : 'Meses'}</Text>
       <View style={s.monthGrid}>
         {monthlyBlocks.map((month, idx) => {
           const ph = PHASE(idx);
@@ -637,7 +686,7 @@ export function HomeScreen({ navigation }: Props) {
                 ))}
                 <TouchableOpacity
                   style={s.custStartBtn}
-                  onPress={() => { setShowCustomizer(false); navigation.navigate('ActiveWorkout', { workout: custWorkout }); }}
+                  onPress={() => { setShowCustomizer(false); navigateToWorkout(custWorkout!); }}
                 >
                   <Text style={s.custStartBtnText}>▶  Iniciar Treino</Text>
                 </TouchableOpacity>
