@@ -26,71 +26,99 @@ const COLORS = {
   inactiveStroke: '#2A2A40',
 };
 
-/* SVG canvas */
+/* SVG canvas — taller to give more room for realistic leg proportions */
 const SVG_W = 180;
-const SVG_H = 320;
+const SVG_H = 340;
 const SVG_PAD = 2;
 
 /* Body center X */
 const CX = SVG_W / 2; // 90
 
-/* ── Silhouette paths ── */
-const HEAD_CY = 30;
-const HEAD_R = 16;
+/* ── Head ── */
+const HEAD_CY = 26;
+const HEAD_R  = 15;
 
+/*
+ * ── Silhouette paths (redesigned for realistic human proportions) ──
+ *
+ * Human body ratios (standing, neutral):
+ *   Head        ≈ 13%  →  ~40px
+ *   Neck+torso  ≈ 35%  →  ~106px  (shoulders y≈46 to waist y≈152)
+ *   Hips        ≈ 10%  →  ~30px   (y≈152 to groin y≈182)
+ *   Thigh       ≈ 23%  →  ~70px   (y≈182 to knee y≈252)
+ *   Shin/calf   ≈ 15%  →  ~46px   (y≈252 to ankle y≈298)
+ *   Foot        ≈  4%  →  ~12px   (y≈298 to y≈310)
+ *   Total visible: y=10..320 → 310px
+ */
+
+/* Torso: shoulders (y≈46) → hips (y≈190) */
 const TORSO_PATH =
-  `M58 60 C62 50 74 46 ${CX} 46 C106 46 118 50 122 60
-   C128 74 126 92 119 108 C113 122 111 140 111 158
-   C111 180 113 202 109 246 C108 262 100 276 ${CX} 276
-   C80 276 72 262 71 246 C67 202 69 180 69 158
-   C69 140 67 122 61 108 C54 92 52 74 58 60 Z`;
+  `M62 54 C58 46 78 40 ${CX} 40 C102 40 122 46 118 54` +
+  ` C126 68 128 88 122 108 C116 128 114 148 114 164` +
+  ` C118 178 120 188 116 198 C110 204 98 208 ${CX} 208` +
+  ` C82 208 70 204 64 198 C60 188 62 178 66 164` +
+  ` C66 148 64 128 58 108 C52 88 54 68 62 54 Z`;
 
+/* Left arm: shoulder→elbow y≈135, elbow→wrist y≈175 */
 const ARM_L_PATH =
-  'M58 70 C44 84 36 110 36 133 C36 142 42 149 49 147 C56 145 59 135 60 127 C63 111 65 90 67 73 Z';
+  'M62 64 C48 78 40 106 40 132 C40 150 48 162 56 158 C64 154 66 138 67 126 C70 108 70 84 68 68 Z';
 const ARM_R_PATH =
-  'M122 70 C136 84 144 110 144 133 C144 142 138 149 131 147 C124 145 121 135 120 127 C117 111 115 90 113 73 Z';
+  'M118 64 C132 78 140 106 140 132 C140 150 132 162 124 158 C116 154 114 138 113 126 C110 108 110 84 112 68 Z';
 
-const LEG_L_FRONT =
-  'M69 246 C67 260 66 278 66 296 C66 308 70 318 ${CX - 14} 318 C${CX - 8} 318 ${CX - 4} 308 ${CX - 5} 296 C${CX - 6} 278 ${CX - 6} 260 71 246 Z'
-    .replace(/\$\{CX - 14\}/g, String(CX - 14)).replace(/\$\{CX - 8\}/g, String(CX - 8))
-    .replace(/\$\{CX - 4\}/g, String(CX - 4)).replace(/\$\{CX - 5\}/g, String(CX - 5))
-    .replace(/\$\{CX - 6\}/g, String(CX - 6));
-const LEG_R_FRONT =
-  'M109 246 C111 260 114 278 114 296 C114 308 110 318 ${CX + 14} 318 C${CX + 8} 318 ${CX + 4} 308 ${CX + 5} 296 C${CX + 6} 278 ${CX + 6} 260 109 246 Z'
-    .replace(/\$\{CX \+ 14\}/g, String(CX + 14)).replace(/\$\{CX \+ 8\}/g, String(CX + 8))
-    .replace(/\$\{CX \+ 4\}/g, String(CX + 4)).replace(/\$\{CX \+ 5\}/g, String(CX + 5))
-    .replace(/\$\{CX \+ 6\}/g, String(CX + 6));
+/* Left leg: hip (y≈198)→knee (y≈268)→ankle (y≈310) */
+const LEG_L_PATH =
+  `M64 198 C60 210 58 232 58 258 C58 278 62 298 66 314` +
+  ` C68 324 72 332 78 334 C84 334 86 326 84 316` +
+  ` C82 302 80 284 78 260 C76 236 74 214 72 202 Z`;
+const LEG_R_PATH =
+  `M116 198 C120 210 122 232 122 258 C122 278 118 298 114 314` +
+  ` C112 324 108 332 102 334 C96 334 94 326 96 316` +
+  ` C98 302 100 284 102 260 C104 236 106 214 108 202 Z`;
 
-/* ── Muscle areas ── */
+/* ── Muscle areas (anatomically positioned) ── */
 const AREAS: MuscleArea[] = [
   /* ─ Front ─ */
-  { group: 'Ombro',       side: 'front', shape: 'ellipse', cx: 47,   cy: 68,  rx: 11, ry: 9  },
-  { group: 'Ombro',       side: 'front', shape: 'ellipse', cx: 133,  cy: 68,  rx: 11, ry: 9  },
-  { group: 'Peito',       side: 'front', shape: 'ellipse', cx: 76,   cy: 86,  rx: 14, ry: 12 },
-  { group: 'Peito',       side: 'front', shape: 'ellipse', cx: 104,  cy: 86,  rx: 14, ry: 12 },
-  { group: 'Bíceps',      side: 'front', shape: 'ellipse', cx: 42,   cy: 110, rx: 8,  ry: 14 },
-  { group: 'Bíceps',      side: 'front', shape: 'ellipse', cx: 138,  cy: 110, rx: 8,  ry: 14 },
-  { group: 'Abdômen',     side: 'front', shape: 'ellipse', cx: CX,   cy: 126, rx: 15, ry: 22 },
-  { group: 'Antebraço',   side: 'front', shape: 'ellipse', cx: 39,   cy: 138, rx: 6,  ry: 12 },
-  { group: 'Antebraço',   side: 'front', shape: 'ellipse', cx: 141,  cy: 138, rx: 6,  ry: 12 },
-  { group: 'Quadríceps',  side: 'front', shape: 'ellipse', cx: 79,   cy: 192, rx: 12, ry: 24 },
-  { group: 'Quadríceps',  side: 'front', shape: 'ellipse', cx: 101,  cy: 192, rx: 12, ry: 24 },
-  { group: 'Panturrilha', side: 'front', shape: 'ellipse', cx: 79,   cy: 268, rx: 9,  ry: 16 },
-  { group: 'Panturrilha', side: 'front', shape: 'ellipse', cx: 101,  cy: 268, rx: 9,  ry: 16 },
+  // Deltoid (shoulder) — lateral heads, at top of upper arm
+  { group: 'Ombro',       side: 'front', shape: 'ellipse', cx: 50,   cy: 66,  rx: 11, ry: 9  },
+  { group: 'Ombro',       side: 'front', shape: 'ellipse', cx: 130,  cy: 66,  rx: 11, ry: 9  },
+  // Pectoralis major — upper chest, two lobes
+  { group: 'Peito',       side: 'front', shape: 'ellipse', cx: 77,   cy: 88,  rx: 14, ry: 13 },
+  { group: 'Peito',       side: 'front', shape: 'ellipse', cx: 103,  cy: 88,  rx: 14, ry: 13 },
+  // Biceps brachii — mid upper arm
+  { group: 'Bíceps',      side: 'front', shape: 'ellipse', cx: 44,   cy: 112, rx: 8,  ry: 15 },
+  { group: 'Bíceps',      side: 'front', shape: 'ellipse', cx: 136,  cy: 112, rx: 8,  ry: 15 },
+  // Rectus abdominis — central abdomen
+  { group: 'Abdômen',     side: 'front', shape: 'ellipse', cx: CX,   cy: 134, rx: 14, ry: 26 },
+  // Forearm flexors
+  { group: 'Antebraço',   side: 'front', shape: 'ellipse', cx: 40,   cy: 144, rx: 6,  ry: 13 },
+  { group: 'Antebraço',   side: 'front', shape: 'ellipse', cx: 140,  cy: 144, rx: 6,  ry: 13 },
+  // Quadriceps — front of thigh (longer, placed in leg region)
+  { group: 'Quadríceps',  side: 'front', shape: 'ellipse', cx: 77,   cy: 234, rx: 12, ry: 28 },
+  { group: 'Quadríceps',  side: 'front', shape: 'ellipse', cx: 103,  cy: 234, rx: 12, ry: 28 },
+  // Tibialis / gastrocnemius front
+  { group: 'Panturrilha', side: 'front', shape: 'ellipse', cx: 77,   cy: 290, rx: 9,  ry: 17 },
+  { group: 'Panturrilha', side: 'front', shape: 'ellipse', cx: 103,  cy: 290, rx: 9,  ry: 17 },
 
   /* ─ Back ─ */
-  { group: 'Trapézio',    side: 'back',  shape: 'ellipse', cx: CX,   cy: 72,  rx: 22, ry: 9  },
-  { group: 'Costas',      side: 'back',  shape: 'ellipse', cx: CX,   cy: 106, rx: 24, ry: 20 },
-  { group: 'Tríceps',     side: 'back',  shape: 'ellipse', cx: 42,   cy: 110, rx: 8,  ry: 14 },
-  { group: 'Tríceps',     side: 'back',  shape: 'ellipse', cx: 138,  cy: 110, rx: 8,  ry: 14 },
-  { group: 'Antebraço',   side: 'back',  shape: 'ellipse', cx: 39,   cy: 138, rx: 6,  ry: 12 },
-  { group: 'Antebraço',   side: 'back',  shape: 'ellipse', cx: 141,  cy: 138, rx: 6,  ry: 12 },
-  { group: 'Glúteo',      side: 'back',  shape: 'ellipse', cx: 79,   cy: 160, rx: 12, ry: 12 },
-  { group: 'Glúteo',      side: 'back',  shape: 'ellipse', cx: 101,  cy: 160, rx: 12, ry: 12 },
-  { group: 'Posterior',   side: 'back',  shape: 'ellipse', cx: 79,   cy: 200, rx: 11, ry: 22 },
-  { group: 'Posterior',   side: 'back',  shape: 'ellipse', cx: 101,  cy: 200, rx: 11, ry: 22 },
-  { group: 'Panturrilha', side: 'back',  shape: 'ellipse', cx: 79,   cy: 254, rx: 9,  ry: 17 },
-  { group: 'Panturrilha', side: 'back',  shape: 'ellipse', cx: 101,  cy: 254, rx: 9,  ry: 17 },
+  // Trapezius — upper back / neck base
+  { group: 'Trapézio',    side: 'back',  shape: 'ellipse', cx: CX,   cy: 70,  rx: 22, ry: 9  },
+  // Latissimus dorsi — wide mid-back
+  { group: 'Costas',      side: 'back',  shape: 'ellipse', cx: CX,   cy: 112, rx: 24, ry: 22 },
+  // Triceps brachii — back of upper arm
+  { group: 'Tríceps',     side: 'back',  shape: 'ellipse', cx: 44,   cy: 110, rx: 8,  ry: 15 },
+  { group: 'Tríceps',     side: 'back',  shape: 'ellipse', cx: 136,  cy: 110, rx: 8,  ry: 15 },
+  // Forearm extensors
+  { group: 'Antebraço',   side: 'back',  shape: 'ellipse', cx: 40,   cy: 144, rx: 6,  ry: 13 },
+  { group: 'Antebraço',   side: 'back',  shape: 'ellipse', cx: 140,  cy: 144, rx: 6,  ry: 13 },
+  // Gluteus maximus — prominent at hip/buttock area
+  { group: 'Glúteo',      side: 'back',  shape: 'ellipse', cx: 77,   cy: 194, rx: 13, ry: 13 },
+  { group: 'Glúteo',      side: 'back',  shape: 'ellipse', cx: 103,  cy: 194, rx: 13, ry: 13 },
+  // Hamstrings — back of thigh
+  { group: 'Posterior',   side: 'back',  shape: 'ellipse', cx: 77,   cy: 238, rx: 11, ry: 26 },
+  { group: 'Posterior',   side: 'back',  shape: 'ellipse', cx: 103,  cy: 238, rx: 11, ry: 26 },
+  // Gastrocnemius (calf) — back of lower leg
+  { group: 'Panturrilha', side: 'back',  shape: 'ellipse', cx: 77,   cy: 286, rx: 9,  ry: 18 },
+  { group: 'Panturrilha', side: 'back',  shape: 'ellipse', cx: 103,  cy: 286, rx: 9,  ry: 18 },
 ];
 
 function colorFor(group: string, scores: FatigueScore[]): string {
@@ -130,8 +158,8 @@ function SideMap({
             <Path d={TORSO_PATH} />
             <Path d={ARM_L_PATH} />
             <Path d={ARM_R_PATH} />
-            <Path d={LEG_L_FRONT} />
-            <Path d={LEG_R_FRONT} />
+            <Path d={LEG_L_PATH} />
+            <Path d={LEG_R_PATH} />
           </ClipPath>
         </Defs>
 
@@ -151,9 +179,9 @@ function SideMap({
           fill={`url(#sil-${side})`} stroke={COLORS.silhouetteStroke} strokeWidth={1} />
         <Path d={ARM_R_PATH}
           fill={`url(#sil-${side})`} stroke={COLORS.silhouetteStroke} strokeWidth={1} />
-        <Path d={LEG_L_FRONT}
+        <Path d={LEG_L_PATH}
           fill={`url(#sil-${side})`} stroke={COLORS.silhouetteStroke} strokeWidth={1} />
-        <Path d={LEG_R_FRONT}
+        <Path d={LEG_R_PATH}
           fill={`url(#sil-${side})`} stroke={COLORS.silhouetteStroke} strokeWidth={1} />
 
         {/* Muscle areas — clipped to the body silhouette */}
@@ -210,9 +238,9 @@ function SideMap({
           fill="none" stroke={COLORS.silhouetteStroke} strokeWidth={1} />
         <Path d={ARM_R_PATH}
           fill="none" stroke={COLORS.silhouetteStroke} strokeWidth={1} />
-        <Path d={LEG_L_FRONT}
+        <Path d={LEG_L_PATH}
           fill="none" stroke={COLORS.silhouetteStroke} strokeWidth={1} />
-        <Path d={LEG_R_FRONT}
+        <Path d={LEG_R_PATH}
           fill="none" stroke={COLORS.silhouetteStroke} strokeWidth={1} />
       </Svg>
     </View>

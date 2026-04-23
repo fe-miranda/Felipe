@@ -1,10 +1,12 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
-import { RootStackParamList } from '../types';
+import { useFocusEffect } from '@react-navigation/native';
+import { RootStackParamList, CompletedWorkout } from '../types';
 import { usePlan } from '../hooks/usePlan';
+import { loadHistory } from '../services/workoutHistoryService';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'WeekDetail'>;
@@ -40,9 +42,18 @@ function focusIcon(focus: string) {
 export function WeekDetailScreen({ navigation, route }: Props) {
   const { monthIndex, weekIndex } = route.params;
   const { plan, loadStoredPlan } = usePlan();
+  const [history, setHistory] = useState<CompletedWorkout[]>([]);
   const insets = useSafeAreaInsets();
 
   useEffect(() => { loadStoredPlan(); }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      loadHistory().then(setHistory).catch((_err) => {
+        setHistory([]);
+      });
+    }, []),
+  );
   if (!plan) return null;
 
   const month = plan.monthlyBlocks[monthIndex];
@@ -103,31 +114,37 @@ export function WeekDetailScreen({ navigation, route }: Props) {
       {/* ── Training days ── */}
       <Text style={s.sectionTitle}>{week.days.length} Treinos desta Semana</Text>
 
-      {week.days.map((day, di) => (
+      {week.days.map((day, di) => {
+        const isDone = history.some(
+          h => h.monthIndex === monthIndex && h.weekIndex === weekIndex && h.dayIndex === di,
+        );
+        return (
         <TouchableOpacity
           key={di}
-          style={s.dayCard}
+          style={[s.dayCard, isDone && s.dayCardDone]}
           onPress={() => navigation.navigate('WorkoutDetail', { monthIndex, weekIndex, dayIndex: di })}
           activeOpacity={0.8}
         >
           {/* Left accent */}
-          <View style={[s.dayAccent, { backgroundColor: phaseColor }]} />
+          <View style={[s.dayAccent, { backgroundColor: isDone ? '#10B981' : phaseColor }]} />
 
           <View style={s.dayHeader}>
-            <View style={[s.dayIconWrap, { backgroundColor: `${phaseColor}18` }]}>
-              <Text style={s.dayIconEmoji}>{focusIcon(day.focus)}</Text>
+            <View style={[s.dayIconWrap, { backgroundColor: isDone ? 'rgba(16,185,129,0.18)' : `${phaseColor}18` }]}>
+              <Text style={s.dayIconEmoji}>{isDone ? '✅' : focusIcon(day.focus)}</Text>
             </View>
             <View style={s.dayInfo}>
-              <Text style={[s.dayOfWeek, { color: phaseColor }]}>{day.dayOfWeek}</Text>
+              <Text style={[s.dayOfWeek, { color: isDone ? '#10B981' : phaseColor }]}>{day.dayOfWeek}</Text>
               <Text style={s.dayFocus}>{day.focus}</Text>
               <View style={s.dayMeta}>
                 <Text style={s.dayMetaText}>⏱ {day.duration} min</Text>
                 <View style={s.metaSep} />
                 <Text style={s.dayMetaText}>💪 {day.exercises.length} exercícios</Text>
+                {isDone && <View style={s.metaSep} />}
+                {isDone && <Text style={[s.dayMetaText, { color: '#10B981' }]}>Concluído</Text>}
               </View>
             </View>
-            <View style={[s.arrowBtn, { backgroundColor: `${phaseColor}20` }]}>
-              <Text style={[s.arrow, { color: phaseColor }]}>›</Text>
+            <View style={[s.arrowBtn, { backgroundColor: isDone ? 'rgba(16,185,129,0.18)' : `${phaseColor}20` }]}>
+              <Text style={[s.arrow, { color: isDone ? '#10B981' : phaseColor }]}>›</Text>
             </View>
           </View>
 
@@ -143,7 +160,8 @@ export function WeekDetailScreen({ navigation, route }: Props) {
             )}
           </View>
         </TouchableOpacity>
-      ))}
+        );
+      })}
     </ScrollView>
   );
 }
@@ -176,6 +194,10 @@ const s = StyleSheet.create({
   dayCard: {
     backgroundColor: C.surface, borderRadius: 16, padding: 16, marginBottom: 12,
     borderWidth: 1, borderColor: C.border, overflow: 'hidden',
+  },
+  dayCardDone: {
+    borderColor: 'rgba(16,185,129,0.4)',
+    backgroundColor: 'rgba(16,185,129,0.06)',
   },
   dayAccent: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, borderTopLeftRadius: 16, borderBottomLeftRadius: 16 },
   dayHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, marginLeft: 8 },
