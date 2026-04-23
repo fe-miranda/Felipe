@@ -391,6 +391,19 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
     }
   }, [exercises, workout, context, clearPersistedSession]);
 
+  const confirmFinish = useCallback(() => {
+    const done = exercises.reduce((a, e) => a + e.sets.filter(s => s.done).length, 0);
+    const total = exercises.reduce((a, e) => a + e.sets.length, 0);
+    Alert.alert(
+      'Finalizar Treino',
+      `${done}/${total} séries concluídas. Deseja salvar e finalizar?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Finalizar', onPress: finishWorkout },
+      ],
+    );
+  }, [exercises, finishWorkout]);
+
   const handleShare = useCallback(async () => {
     if (!shareRef.current) return;
     setSharing(true);
@@ -444,18 +457,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
           <TouchableOpacity style={s.hrBadge} onPress={() => setShowHrModal(true)}>
             <Text style={s.hrBadgeText}>❤️ {hrBpm || '—'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.finishBtn} onPress={() => {
-            const done = exercises.reduce((a, e) => a + e.sets.filter(s => s.done).length, 0);
-            const total = exercises.reduce((a, e) => a + e.sets.length, 0);
-            Alert.alert(
-              'Finalizar Treino',
-              `${done}/${total} séries concluídas. Deseja salvar e finalizar?`,
-              [
-                { text: 'Cancelar', style: 'cancel' },
-                { text: 'Finalizar', onPress: finishWorkout },
-              ],
-            );
-          }}>
+          <TouchableOpacity style={s.finishBtn} onPress={confirmFinish}>
             <Text style={s.finishBtnText}>Finalizar</Text>
           </TouchableOpacity>
         </View>
@@ -572,18 +574,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
           );
         })}
 
-        <TouchableOpacity style={s.finishBig} onPress={() => {
-          const done = exercises.reduce((a, e) => a + e.sets.filter(s => s.done).length, 0);
-          const total = exercises.reduce((a, e) => a + e.sets.length, 0);
-          Alert.alert(
-            'Finalizar Treino',
-            `${done}/${total} séries concluídas. Deseja salvar e finalizar?`,
-            [
-              { text: 'Cancelar', style: 'cancel' },
-              { text: 'Finalizar', onPress: finishWorkout },
-            ],
-          );
-        }} activeOpacity={0.85}>
+        <TouchableOpacity style={s.finishBig} onPress={confirmFinish} activeOpacity={0.85}>
           <Text style={s.finishBigText}>🏁  Finalizar e Salvar Treino</Text>
         </TouchableOpacity>
         <TouchableOpacity style={s.addExerciseBtn} onPress={() => setShowAddExercise(true)} activeOpacity={0.85}>
@@ -634,7 +625,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
 
       {/* ── Share / Summary modal (full screen) ── */}
       <Modal visible={showShare} transparent={false} animationType="slide">
-        <View style={{ flex: 1, backgroundColor: C.bg }}>
+        <View style={s.summaryScreen}>
           {/* Hidden capture refs (rendered off-screen) */}
           <View style={s.hiddenCaptures}>
             <ViewShot ref={shareRef} options={{ format: 'png', quality: 0.95 }}>
@@ -646,8 +637,8 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
           </View>
 
           <ScrollView
-            style={{ flex: 1 }}
-            contentContainerStyle={{ padding: 20, paddingTop: insets.top + 16, paddingBottom: insets.bottom + 24, gap: 16 }}
+            style={s.summaryScroll}
+            contentContainerStyle={[s.summaryScrollContent, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 24 }]}
             showsVerticalScrollIndicator={false}
           >
             <Text style={s.shareTitle}>🏁 Treino Finalizado!</Text>
@@ -657,7 +648,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
             {savedWorkout && <WorkoutSummaryCard workout={savedWorkout} avgHeartRate={avgHr} />}
 
             {/* Share options */}
-            <Text style={{ color: C.text3, fontSize: 12, fontWeight: '700', textAlign: 'center', marginTop: 8 }}>COMPARTILHAR</Text>
+            <Text style={s.shareSectionLabel}>COMPARTILHAR</Text>
             <TouchableOpacity style={s.shareBtn} onPress={handleShare} disabled={sharing}>
               <Text style={s.shareBtnText}>{sharing ? 'Gerando...' : '📤 Postar no Instagram / WhatsApp'}</Text>
             </TouchableOpacity>
@@ -858,4 +849,8 @@ const s = StyleSheet.create({
   shareBtnText: { color: '#fff', fontSize: 15, fontWeight: '800' },
   shareFinalizeBtn: { backgroundColor: C.success, borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 8, shadowColor: C.success, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 10, elevation: 6 },
   shareFinalizeBtnText: { color: '#fff', fontSize: 17, fontWeight: '900' },
+  summaryScreen: { flex: 1, backgroundColor: C.bg },
+  summaryScroll: { flex: 1 },
+  summaryScrollContent: { padding: 20, gap: 16 },
+  shareSectionLabel: { color: C.text3, fontSize: 12, fontWeight: '700', textAlign: 'center', marginTop: 8 },
 });
