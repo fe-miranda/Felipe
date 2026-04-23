@@ -166,6 +166,7 @@ const DAY_MAP: Record<number, string> = {
 export function HomeScreen({ navigation }: Props) {
   const { plan, loadStoredPlan, clearPlan } = usePlan();
   const [recentWorkouts, setRecentWorkouts] = useState<CompletedWorkout[]>([]);
+  const [allHistory, setAllHistory] = useState<CompletedWorkout[]>([]);
   const [quickFilter, setQuickFilter] = useState('Todos');
   const [dailySuggestion, setDailySuggestion] = useState<DailySuggestion | null>(null);
   const [loadingSuggestion, setLoadingSuggestion] = useState(false);
@@ -182,6 +183,7 @@ export function HomeScreen({ navigation }: Props) {
   const reloadHistory = useCallback(async () => {
     const hist = await loadHistory();
     setRecentWorkouts(hist.slice(0, 3));
+    setAllHistory(hist);
   }, []);
 
   useEffect(() => {
@@ -190,11 +192,12 @@ export function HomeScreen({ navigation }: Props) {
     reloadHistory();
   }, []);
 
-  // Re-check the active session every time the screen gains focus so the
-  // "resume session" card appears / disappears correctly when the user
-  // navigates back from another screen.
+  // Re-check the active session and reload history every time the screen gains
+  // focus so the "resume session" card appears / disappears correctly when the
+  // user navigates back from another screen.
   useFocusEffect(
     useCallback(() => {
+      reloadHistory();
       const clearResume = () => { setResumeWorkout(null); setResumeContext(undefined); };
       AsyncStorage.getItem(ACTIVE_WORKOUT_SESSION_KEY).then((raw) => {
         if (!raw) { clearResume(); return; }
@@ -210,7 +213,7 @@ export function HomeScreen({ navigation }: Props) {
           clearResume();
         }
       });
-    }, []),
+    }, [reloadHistory]),
   );
 
   useEffect(() => {
@@ -329,6 +332,12 @@ export function HomeScreen({ navigation }: Props) {
   // Real calendar month for index 0 is plan's start month
   const startMonth = planStartDate.getMonth(); // 0-11
 
+  // Calculate plan sessions progress
+  const completedPlanSessions = allHistory.filter(w => w.monthIndex !== undefined).length;
+  const totalPlanSessions = monthlyBlocks.reduce((total, block) =>
+    total + block.weeks.reduce((wTotal, week) => wTotal + week.days.length, 0), 0);
+  const remainingSessions = Math.max(0, totalPlanSessions - completedPlanSessions);
+
   // Find today's workout from plan
   const todayDOW = DAY_MAP[now.getDay()];
   let todayWorkout: WorkoutDay | null = null;
@@ -423,8 +432,8 @@ export function HomeScreen({ navigation }: Props) {
       <View style={s.statsRow}>
         {[
           { icon: '📅', value: `${p.daysPerWeek}×`, label: 'por semana' },
-          { icon: '📆', value: String(totalMonths), label: totalMonths === 1 ? 'mês' : 'meses' },
-          { icon: '🏆', value: `${p.daysPerWeek * totalMonths * 4}`, label: 'treinos' },
+          { icon: '✅', value: String(completedPlanSessions), label: 'realizados' },
+          { icon: '📌', value: String(remainingSessions > 0 ? remainingSessions : totalPlanSessions > 0 ? '0' : '—'), label: 'restantes' },
         ].map((stat, i) => (
           <View key={i} style={s.statCard}>
             <Text style={s.statIcon}>{stat.icon}</Text>

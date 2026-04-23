@@ -659,7 +659,10 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
             {/* Finalize button */}
             <TouchableOpacity
               style={s.shareFinalizeBtn}
-              onPress={() => { setShowShare(false); navigation.navigate('WorkoutHistory'); }}
+              onPress={() => {
+                setShowShare(false);
+                navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+              }}
             >
               <Text style={s.shareFinalizeBtnText}>✅ Finalizar Treino</Text>
             </TouchableOpacity>
