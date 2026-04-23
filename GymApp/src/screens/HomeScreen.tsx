@@ -337,6 +337,7 @@ export function HomeScreen({ navigation }: Props) {
   const totalPlanSessions = monthlyBlocks.reduce((total, block) =>
     total + block.weeks.reduce((wTotal, week) => wTotal + week.days.length, 0), 0);
   const remainingSessions = Math.max(0, totalPlanSessions - completedPlanSessions);
+  const remainingLabel = totalPlanSessions === 0 ? '—' : String(remainingSessions);
 
   // Find today's workout from plan
   const todayDOW = DAY_MAP[now.getDay()];
@@ -433,7 +434,7 @@ export function HomeScreen({ navigation }: Props) {
         {[
           { icon: '📅', value: `${p.daysPerWeek}×`, label: 'por semana' },
           { icon: '✅', value: String(completedPlanSessions), label: 'realizados' },
-          { icon: '📌', value: String(remainingSessions > 0 ? remainingSessions : totalPlanSessions > 0 ? '0' : '—'), label: 'restantes' },
+          { icon: '📌', value: remainingLabel, label: 'restantes' },
         ].map((stat, i) => (
           <View key={i} style={s.statCard}>
             <Text style={s.statIcon}>{stat.icon}</Text>

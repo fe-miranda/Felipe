@@ -49,7 +49,9 @@ export function WeekDetailScreen({ navigation, route }: Props) {
 
   useFocusEffect(
     React.useCallback(() => {
-      loadHistory().then(setHistory).catch(() => {});
+      loadHistory().then(setHistory).catch((_err) => {
+        setHistory([]);
+      });
     }, []),
   );
   if (!plan) return null;
