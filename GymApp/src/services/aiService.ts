@@ -108,7 +108,7 @@ function friendlyError(status: number): string | null {
   }
 }
 
-async function groqPost(messages: object[], maxTokens: number): Promise<string> {
+async function groqPost(messages: object[], maxTokens: number, temperature = 0.7): Promise<string> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
@@ -120,7 +120,7 @@ async function groqPost(messages: object[], maxTokens: number): Promise<string> 
         'Content-Type': 'application/json',
         Authorization: `Bearer ${getApiKey()}`,
       },
-      body: JSON.stringify({ model: GROQ_MODEL, messages, max_tokens: maxTokens, temperature: 0.7 }),
+      body: JSON.stringify({ model: GROQ_MODEL, messages, max_tokens: maxTokens, temperature }),
       signal: controller.signal,
     });
   } catch (err: any) {
@@ -145,6 +145,7 @@ async function groqVisionPost(
   base64Images: { data: string; mimeType: string }[],
   textPrompt: string,
   maxTokens: number,
+  temperature = 0.4,
 ): Promise<string> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -172,7 +173,7 @@ async function groqVisionPost(
         'Content-Type': 'application/json',
         Authorization: `Bearer ${getApiKey()}`,
       },
-      body: JSON.stringify({ model: GROQ_VISION_MODEL, messages, max_tokens: maxTokens, temperature: 0.4 }),
+      body: JSON.stringify({ model: GROQ_VISION_MODEL, messages, max_tokens: maxTokens, temperature }),
       signal: controller.signal,
     });
   } catch (err: any) {
@@ -502,7 +503,13 @@ export async function generateCustomWorkout(params: CustomWorkoutParams): Promis
 const IMPORT_PLAN_PROMPT_SUFFIX =
   `\nConvert the workout plan above into this exact JSON structure (PT-BR labels), no markdown:\n` +
   `{"overallGoal":"..","months":[{"month":1,"monthName":"Janeiro","focus":"..","description":"..","progressIndicators":[".."],"weeks":[{"week":1,"theme":"..","weeklyGoals":[".."],"days":[{"dayOfWeek":"Segunda","focus":"..","duration":60,"exercises":[{"name":"Supino Reto","sets":4,"reps":"10-12","rest":"90s"}]}]}]}],"nutritionTips":[".."],"recoveryTips":[".."]}\n` +
-  `Rules: group days into weeks (4 weeks per month), keep all exercises exactly as described, fill missing fields with reasonable defaults.`;
+  `STRICT RULES — you MUST follow all of them without exception:\n` +
+  `1. Copy every exercise EXACTLY as written in the source — same name, same sets, same reps, same rest. Do NOT rename, substitute, merge, or reorder any exercise.\n` +
+  `2. Do NOT add any exercise, set, rep, or rest value that is not explicitly present in the source.\n` +
+  `3. Do NOT remove any exercise, day, or session that appears in the source.\n` +
+  `4. Do NOT apply progressive overload, periodization, or any modification to the source data.\n` +
+  `5. Only fill in structural fields that are required by the JSON schema but absent from the source (e.g. dayOfWeek, duration) — use the most reasonable neutral default.\n` +
+  `6. Group days into weeks (4 weeks per month) repeating the same workout structure across all weeks unless the source explicitly differs per week.`;
 
 export interface ImportPlanOptions {
   userProfile: UserProfile;
@@ -546,7 +553,7 @@ export async function importPlanFromText(
     `Workout plan to import:\n\n${planText}\n` +
     `Import constraints: this plan must have exactly ${durationMonths} month(s), starting from current calendar month.\n` +
     IMPORT_PLAN_PROMPT_SUFFIX;
-  const raw = await groqPost([{ role: 'user', content: prompt }], 3000);
+  const raw = await groqPost([{ role: 'user', content: prompt }], 3000, 0.1);
   const data = extractJson(raw);
   return _buildImportedPlan(data, options);
 }
@@ -564,10 +571,11 @@ export async function importPlanFromImages(
     // Single image: send directly with vision model
     const raw = await groqVisionPost(
       images,
-      `Extract all workout exercises, sets, reps and rest times visible in the image.` +
+      `Transcribe every exercise, set count, rep count, and rest time visible in this image EXACTLY as written — do not rename, add, remove, or change anything.` +
       ` Build exactly ${durationMonths} month(s) starting from current month.` +
       IMPORT_PLAN_PROMPT_SUFFIX,
       3000,
+      0.1,
     );
     const data = extractJson(raw);
     return _buildImportedPlan(data, options);
@@ -577,8 +585,9 @@ export async function importPlanFromImages(
   const extractPromises = images.map((img) =>
     groqVisionPost(
       [img],
-      'Extract all workout text visible in this image. Return only the raw text, no JSON.',
+      'Transcribe ALL workout text visible in this image exactly as written — copy every exercise name, set, rep, and rest value verbatim. Return only the raw text, no JSON.',
       800,
+      0.1,
     ),
   );
   const texts = await Promise.all(extractPromises);
