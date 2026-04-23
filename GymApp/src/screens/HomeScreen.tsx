@@ -156,7 +156,7 @@ function greeting(): string {
   return 'Boa noite';
 }
 
-type Props = { navigation: NativeStackNavigationProp<RootStackParamList, 'Home'> };
+type Props = { navigation: NativeStackNavigationProp<RootStackParamList, 'Main'> };
 
 const DAY_MAP: Record<number, string> = {
   0: 'Domingo', 1: 'Segunda', 2: 'Terça', 3: 'Quarta',
@@ -367,9 +367,6 @@ export function HomeScreen({ navigation }: Props) {
           <Text style={s.greeting}>{greeting()}, {p.name} 👋</Text>
           <Text style={s.greetingSub}>Seu plano de {totalMonths} {totalMonths === 1 ? 'mês' : 'meses'} está ativo</Text>
         </View>
-        <TouchableOpacity style={s.iconBtn} onPress={() => navigation.navigate('Settings')} testID="btn-settings">
-          <Text style={s.iconBtnText}>⚙️</Text>
-        </TouchableOpacity>
       </View>
 
       {/* ── Acessar seu treino ── */}

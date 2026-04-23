@@ -92,13 +92,13 @@ describe('OnboardingScreen — rendering', () => {
 // ─── Auto-redirect ─────────────────────────────────────────────────────────
 
 describe('OnboardingScreen — auto-redirect', () => {
-  it('redirects to Home when stored plan exists', async () => {
+  it('redirects to Main when stored plan exists', async () => {
     mockLoadStoredPlan.mockResolvedValueOnce(true);
 
     render(<OnboardingScreen navigation={mockNavigation as any} />);
 
     await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalledWith('Home');
+      expect(mockReplace).toHaveBeenCalledWith('Main');
     });
   });
 
@@ -221,7 +221,7 @@ describe('OnboardingScreen — validation', () => {
     });
   });
 
-  it('navigates to Home after successful generation', async () => {
+  it('navigates to Main after successful generation', async () => {
     mockGenerate.mockResolvedValueOnce({});
 
     const { getByTestId } = render(
@@ -238,7 +238,7 @@ describe('OnboardingScreen — validation', () => {
     });
 
     await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalledWith('Home');
+      expect(mockReplace).toHaveBeenCalledWith('Main');
     });
   });
 

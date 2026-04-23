@@ -160,7 +160,7 @@ export function NewPlanScreen({ navigation }: Props) {
         : await importPlanFromImages(images.map((img) => ({ data: img.base64, mimeType: img.mimeType })), options);
       await AsyncStorage.setItem(PLAN_KEY, JSON.stringify(plan));
       setShowImportForm(false);
-      navigation.replace('Home');
+      navigation.replace('Main');
     } catch (err: any) {
       Alert.alert('Erro', err?.message || 'Não foi possível importar o plano. Tente novamente.');
     } finally {

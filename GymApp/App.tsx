@@ -7,14 +7,14 @@ import { SplashScreen } from './src/screens/SplashScreen';
 
 export default function App() {
   const [splashDone, setSplashDone] = useState(false);
-  const [initialRouteName, setInitialRouteName] = useState<'Welcome' | 'Home'>('Welcome');
+  const [initialRouteName, setInitialRouteName] = useState<'Welcome' | 'Main'>('Welcome');
   const [bootDone, setBootDone] = useState(false);
 
   useEffect(() => {
     (async () => {
       try {
         const storedPlan = await AsyncStorage.getItem('@gymapp_plan');
-        if (storedPlan) setInitialRouteName('Home');
+        if (storedPlan) setInitialRouteName('Main');
       } finally {
         setBootDone(true);
       }
