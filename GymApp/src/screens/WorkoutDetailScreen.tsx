@@ -1,12 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Exercise, RootStackParamList, CompletedWorkout } from '../types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Exercise, RootStackParamList, CompletedWorkout, WorkoutDay } from '../types';
 import { usePlan } from '../hooks/usePlan';
 import { loadHistory } from '../services/workoutHistoryService';
 import { ExerciseHistoryModal } from '../components/ExerciseHistoryModal';
+
+const ACTIVE_WORKOUT_SESSION_KEY = '@gymapp_active_workout_session';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'WorkoutDetail'>;
@@ -56,6 +59,51 @@ export function WorkoutDetailScreen({ navigation, route }: Props) {
   const [workoutHistory, setWorkoutHistory] = useState<CompletedWorkout[]>([]);
 
   const [planLoading, setPlanLoading] = useState(true);
+
+  const navigateToWorkout = useCallback(async (
+    workout: WorkoutDay,
+    context?: { monthIndex: number; weekIndex: number; dayIndex: number },
+  ) => {
+    const raw = await AsyncStorage.getItem(ACTIVE_WORKOUT_SESSION_KEY);
+    if (!raw) {
+      navigation.navigate('ActiveWorkout', { workout, context });
+      return;
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      if (!parsed?.workout?.focus) {
+        navigation.navigate('ActiveWorkout', { workout, context });
+        return;
+      }
+      if (parsed.workout.focus === workout.focus) {
+        navigation.navigate('ActiveWorkout', { workout, context });
+        return;
+      }
+      Alert.alert(
+        'Treino em Andamento',
+        `Você tem um treino em andamento: "${parsed.workout.focus}". O que deseja fazer?`,
+        [
+          {
+            text: 'Cancelar treino anterior',
+            style: 'destructive',
+            onPress: async () => {
+              await AsyncStorage.removeItem(ACTIVE_WORKOUT_SESSION_KEY);
+              navigation.navigate('ActiveWorkout', { workout, context });
+            },
+          },
+          {
+            text: 'Retomar treino anterior',
+            onPress: () => {
+              navigation.navigate('ActiveWorkout', { workout: parsed.workout, context: parsed.context });
+            },
+          },
+          { text: 'Voltar', style: 'cancel' },
+        ],
+      );
+    } catch {
+      navigation.navigate('ActiveWorkout', { workout, context });
+    }
+  }, [navigation]);
 
   useEffect(() => {
     loadStoredPlan().finally(() => setPlanLoading(false));
@@ -271,10 +319,7 @@ export function WorkoutDetailScreen({ navigation, route }: Props) {
         <TouchableOpacity
           style={[s.startBtn, { backgroundColor: phaseColor }]}
           activeOpacity={0.85}
-          onPress={() => navigation.navigate('ActiveWorkout', {
-            workout: workoutToStart,
-            context: { monthIndex, weekIndex, dayIndex },
-          })}
+          onPress={() => navigateToWorkout(workoutToStart, { monthIndex, weekIndex, dayIndex })}
         >
           <Text style={s.startBtnText}>▶  Iniciar Treino</Text>
         </TouchableOpacity>

@@ -16,6 +16,7 @@ import {
   setupNotifications, scheduleRestEndNotification, cancelRestNotification,
   triggerRestEndAlert,
   setRestActionCallback, setRestPauseActionCallback,
+  playCountdownBeep,
 } from '../services/notificationService';
 import { WorkoutSummaryCard } from '../components/WorkoutSummaryCard';
 import { WorkoutStoryCard } from '../components/WorkoutStoryCard';
@@ -214,12 +215,21 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   }, []);
 
   // Rest countdown based on absolute end timestamp
+  const countdownBeepFiredRef = useRef<Set<number>>(new Set());
   useEffect(() => {
-    if (!restActive || !restEndsAtRef.current) return;
+    if (!restActive || !restEndsAtRef.current) {
+      countdownBeepFiredRef.current = new Set();
+      return;
+    }
     const id = setInterval(async () => {
       if (!restEndsAtRef.current) return;
       const remaining = Math.max(0, Math.ceil((restEndsAtRef.current - Date.now()) / 1000));
       setRestRemaining(remaining);
+      // Play countdown beeps at 3, 2, 1 seconds remaining
+      if (remaining >= 1 && remaining <= 3 && !countdownBeepFiredRef.current.has(remaining)) {
+        countdownBeepFiredRef.current.add(remaining);
+        playCountdownBeep().catch(() => {});
+      }
       if (remaining <= 0 && !restCompletionFiredRef.current) {
         restCompletionFiredRef.current = true;
         restEndsAtRef.current = null;
@@ -234,6 +244,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   const startRest = useCallback((dur?: number) => {
     const d = dur ?? restDuration;
     restCompletionFiredRef.current = false;
+    countdownBeepFiredRef.current = new Set();
     restEndsAtRef.current = Date.now() + d * 1000;
     setRestRemaining(d);
     setRestActive(true);
@@ -359,40 +370,39 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
     setShowAddExercise(false);
   }, [newExerciseName, newExerciseSets, newExerciseReps, newExerciseRest, newExBlockType, newExName2, newExName3, newExName4]);
 
-  const finishWorkout = useCallback(() => {
+  const finishWorkout = useCallback(async () => {
+    await clearPersistedSession();
+    const log: CompletedWorkout = {
+      id: String(Date.now()),
+      date: new Date().toISOString(),
+      dayOfWeek: workout.dayOfWeek,
+      focus: workout.focus,
+      durationSeconds: elapsedRef.current,
+      exercises,
+      ...context,
+    };
+    await saveWorkout(log);
+    const prs = await analyzeWorkoutForPersonalRecords(log);
+    setSavedWorkout(log);
+    setShowShare(true);
+    if (prs.length > 0) {
+      const lines = prs.map((pr) => `🏆 ${pr.exerciseName}: ${pr.current.maxLoad.toFixed(0)}kg · ${pr.current.maxReps} reps`).join('\n');
+      Alert.alert('Novo Recorde Pessoal!', lines);
+    }
+  }, [exercises, workout, context, clearPersistedSession]);
+
+  const confirmFinish = useCallback(() => {
     const done = exercises.reduce((a, e) => a + e.sets.filter(s => s.done).length, 0);
     const total = exercises.reduce((a, e) => a + e.sets.length, 0);
     Alert.alert(
       'Finalizar Treino',
-      `${done}/${total} séries concluídas.\nSalvar no histórico?`,
+      `${done}/${total} séries concluídas. Deseja salvar e finalizar?`,
       [
         { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Salvar',
-          onPress: async () => {
-            await clearPersistedSession();
-            const log: CompletedWorkout = {
-              id: String(Date.now()),
-              date: new Date().toISOString(),
-              dayOfWeek: workout.dayOfWeek,
-              focus: workout.focus,
-              durationSeconds: elapsedRef.current,
-              exercises,
-              ...context,
-            };
-            await saveWorkout(log);
-            const prs = await analyzeWorkoutForPersonalRecords(log);
-            setSavedWorkout(log);
-            setShowShare(true);
-            if (prs.length > 0) {
-              const lines = prs.map((pr) => `🏆 ${pr.exerciseName}: ${pr.current.maxLoad.toFixed(0)}kg · ${pr.current.maxReps} reps`).join('\n');
-              Alert.alert('Novo Recorde Pessoal!', lines);
-            }
-          },
-        },
+        { text: 'Finalizar', onPress: finishWorkout },
       ],
     );
-  }, [exercises, workout, context, clearPersistedSession]);
+  }, [exercises, finishWorkout]);
 
   const handleShare = useCallback(async () => {
     if (!shareRef.current) return;
@@ -447,7 +457,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
           <TouchableOpacity style={s.hrBadge} onPress={() => setShowHrModal(true)}>
             <Text style={s.hrBadgeText}>❤️ {hrBpm || '—'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.finishBtn} onPress={finishWorkout}>
+          <TouchableOpacity style={s.finishBtn} onPress={confirmFinish}>
             <Text style={s.finishBtnText}>Finalizar</Text>
           </TouchableOpacity>
         </View>
@@ -564,7 +574,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
           );
         })}
 
-        <TouchableOpacity style={s.finishBig} onPress={finishWorkout} activeOpacity={0.85}>
+        <TouchableOpacity style={s.finishBig} onPress={confirmFinish} activeOpacity={0.85}>
           <Text style={s.finishBigText}>🏁  Finalizar e Salvar Treino</Text>
         </TouchableOpacity>
         <TouchableOpacity style={s.addExerciseBtn} onPress={() => setShowAddExercise(true)} activeOpacity={0.85}>
@@ -613,13 +623,10 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
         </TouchableOpacity>
       </Modal>
 
-      {/* ── Share modal ── */}
-      <Modal visible={showShare} transparent animationType="slide">
-        <View style={[s.shareOverlay, { paddingBottom: insets.bottom + 16 }]}>
-          <Text style={s.shareTitle}>🏆 Treino Salvo!</Text>
-          <Text style={s.shareSub}>Escolha como compartilhar</Text>
-
-          {/* Hidden capture refs (rendered off-screen but still measured) */}
+      {/* ── Share / Summary modal (full screen) ── */}
+      <Modal visible={showShare} transparent={false} animationType="slide">
+        <View style={s.summaryScreen}>
+          {/* Hidden capture refs (rendered off-screen) */}
           <View style={s.hiddenCaptures}>
             <ViewShot ref={shareRef} options={{ format: 'png', quality: 0.95 }}>
               {savedWorkout && <WorkoutSummaryCard workout={savedWorkout} avgHeartRate={avgHr} />}
@@ -629,25 +636,34 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
             </ViewShot>
           </View>
 
-          {/* Preview card */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.shareCardWrap}>
-            {savedWorkout && <WorkoutSummaryCard workout={savedWorkout} avgHeartRate={avgHr} />}
-          </ScrollView>
+          <ScrollView
+            style={s.summaryScroll}
+            contentContainerStyle={[s.summaryScrollContent, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 24 }]}
+            showsVerticalScrollIndicator={false}
+          >
+            <Text style={s.shareTitle}>🏁 Treino Finalizado!</Text>
+            <Text style={s.shareSub}>Confira o resumo e compartilhe seu treino</Text>
 
-          <View style={s.shareBtns}>
+            {/* Visible summary card */}
+            {savedWorkout && <WorkoutSummaryCard workout={savedWorkout} avgHeartRate={avgHr} />}
+
+            {/* Share options */}
+            <Text style={s.shareSectionLabel}>COMPARTILHAR</Text>
             <TouchableOpacity style={s.shareBtn} onPress={handleShare} disabled={sharing}>
-              <Text style={s.shareBtnText}>{sharing ? 'Gerando...' : '📤 Post / WhatsApp'}</Text>
+              <Text style={s.shareBtnText}>{sharing ? 'Gerando...' : '📤 Postar no Instagram / WhatsApp'}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[s.shareBtn, s.shareBtnStory]} onPress={handleShareStory} disabled={sharing}>
               <Text style={s.shareBtnText}>{sharing ? 'Gerando...' : '📱 Story Instagram (9:16)'}</Text>
             </TouchableOpacity>
+
+            {/* Finalize button */}
             <TouchableOpacity
-              style={s.shareSkip}
+              style={s.shareFinalizeBtn}
               onPress={() => { setShowShare(false); navigation.navigate('WorkoutHistory'); }}
             >
-              <Text style={s.shareSkipText}>Ver histórico →</Text>
+              <Text style={s.shareFinalizeBtnText}>✅ Finalizar Treino</Text>
             </TouchableOpacity>
-          </View>
+          </ScrollView>
         </View>
       </Modal>
 
@@ -825,15 +841,16 @@ const s = StyleSheet.create({
   altCancel: { marginTop: 14, paddingVertical: 12, alignItems: 'center' },
   altCancelText: { color: C.text3, fontSize: 15 },
 
-  shareOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: C.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, borderWidth: 1, borderColor: C.border },
   shareTitle: { color: C.text1, fontSize: 22, fontWeight: '900', textAlign: 'center' },
-  shareSub: { color: C.text3, fontSize: 13, textAlign: 'center', marginTop: 4, marginBottom: 16 },
+  shareSub: { color: C.text3, fontSize: 13, textAlign: 'center', marginTop: 4 },
   hiddenCaptures: { position: 'absolute', left: -9999, top: 0, opacity: 0 },
-  shareCardWrap: { paddingHorizontal: 4, paddingBottom: 16 },
-  shareBtns: { gap: 10 },
   shareBtn: { backgroundColor: C.primary, borderRadius: 14, paddingVertical: 14, alignItems: 'center', shadowColor: C.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 10, elevation: 6 },
   shareBtnStory: { backgroundColor: '#EC4899' },
   shareBtnText: { color: '#fff', fontSize: 15, fontWeight: '800' },
-  shareSkip: { alignItems: 'center', paddingVertical: 10 },
-  shareSkipText: { color: C.primaryLight, fontSize: 14, fontWeight: '600' },
+  shareFinalizeBtn: { backgroundColor: C.success, borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 8, shadowColor: C.success, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 10, elevation: 6 },
+  shareFinalizeBtnText: { color: '#fff', fontSize: 17, fontWeight: '900' },
+  summaryScreen: { flex: 1, backgroundColor: C.bg },
+  summaryScroll: { flex: 1 },
+  summaryScrollContent: { padding: 20, gap: 16 },
+  shareSectionLabel: { color: C.text3, fontSize: 12, fontWeight: '700', textAlign: 'center', marginTop: 8 },
 });
