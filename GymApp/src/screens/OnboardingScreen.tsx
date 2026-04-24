@@ -90,7 +90,7 @@ export function OnboardingScreen({ navigation }: Props) {
   React.useEffect(() => {
     (async () => {
       const found = await loadStoredPlan();
-      if (found) { navigation.replace('Home'); return; }
+      if (found) { navigation.replace('Main'); return; }
       const key = await AsyncStorage.getItem('@gymapp_custom_apikey');
       if (key) setRuntimeApiKey(key);
     })();
@@ -125,7 +125,7 @@ export function OnboardingScreen({ navigation }: Props) {
     setGenerating(true);
     try {
       await generate(profile);
-      navigation.replace('Home');
+      navigation.replace('Main');
     } catch (err: any) {
       const msg: string = err.message || 'Erro ao gerar o plano. Tente novamente.';
       if (msg.includes('API Key') || msg.includes('401') || msg.includes('403')) {

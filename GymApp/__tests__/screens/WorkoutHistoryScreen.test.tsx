@@ -142,11 +142,12 @@ describe('WorkoutHistoryScreen — with history', () => {
     });
     (workoutHistoryService.loadHistory as jest.Mock).mockResolvedValue([workout]);
 
-    const { findByText } = render(
+    const { findByTestId } = render(
       <WorkoutHistoryScreen navigation={mockNavigation as any} />
     );
 
-    expect(await findByText(/—/)).toBeTruthy();
+    const chip = await findByTestId('chip-best-load');
+    expect(chip).toBeTruthy();
   });
 
   it('updates total stat counts correctly', async () => {

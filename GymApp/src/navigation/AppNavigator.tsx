@@ -5,16 +5,13 @@ import { RootStackParamList } from '../types';
 import { WelcomeScreen } from '../screens/WelcomeScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { NewPlanScreen } from '../screens/NewPlanScreen';
-import { HomeScreen } from '../screens/HomeScreen';
 import { MonthDetailScreen } from '../screens/MonthDetailScreen';
 import { WeekDetailScreen } from '../screens/WeekDetailScreen';
 import { WorkoutDetailScreen } from '../screens/WorkoutDetailScreen';
 import { ActiveWorkoutScreen } from '../screens/ActiveWorkoutScreen';
-import { WorkoutHistoryScreen } from '../screens/WorkoutHistoryScreen';
 import { MuscleFatigueScreen } from '../screens/MuscleFatigueScreen';
-import { ChatScreen } from '../screens/ChatScreen';
-import { SettingsScreen } from '../screens/SettingsScreen';
 import { PerformanceAnalysisScreen } from '../screens/PerformanceAnalysisScreen';
+import { MainTabNavigator } from './MainTabNavigator';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -50,10 +47,11 @@ export function AppNavigator({ initialRouteName = 'Welcome' }: Props) {
           component={NewPlanScreen}
           options={{ headerShown: false }}
         />
+        {/* Main app shell – renders the bottom tab navigator */}
         <Stack.Screen
-          name="Home"
-          component={HomeScreen}
-          options={{ title: 'Meu Plano', headerShown: false }}
+          name="Main"
+          component={MainTabNavigator}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="MonthDetail"
@@ -78,24 +76,9 @@ export function AppNavigator({ initialRouteName = 'Welcome' }: Props) {
           options={{ headerShown: false }}
         />
         <Stack.Screen
-          name="WorkoutHistory"
-          component={WorkoutHistoryScreen}
-          options={{ title: 'Histórico de Treinos' }}
-        />
-        <Stack.Screen
           name="MuscleFatigue"
           component={MuscleFatigueScreen}
           options={{ title: 'Fadiga Muscular' }}
-        />
-        <Stack.Screen
-          name="Chat"
-          component={ChatScreen}
-          options={{ title: 'Chat com IA' }}
-        />
-        <Stack.Screen
-          name="Settings"
-          component={SettingsScreen}
-          options={{ title: 'Configurações' }}
         />
         <Stack.Screen
           name="PerformanceAnalysis"

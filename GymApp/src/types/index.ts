@@ -144,11 +144,26 @@ export interface CarouselSelectionState {
   [workoutId: string]: Set<number>; // set of enabled exercise indices
 }
 
+// ─── Tab navigator param list ────────────────────────────────────────────────
+
+export type MainTabParamList = {
+  Inicio: undefined;
+  WorkoutHistory: undefined;
+  Chat: undefined;
+  Settings: undefined;
+};
+
+// ─── Root stack param list ────────────────────────────────────────────────────
+// Chat, WorkoutHistory and Settings live inside MainTabParamList (bottom tabs).
+// They are also listed here so TypeScript allows navigation.navigate() calls
+// from stack screens; React Navigation resolves them through the nested tab.
+
 export type RootStackParamList = {
   Welcome: undefined;
   Onboarding: undefined;
   NewPlan: undefined;
-  Home: undefined;
+  /** Main app shell — renders the bottom tab navigator. */
+  Main: undefined;
   MonthDetail: { monthIndex: number };
   WeekDetail: { monthIndex: number; weekIndex: number };
   WorkoutDetail: { monthIndex: number; weekIndex: number; dayIndex: number };
@@ -156,9 +171,10 @@ export type RootStackParamList = {
     workout: WorkoutDay;
     context?: { monthIndex: number; weekIndex: number; dayIndex: number };
   };
-  WorkoutHistory: undefined;
   MuscleFatigue: undefined;
+  PerformanceAnalysis: undefined;
+  // Tab screens — resolved at runtime through the nested MainTabNavigator
+  WorkoutHistory: undefined;
   Chat: undefined;
   Settings: undefined;
-  PerformanceAnalysis: undefined;
 };

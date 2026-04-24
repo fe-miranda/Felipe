@@ -476,7 +476,12 @@ export function WorkoutHistoryScreen({ navigation }: Props) {
                       <Text style={s.chipText}>⏱ {fmtDuration(w.durationSeconds)}</Text>
                     </View>
                     <View style={[s.chip, s.chipAccent]}>
-                      <Text style={[s.chipText, { color: C.success }]}>⬆ {bestLoad(w)}</Text>
+                      <Text
+                        testID="chip-best-load"
+                        style={[s.chipText, { color: C.success }]}
+                      >
+                        ⬆ {bestLoad(w)}
+                      </Text>
                     </View>
                   </View>
 
