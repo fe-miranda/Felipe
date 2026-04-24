@@ -305,7 +305,7 @@ export function HomeScreen({ navigation }: Props) {
 
   if (!plan) {
     return (
-      <SafeAreaView style={s.safeArea} edges={['top', 'bottom']}>
+      <SafeAreaView style={s.safeArea} edges={['top']}>
         <View style={s.emptyWrap}>
           <Text style={s.emptyEmoji}>🏋️</Text>
           <Text style={s.emptyTitle}>Nenhum plano encontrado</Text>
@@ -358,7 +358,7 @@ export function HomeScreen({ navigation }: Props) {
   }
 
   return (
-    <SafeAreaView style={s.safeArea} edges={['top', 'bottom']}>
+    <SafeAreaView style={s.safeArea} edges={['top']}>
     <ScrollView style={s.container} contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
 
       {/* ── Top bar ── */}

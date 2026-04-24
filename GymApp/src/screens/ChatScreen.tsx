@@ -179,7 +179,7 @@ export function ChatScreen({ navigation }: Props) {
       )}
 
       {/* ── Input bar ── */}
-      <View style={[s.inputBar, { paddingBottom: insets.bottom + 8 }]}>
+      <View style={[s.inputBar, { paddingBottom: 8 }]}>
         <TextInput
           style={s.input}
           placeholder="Pergunte sobre seu treino..."
