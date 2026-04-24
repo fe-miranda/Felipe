@@ -6,8 +6,9 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { RootStackParamList, AnnualPlan } from '../types';
+import { RootStackParamList, AnnualPlan, CompletedWorkout } from '../types';
 import { chatAboutPlan, ChatMessage } from '../services/aiService';
+import { loadHistory } from '../services/workoutHistoryService';
 
 type Props = { navigation: NativeStackNavigationProp<RootStackParamList, 'Chat'> };
 
@@ -47,12 +48,17 @@ export function ChatScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<AnnualPlan | null>(null);
   const [planLoading, setPlanLoading] = useState(true);
+  const [workoutHistory, setWorkoutHistory] = useState<CompletedWorkout[]>([]);
   const listRef = useRef<FlatList>(null);
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
-    AsyncStorage.getItem(PLAN_KEY).then((stored) => {
+    Promise.all([
+      AsyncStorage.getItem(PLAN_KEY),
+      loadHistory(),
+    ]).then(([stored, history]) => {
       if (stored) setPlan(JSON.parse(stored));
+      setWorkoutHistory(history);
       setPlanLoading(false);
     });
   }, []);
@@ -66,7 +72,7 @@ export function ChatScreen({ navigation }: Props) {
     setMessages(updated);
     setLoading(true);
     try {
-      const reply = await chatAboutPlan(msg, plan, messages);
+      const reply = await chatAboutPlan(msg, plan, messages, workoutHistory);
       setMessages([...updated, { role: 'model', text: reply }]);
     } catch (err: any) {
       setMessages([...updated, { role: 'model', text: friendlyAiError(err) }]);
@@ -126,7 +132,7 @@ export function ChatScreen({ navigation }: Props) {
     <KeyboardAvoidingView
       style={[s.container, { paddingTop: insets.top }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={90}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       {/* ── Welcome + suggestions ── */}
       {showWelcome && (

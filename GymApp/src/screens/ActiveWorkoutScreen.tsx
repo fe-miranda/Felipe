@@ -661,7 +661,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
               style={s.shareFinalizeBtn}
               onPress={() => {
                 setShowShare(false);
-                navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+                navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
               }}
             >
               <Text style={s.shareFinalizeBtnText}>✅ Finalizar Treino</Text>

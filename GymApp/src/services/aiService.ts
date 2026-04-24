@@ -392,18 +392,92 @@ export interface ChatMessage {
   text: string;
 }
 
+function buildChatSystemPrompt(plan: AnnualPlan, workoutHistory: CompletedWorkout[]): string {
+  const p = plan.userProfile;
+  const bmi = (p.weight / Math.pow(p.height / 100, 2)).toFixed(1);
+  const strength = p.workoutDuration - p.cardioMinutes;
+  const genderLabel = p.gender === 'male' ? 'masculino' : p.gender === 'female' ? 'feminino' : 'outro';
+
+  const planStart = new Date(plan.createdAt);
+  const now = new Date();
+  const monthsElapsed = Math.max(0,
+    (now.getFullYear() - planStart.getFullYear()) * 12 + (now.getMonth() - planStart.getMonth())
+  );
+  const currentMonthIdx = Math.min(monthsElapsed, plan.totalMonths - 1);
+  const currentMonth = plan.monthlyBlocks[currentMonthIdx];
+
+  const total = workoutHistory.length;
+  const fourWeeksAgo = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
+  const recent = workoutHistory.filter(w => new Date(w.date) >= fourWeeksAgo);
+  const recentFreq = recent.length > 0 ? (recent.length / 4).toFixed(1) : '0';
+
+  const lastWorkout = workoutHistory[0];
+  const lastWorkoutStr = lastWorkout
+    ? `${new Date(lastWorkout.date).toLocaleDateString('pt-BR')} — ${lastWorkout.focus}`
+    : 'nenhum ainda';
+
+  const focusCount: Record<string, number> = {};
+  workoutHistory.slice(0, 30).forEach(w => {
+    focusCount[w.focus] = (focusCount[w.focus] ?? 0) + 1;
+  });
+  const topFocuses = Object.entries(focusCount)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([f, n]) => `${f} (${n}x)`)
+    .join(', ') || 'nenhum ainda';
+
+  const planWorkouts = workoutHistory.filter(w => w.monthIndex !== undefined).length;
+  const totalPlanSessions = plan.monthlyBlocks.reduce((t, b) =>
+    t + b.weeks.reduce((wt, w) => wt + w.days.length, 0), 0);
+  const adherenceStr = totalPlanSessions > 0
+    ? `${planWorkouts}/${totalPlanSessions} sessões do plano concluídas`
+    : `${total} treinos registrados`;
+
+  const injuriesLine = p.injuries ? `\n• Restrições/lesões: ${p.injuries}` : '';
+
+  const historyBlock = total === 0
+    ? '• Nenhum treino registrado ainda — início da jornada!'
+    : [
+        `• Total de treinos concluídos: ${total}`,
+        `• Último treino: ${lastWorkoutStr}`,
+        `• Frequência (últimas 4 semanas): ${recent.length} treinos (~${recentFreq}x/sem)`,
+        `• Grupos mais treinados (últimos 30): ${topFocuses}`,
+        `• Adesão ao plano: ${adherenceStr}`,
+      ].join('\n');
+
+  const currentMonthBlock = currentMonth
+    ? `• Mês ${currentMonthIdx + 1}/${plan.totalMonths}: ${currentMonth.monthName} — ${currentMonth.focus}\n• ${currentMonth.description}`
+    : `• Plano de ${plan.totalMonths} mês(es) — ${plan.overallGoal}`;
+
+  return (
+    `Você é Coach IA, personal trainer de elite e nutricionista esportivo com 12 anos de experiência. ` +
+    `Você atende EXCLUSIVAMENTE ${p.name} e conhece cada detalhe do perfil e histórico dele/dela.\n\n` +
+    `PERFIL DE ${p.name.toUpperCase()}:\n` +
+    `• ${p.age} anos | Sexo: ${genderLabel} | ${p.weight}kg | ${p.height}cm | IMC: ${bmi}\n` +
+    `• Nível: ${LEVEL_LABELS[p.fitnessLevel]} | Objetivo: ${GOAL_LABELS[p.goal]}\n` +
+    `• ${p.daysPerWeek}x/semana | Sessão: ${p.workoutDuration}min (${strength}min força + ${p.cardioMinutes}min cardio)` +
+    `${injuriesLine}\n\n` +
+    `PLANO ATUAL:\n` +
+    `• Objetivo geral: ${plan.overallGoal}\n` +
+    `${currentMonthBlock}\n\n` +
+    `HISTÓRICO DE TREINOS:\n${historyBlock}\n\n` +
+    `COMO RESPONDER:\n` +
+    `1. Use os dados reais acima para personalizar CADA resposta — cite números específicos quando relevante\n` +
+    `2. Análise de desempenho/progresso: avalie os dados do histórico de forma honesta e específica, não genérica\n` +
+    `3. Tom: direto, caloroso, motivador — como coach falando com atleta que conhece bem, não como manual\n` +
+    `4. Nutrição esportiva: oriente sempre alinhado ao objetivo (${GOAL_LABELS[p.goal]}) e fase atual do plano\n` +
+    `5. Respostas: 2-4 parágrafos concisos, use emojis com moderação (máx 2 por resposta)\n` +
+    `6. Responda SEMPRE em português brasileiro`
+  );
+}
+
 export async function chatAboutPlan(
   message: string,
   plan: AnnualPlan,
-  history: ChatMessage[]
+  history: ChatMessage[],
+  workoutHistory: CompletedWorkout[] = [],
 ): Promise<string> {
-  const system =
-    `Personal trainer assistant for GymAI app.\n` +
-    `User: ${plan.userProfile.name}, goal: ${GOAL_LABELS[plan.userProfile.goal]}, ` +
-    `level: ${LEVEL_LABELS[plan.userProfile.fitnessLevel]}, ` +
-    `${plan.userProfile.daysPerWeek}d/week. Plan: ${plan.overallGoal}.` +
-    (plan.userProfile.injuries ? ` Limitations: ${plan.userProfile.injuries}.` : '') +
-    `\nReply in PT-BR. Be concise, motivating, practical.`;
+  const system = buildChatSystemPrompt(plan, workoutHistory);
 
   const messages = [
     { role: 'system', content: system },
@@ -411,7 +485,7 @@ export async function chatAboutPlan(
     { role: 'user', content: message },
   ];
 
-  const reply = await groqPost(messages, 512);
+  const reply = await groqPost(messages, 700);
   return reply || 'Não consegui gerar uma resposta. Tente novamente.';
 }
 
