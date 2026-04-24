@@ -1,6 +1,7 @@
 import React from 'react';
 import { Text, Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MainTabParamList } from '../types';
 import { HomeScreen } from '../screens/HomeScreen';
 import { WorkoutHistoryScreen } from '../screens/WorkoutHistoryScreen';
@@ -42,6 +43,9 @@ function tabIcon(name: keyof MainTabParamList) {
 }
 
 export function MainTabNavigator() {
+  const insets = useSafeAreaInsets();
+  const bottomInset = Platform.OS === 'android' ? insets.bottom : 0;
+
   return (
     <Tab.Navigator
       screenOptions={{
@@ -50,8 +54,8 @@ export function MainTabNavigator() {
           backgroundColor: C.bg,
           borderTopColor: C.border,
           borderTopWidth: 1,
-          height: Platform.OS === 'ios' ? 84 : 60,
-          paddingBottom: Platform.OS === 'ios' ? 28 : 8,
+          height: Platform.OS === 'ios' ? 84 : 60 + bottomInset,
+          paddingBottom: Platform.OS === 'ios' ? 28 : 8 + bottomInset,
           paddingTop: 8,
           elevation: 0,
           shadowOpacity: 0,

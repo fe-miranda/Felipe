@@ -265,7 +265,7 @@ export function WorkoutHistoryScreen({ navigation }: Props) {
   return (
     <ScrollView
       style={s.container}
-      contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 24 }]}
+      contentContainerStyle={[s.content, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 24 }]}
       showsVerticalScrollIndicator={false}
     >
       {/* ── Stats banner ── */}

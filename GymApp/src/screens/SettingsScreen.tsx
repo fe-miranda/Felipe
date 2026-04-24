@@ -58,7 +58,7 @@ export function SettingsScreen({ navigation }: Props) {
   };
 
   return (
-    <ScrollView style={s.container} contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 16 }]} showsVerticalScrollIndicator={false}>
+    <ScrollView style={s.container} contentContainerStyle={[s.content, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }]} showsVerticalScrollIndicator={false}>
 
       {/* ── Hero ── */}
       <View style={s.hero}>
