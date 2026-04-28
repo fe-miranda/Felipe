@@ -340,29 +340,35 @@ export function HomeScreen({ navigation }: Props) {
     );
   }
 
-  const { userProfile: p, monthlyBlocks, overallGoal, nutritionTips, recoveryTips } = plan;
+  const { userProfile: p, overallGoal } = plan;
+  const monthlyBlocks: typeof plan.monthlyBlocks = plan.monthlyBlocks ?? [];
+  const nutritionTips: string[] = plan.nutritionTips ?? [];
+  const recoveryTips: string[] = plan.recoveryTips ?? [];
   const goal = GOAL_META[p.goal] ?? { icon: '🎯', label: p.goal };
   const totalMonths = plan.totalMonths ?? monthlyBlocks.length ?? 12;
-  const generatedCount = monthlyBlocks.filter((b) => b.weeks.length > 0).length;
-  const progress = generatedCount / totalMonths;
+  const generatedCount = monthlyBlocks.filter((b) => (b.weeks ?? []).length > 0).length;
+  const progress = totalMonths > 0 ? generatedCount / totalMonths : 0;
 
   // Calculate current month index based on plan.createdAt
   const planStartDate = new Date(plan.createdAt);
   const now = new Date();
   const monthsElapsed = (now.getFullYear() - planStartDate.getFullYear()) * 12 + (now.getMonth() - planStartDate.getMonth());
-  const currentMonthIndex = Math.min(Math.max(0, monthsElapsed), totalMonths - 1);
+  // Clamp to [0, totalMonths-1]; when totalMonths is 0, clamp to 0 to avoid negative index
+  const currentMonthIndex = totalMonths > 0 ? Math.min(Math.max(0, monthsElapsed), totalMonths - 1) : 0;
   // Real calendar month for index 0 is plan's start month
   const startMonth = planStartDate.getMonth(); // 0-11
 
   // Calculate plan sessions progress
   const completedPlanSessions = allHistory.filter(w => w.monthIndex !== undefined).length;
   const totalPlanSessions = monthlyBlocks.reduce((total, block) =>
-    total + block.weeks.reduce((wTotal, week) => wTotal + week.days.length, 0), 0);
+    total + (block.weeks ?? []).reduce((wTotal, week) => wTotal + (week.days ?? []).length, 0), 0);
   const remainingSessions = Math.max(0, totalPlanSessions - completedPlanSessions);
 
   // Sequential plan day counters (using week[0] as representative per month)
-  const totalPlanDays = monthlyBlocks.reduce((sum, block) =>
-    sum + (block.weeks.length > 0 ? block.weeks[0].days.length : 0), 0);
+  const totalPlanDays = monthlyBlocks.reduce((sum, block) => {
+    const weeks = block.weeks ?? [];
+    return sum + (weeks.length > 0 ? (weeks[0].days ?? []).length : 0);
+  }, 0);
   const currentPlanDay = Math.min(completedPlanSessions + 1, totalPlanDays);
 
   // Build per-month day offset for sequential numbering
@@ -370,7 +376,8 @@ export function HomeScreen({ navigation }: Props) {
   let offset = 0;
   for (const block of monthlyBlocks) {
     monthDayOffsets.push(offset);
-    offset += block.weeks.length > 0 ? block.weeks[0].days.length : 0;
+    const weeks = block.weeks ?? [];
+    offset += weeks.length > 0 ? (weeks[0].days ?? []).length : 0;
   }
 
   // Sync sessions counter to AsyncStorage if not yet set
@@ -653,11 +660,12 @@ export function HomeScreen({ navigation }: Props) {
       <Text style={[s.sectionTitle, { marginTop: 8 }]}>📅 Plano de Treinos — {totalMonths} {totalMonths === 1 ? 'Mês' : 'Meses'}</Text>
       {monthlyBlocks.map((month, idx) => {
         const ph = PHASE(idx);
-        const hasWeeks = month.weeks.length > 0;
+        const monthWeeks = month.weeks ?? [];
+        const hasWeeks = monthWeeks.length > 0;
         const isCurrent = idx === currentMonthIndex;
         const isExpanded = expandedMonthIndex === idx;
         const calMonthAbbr = MONTH_ABBR[(startMonth + idx) % 12];
-        const templateDays = hasWeeks ? month.weeks[0].days : [];
+        const templateDays = hasWeeks ? (monthWeeks[0].days ?? []) : [];
         const dayOffset = monthDayOffsets[idx] ?? 0;
 
         return (
@@ -675,7 +683,7 @@ export function HomeScreen({ navigation }: Props) {
               <View style={s.accordionHeaderCenter}>
                 <Text style={s.accordionMonthFocus} numberOfLines={1}>{month.focus}</Text>
                 <Text style={s.accordionMonthMeta}>
-                  {hasWeeks ? `${templateDays.length} dias · ${month.weeks.length} semanas` : 'Ainda não gerado'}
+                  {hasWeeks ? `${templateDays.length} dias · ${monthWeeks.length} semanas` : 'Ainda não gerado'}
                 </Text>
               </View>
               <View style={s.accordionHeaderRight}>
@@ -702,9 +710,9 @@ export function HomeScreen({ navigation }: Props) {
                   templateDays.map((day, dayIdx) => {
                     const seqNum = dayOffset + dayIdx + 1;
                     const weekIdxForCurrent = isCurrent
-                      ? Math.min(Math.max(0, Math.floor((now.getTime() - planStartDate.getTime()) / MILLIS_PER_WEEK) % month.weeks.length), month.weeks.length - 1)
+                      ? Math.min(Math.max(0, Math.floor((now.getTime() - planStartDate.getTime()) / MILLIS_PER_WEEK) % monthWeeks.length), monthWeeks.length - 1)
                       : 0;
-                    const workoutForDay = month.weeks[weekIdxForCurrent]?.days[dayIdx] ?? day;
+                    const workoutForDay = monthWeeks[weekIdxForCurrent]?.days?.[dayIdx] ?? day;
                     return (
                       <TouchableOpacity
                         key={dayIdx}
