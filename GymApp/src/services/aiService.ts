@@ -196,7 +196,9 @@ async function groqVisionPost(
 }
 
 function extractJson(text: string): any {
-  const match = text.match(/\{[\s\S]*\}/);
+  // Strip markdown code fences (```json ... ``` or ``` ... ```)
+  const stripped = text.replace(/```(?:json)?\s*\n?([\s\S]*?)```/gi, '$1').trim();
+  const match = stripped.match(/\{[\s\S]*\}/);
   if (!match) throw new Error('Resposta inválida da IA. Tente novamente.');
   const raw = match[0];
   // Auto-repair truncated JSON: close unclosed arrays and objects
@@ -649,10 +651,12 @@ export async function importPlanFromImages(
     // Single image: send directly with vision model
     const raw = await groqVisionPost(
       images,
-      `Transcribe every exercise, set count, rep count, and rest time visible in this image EXACTLY as written — do not rename, add, remove, or change anything.` +
-      ` Build exactly ${durationMonths} month(s) starting from current month.` +
+      `You are a workout plan parser. Carefully read the workout plan in this image and convert it to JSON.\n` +
+      `READ every exercise name, set count, rep count, and rest time EXACTLY as shown — do not rename, add, remove, or modify anything.\n` +
+      `Build exactly ${durationMonths} month(s) starting from current month.\n` +
+      `Return ONLY valid JSON — no markdown, no code fences, no explanation text.\n` +
       IMPORT_PLAN_PROMPT_SUFFIX,
-      3000,
+      4000,
       0.1,
     );
     const data = extractJson(raw);
@@ -663,8 +667,8 @@ export async function importPlanFromImages(
   const extractPromises = images.map((img) =>
     groqVisionPost(
       [img],
-      'Transcribe ALL workout text visible in this image exactly as written — copy every exercise name, set, rep, and rest value verbatim. Return only the raw text, no JSON.',
-      800,
+      'You are a workout plan text extractor. Transcribe ALL workout text visible in this image exactly as written — copy every exercise name, set, rep, and rest value verbatim. Return ONLY the raw text, no JSON, no markdown.',
+      1000,
       0.1,
     ),
   );
@@ -728,6 +732,7 @@ function _buildImportedPlan(data: any, options?: ImportPlanOptions): AnnualPlan 
   // Build templates from the first week's workout days so that PlanReviewScreen
   // can show and edit them. Each unique day position maps to a template letter (A, B, C…).
   const firstWeekDays = months[0]?.weeks[0]?.days ?? [];
+  const inferredDaysPerWeek = firstWeekDays.length > 0 ? firstWeekDays.length : (options?.userProfile?.daysPerWeek ?? DEFAULT_IMPORT_PROFILE.daysPerWeek);
   const templates: WorkoutTemplate[] = firstWeekDays.map((day, i) => ({
     id: IMPORT_TEMPLATE_LETTERS[i] ?? String(i),
     label: `Treino ${IMPORT_TEMPLATE_LETTERS[i] ?? i}`,
@@ -752,6 +757,7 @@ function _buildImportedPlan(data: any, options?: ImportPlanOptions): AnnualPlan 
 
   const profile: UserProfile = {
     ...(options?.userProfile ?? DEFAULT_IMPORT_PROFILE),
+    daysPerWeek: inferredDaysPerWeek,
     planDuration: planDurationFromMonths(selectedMonths),
   };
 

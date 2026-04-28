@@ -98,10 +98,13 @@ export function usePlan() {
   const confirmDraft = useCallback(async (): Promise<void> => {
     const stored = await AsyncStorage.getItem(DRAFT_KEY);
     if (!stored) throw new Error('Nenhum rascunho encontrado.');
+    const plan: AnnualPlan = JSON.parse(stored);
     await AsyncStorage.setItem(PLAN_KEY, stored);
     await AsyncStorage.removeItem(DRAFT_KEY);
-    await AsyncStorage.removeItem(SESSIONS_COUNTER_KEY);
-    setPlan(JSON.parse(stored));
+    // Reset sessions counter using formula: daysPerWeek × 4 weeks × totalMonths
+    const totalSessions = (plan.userProfile.daysPerWeek ?? 3) * 4 * (plan.totalMonths ?? 1);
+    await AsyncStorage.setItem(SESSIONS_COUNTER_KEY, String(totalSessions));
+    setPlan(plan);
   }, []);
 
   const saveProfile = useCallback(async (profile: UserProfile) => {

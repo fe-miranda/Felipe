@@ -3,7 +3,7 @@ import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet,
   Alert, Dimensions, Modal, ActivityIndicator, Animated,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
@@ -168,6 +168,7 @@ const DAY_MAP: Record<number, string> = {
 
 export function HomeScreen({ navigation }: Props) {
   const { plan, loadStoredPlan, clearPlan } = usePlan();
+  const insets = useSafeAreaInsets();
   const [recentWorkouts, setRecentWorkouts] = useState<CompletedWorkout[]>([]);
   const [allHistory, setAllHistory] = useState<CompletedWorkout[]>([]);
   const [quickFilter, setQuickFilter] = useState('Todos');
@@ -221,6 +222,9 @@ export function HomeScreen({ navigation }: Props) {
   useFocusEffect(
     useCallback(() => {
       reloadHistory();
+      AsyncStorage.getItem(SESSIONS_COUNTER_KEY).then((v) => {
+        if (v !== null) setSessionsCounterDisplay(parseInt(v, 10));
+      });
       const clearResume = () => { setResumeWorkout(null); setResumeContext(undefined); };
       AsyncStorage.getItem(ACTIVE_WORKOUT_SESSION_KEY).then((raw) => {
         if (!raw) { clearResume(); return; }
@@ -249,16 +253,13 @@ export function HomeScreen({ navigation }: Props) {
   }, [plan, recentWorkouts]);
 
   // Sync sessions counter to AsyncStorage if not yet set.
+  // Uses formula: daysPerWeek × 4 weeks × totalMonths.
   // MUST be declared before any conditional early return to satisfy Rules of Hooks.
   useEffect(() => {
     if (!plan) return;
-    const blocks = plan.monthlyBlocks ?? [];
-    const total = blocks.reduce(
-      (t, block) => t + (block.weeks ?? []).reduce((wt, week) => wt + (week.days ?? []).length, 0), 0,
-    );
-    if (total === 0) return;
+    const totalSessions = (plan.userProfile.daysPerWeek ?? 3) * 4 * (plan.totalMonths ?? 1);
     const completed = allHistory.filter(w => w.monthIndex !== undefined).length;
-    const remaining = Math.max(0, total - completed);
+    const remaining = Math.max(0, totalSessions - completed);
     AsyncStorage.getItem(SESSIONS_COUNTER_KEY).then((v) => {
       if (v === null) {
         AsyncStorage.setItem(SESSIONS_COUNTER_KEY, String(remaining));
@@ -381,10 +382,9 @@ export function HomeScreen({ navigation }: Props) {
   // Real calendar month for index 0 is plan's start month
   const startMonth = planStartDate.getMonth(); // 0-11
 
-  // Calculate plan sessions progress
+  // Calculate plan sessions progress — use formula: daysPerWeek × 4 weeks × totalMonths
   const completedPlanSessions = allHistory.filter(w => w.monthIndex !== undefined).length;
-  const totalPlanSessions = monthlyBlocks.reduce((total, block) =>
-    total + (block.weeks ?? []).reduce((wTotal, week) => wTotal + (week.days ?? []).length, 0), 0);
+  const totalPlanSessions = (p.daysPerWeek ?? 3) * 4 * totalMonths;
   const remainingSessions = Math.max(0, totalPlanSessions - completedPlanSessions);
 
   // Sequential plan day counters (using week[0] as representative per month)
@@ -787,7 +787,7 @@ export function HomeScreen({ navigation }: Props) {
     {/* ── Customizer Modal ── */}
     <Modal visible={showCustomizer} animationType="slide" transparent presentationStyle="overFullScreen">
       <View style={s.modalOverlay}>
-        <View style={s.modalSheet}>
+        <View style={[s.modalSheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <View style={s.modalHeader}>
             <Text style={s.modalTitle}>🎯 Personalizar Treino</Text>
             <TouchableOpacity onPress={() => setShowCustomizer(false)}>
