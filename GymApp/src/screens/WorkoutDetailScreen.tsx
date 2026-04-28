@@ -30,6 +30,24 @@ const PHASE_COLOR = (mi: number) => {
   return '#EF4444';
 };
 
+/** Normalise a blockType value from the AI or legacy data to a lowercase canonical form. */
+function normalizeBlockType(bt?: string): string | undefined {
+  if (!bt) return undefined;
+  const lower = bt.toLowerCase();
+  // Map Portuguese variant to canonical English key used in logic
+  if (lower === 'pirâmide') return 'pyramid';
+  return lower;
+}
+
+/** Display label and icon for a normalised blockType. */
+const BLOCK_TYPE_DISPLAY: Record<string, { label: string; icon: string }> = {
+  pyramid:  { label: 'Pirâmide', icon: '📈' },
+  dropset:  { label: 'Dropset',  icon: '📉' },
+  biset:    { label: 'Biset',    icon: '🔗' },
+  triset:   { label: 'Triset',   icon: '🔗' },
+  superset: { label: 'Superset', icon: '🔗' },
+};
+
 export function WorkoutDetailScreen({ navigation, route }: Props) {
   const { monthIndex, weekIndex, dayIndex } = route.params;
   const { plan, loadStoredPlan, updateExercisesInPlan, updateTemplateExercisesFromToday, setDayOverrideExercises } = usePlan();
@@ -323,11 +341,11 @@ export function WorkoutDetailScreen({ navigation, route }: Props) {
           const groups: Array<{ indices: number[]; blockType?: string }> = [];
           let i = 0;
           while (i < currentExercises.length) {
-            const bt = currentExercises[i].blockType?.toLowerCase();
+            const bt = normalizeBlockType(currentExercises[i].blockType);
             if (bt === 'biset' || bt === 'triset' || bt === 'superset') {
               const group: number[] = [i];
               i++;
-              while (i < currentExercises.length && currentExercises[i].blockType?.toLowerCase() === bt) {
+              while (i < currentExercises.length && normalizeBlockType(currentExercises[i].blockType) === bt) {
                 group.push(i);
                 i++;
               }
@@ -341,11 +359,11 @@ export function WorkoutDetailScreen({ navigation, route }: Props) {
 
           return groups.map((group, gIdx) => {
             const isMultiBlock = group.indices.length > 1 && group.blockType;
-            const isSingleSpecial = group.indices.length === 1 && group.blockType && (group.blockType === 'pyramid' || group.blockType === 'pirâmide' || group.blockType === 'dropset');
+            const isSingleSpecial = group.indices.length === 1 && (group.blockType === 'pyramid' || group.blockType === 'dropset');
             const showBadge = isMultiBlock || isSingleSpecial;
-            const rawLabel = group.blockType ?? '';
-            const blockLabel = rawLabel.charAt(0).toUpperCase() + rawLabel.slice(1);
-            const blockIcon = rawLabel === 'pyramid' || rawLabel === 'pirâmide' ? '📈' : rawLabel === 'dropset' ? '📉' : '🔗';
+            const blockDisplay = group.blockType ? BLOCK_TYPE_DISPLAY[group.blockType] : undefined;
+            const displayLabel = blockDisplay?.label ?? (group.blockType ?? '');
+            const blockIcon = blockDisplay?.icon ?? '🔗';
 
             return (
               <View
@@ -357,7 +375,7 @@ export function WorkoutDetailScreen({ navigation, route }: Props) {
               >
                 {showBadge && (
                   <View style={[s.blockBadge, { backgroundColor: `${phaseColor}20` }]}>
-                    <Text style={[s.blockBadgeText, { color: phaseColor }]}>{blockIcon} {blockLabel}</Text>
+                  <Text style={[s.blockBadgeText, { color: phaseColor }]}>{blockIcon} {displayLabel}</Text>
                   </View>
                 )}
 

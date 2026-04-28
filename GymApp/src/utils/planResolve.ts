@@ -34,7 +34,7 @@ export function resolveDayExercises(
       return tpl.exercises;
     }
   }
-  return day.exercises;
+  return day.exercises ?? [];
 }
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
@@ -51,9 +51,13 @@ export function toLocalDateString(date: Date): string {
 
 /**
  * Parse a YYYY-MM-DD string into a local midnight Date.
+ * @throws If dateStr is not in YYYY-MM-DD format with valid numeric parts.
  */
 export function parseLocalDate(dateStr: string): Date {
-  const [y, m, d] = dateStr.split('-').map(Number);
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) throw new Error(`Invalid date format: ${dateStr}. Expected YYYY-MM-DD.`);
+  const [y, m, d] = parts.map(Number);
+  if (isNaN(y) || isNaN(m) || isNaN(d)) throw new Error(`Invalid date values in: ${dateStr}.`);
   return new Date(y, m - 1, d);
 }
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Alert, Modal, TextInput,
@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, AnnualPlan, WorkoutTemplate, Exercise } from '../types';
 import { usePlan } from '../hooks/usePlan';
-import { resolveTemplatesById, resolveDayExercises, toLocalDateString } from '../utils/planResolve';
+import { resolveTemplatesById, toLocalDateString } from '../utils/planResolve';
 import { LoadingOverlay } from '../components/LoadingOverlay';
 
 type Props = { navigation: NativeStackNavigationProp<RootStackParamList, 'PlanReview'> };
@@ -60,21 +60,21 @@ export function PlanReviewScreen({ navigation }: Props) {
 
   useEffect(() => { reload(); }, [reload]);
 
-  // Once draft is loaded, ensure Month 1 is generated
-  const month0WeeksLength = draft?.monthlyBlocks[0]?.weeks?.length ?? -1;
+  // Once draft is loaded, ensure Month 1 is generated — use a ref to fire only once per draft
+  const generationTriggered = useRef(false);
   useEffect(() => {
-    if (!draft) return;
+    if (!draft || generationTriggered.current) return;
     const month0 = draft.monthlyBlocks[0];
     if (!month0 || (month0.weeks ?? []).length > 0) return;
 
+    generationTriggered.current = true;
     setGeneratingMonth(true);
     generateMonth(0, true)
       .then(() => loadDraft())
       .then((d) => { if (d) setDraft(d); })
       .catch((err: any) => Alert.alert('Erro', err.message || 'Não foi possível gerar o Mês 1.'))
       .finally(() => setGeneratingMonth(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [month0WeeksLength]);
+  }, [draft, generateMonth, loadDraft]);
 
   const handleConfirm = async () => {
     setConfirming(true);
@@ -162,7 +162,6 @@ export function PlanReviewScreen({ navigation }: Props) {
         for (const day of week.days) {
           if (!day.instanceDate) continue;
           if (day.instanceDate >= today) {
-            const exercises = resolveDayExercises(day, templatesById);
             result.push({
               date: day.instanceDate,
               label: day.dayOfWeek,

@@ -12,6 +12,9 @@ const ACTIVE_SESSION_KEY = '@gymapp_active_workout_session';
 
 const DAY_OF_WEEK_ORDER = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
 
+/** Alphabet letters used for template IDs (A, B, C, …) */
+const TEMPLATE_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
 /**
  * Given the plan start date, a month index (0-based) and a week index inside
  * that month, compute the Monday of that week as a Date object.
@@ -51,10 +54,9 @@ function buildTemplates(
   existing?: WorkoutTemplate[],
 ): WorkoutTemplate[] {
   if (existing && existing.length > 0) return existing;
-  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   return firstWeekDays.map((day, i) => ({
-    id: letters[i] ?? String(i),
-    label: `Treino ${letters[i] ?? i}`,
+    id: TEMPLATE_LETTERS[i] ?? String(i),
+    label: `Treino ${TEMPLATE_LETTERS[i] ?? i}`,
     focus: day.focus,
     exercises: day.exercises.map((ex) => ({ ...ex })),
     notes: day.notes,
@@ -165,14 +167,13 @@ export function usePlan() {
 
       // Build templates from first week's days
       const templates = buildTemplates(weeksWithDates[0]?.days ?? [], currentPlan.templates);
-      const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
       // Assign templateId to every day by position in the week
       const weeksWithTemplates = weeksWithDates.map((week) => ({
         ...week,
         days: week.days.map((day, di) => ({
           ...day,
-          templateId: letters[di] ?? String(di),
+          templateId: TEMPLATE_LETTERS[di] ?? String(di),
         })),
       }));
 
@@ -245,8 +246,13 @@ export function usePlan() {
    * Update the exercises of a template and — for all future occurrences that
    * reference it — ensure they will use the updated template.
    *
-   * By default, per-day overrideExercises are kept intact. Pass
-   * `keepOverrides: false` to also clear future overrides.
+   * Only days with `instanceDate >= today` are affected; past occurrences are
+   * never modified.
+   *
+   * By default (`keepOverrides: true`), per-day `overrideExercises` on future
+   * days are kept intact (override still takes priority over the template).
+   * Pass `keepOverrides: false` to also clear future overrides so they fall
+   * back to the newly updated template exercises.
    */
   const updateTemplateExercisesFromToday = useCallback(
     async (
@@ -258,7 +264,7 @@ export function usePlan() {
       if (!stored) throw new Error('Plano não encontrado.');
 
       const currentPlan: AnnualPlan = JSON.parse(stored);
-      const keepOverrides = opts?.keepOverrides !== false; // default true
+      const keepOverrides = opts?.keepOverrides ?? true;
 
       // Update the template itself
       const updatedTemplates: WorkoutTemplate[] = (currentPlan.templates ?? []).map((t) =>
