@@ -13,6 +13,7 @@ import { importPlanFromText, importPlanFromImages } from '../services/aiService'
 type Props = { navigation: NativeStackNavigationProp<RootStackParamList, 'NewPlan'> };
 
 const PLAN_KEY = '@gymapp_plan';
+const DRAFT_KEY = '@gymapp_plan_draft';
 
 const C = {
   bg: '#07070F', surface: '#0F0F1A', elevated: '#161625', border: '#1E1E30',
@@ -185,9 +186,9 @@ export function NewPlanScreen({ navigation }: Props) {
       const plan = pendingImportMode === 'text'
         ? await importPlanFromText(planText.trim(), options)
         : await importPlanFromImages(images.map((img) => ({ data: img.base64, mimeType: img.mimeType })), options);
-      await AsyncStorage.setItem(PLAN_KEY, JSON.stringify(plan));
+      await AsyncStorage.setItem(DRAFT_KEY, JSON.stringify(plan));
       setShowImportForm(false);
-      navigation.replace('Main');
+      navigation.replace('PlanReview');
     } catch (err: any) {
       Alert.alert('Erro', err?.message || 'Não foi possível importar o plano. Tente novamente.');
     } finally {
