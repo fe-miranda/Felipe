@@ -15,6 +15,7 @@ import { setRuntimeApiKey } from '../services/aiService';
 
 const CUSTOM_KEY_STORAGE = '@gymapp_custom_apikey';
 const SESSIONS_KEY = '@gymapp_sessions_counter';
+const MS_PER_DAY = 86400000;
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Home'>;
@@ -136,7 +137,7 @@ export function HomeScreen({ navigation }: Props) {
   const createdAt = new Date(plan.createdAt);
   const daysSince = Math.max(
     0,
-    Math.floor((Date.now() - createdAt.getTime()) / 86400000)
+    Math.floor((Date.now() - createdAt.getTime()) / MS_PER_DAY)
   );
   const currentSeqDay = Math.min(
     Math.floor((daysSince * profile.daysPerWeek) / 7) + 1,
@@ -231,7 +232,7 @@ export function HomeScreen({ navigation }: Props) {
           </Text>
         </View>
         <View style={styles.progressBarBg}>
-          <View style={[styles.progressBarFill, { width: `${progressPercent}%` as any }]} />
+          <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
         </View>
       </View>
 
