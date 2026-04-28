@@ -245,7 +245,7 @@ export function HomeScreen({ navigation }: Props) {
       .then(setDailySuggestion)
       .catch(() => {})
       .finally(() => setLoadingSuggestion(false));
-  }, [plan]);
+  }, [plan, recentWorkouts]);
 
   const handleGenerateCustom = async () => {
     if (custGroups.length === 0) {
