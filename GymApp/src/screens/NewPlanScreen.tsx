@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet,
-  TextInput, Alert, ActivityIndicator, Image, Platform, Modal,
+  TextInput, Alert, ActivityIndicator, Image, Modal,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
@@ -13,6 +13,7 @@ import { importPlanFromText, importPlanFromImages } from '../services/aiService'
 type Props = { navigation: NativeStackNavigationProp<RootStackParamList, 'NewPlan'> };
 
 const PLAN_KEY = '@gymapp_plan';
+const PROFILE_KEY = '@gymapp_profile';
 const DRAFT_KEY = '@gymapp_plan_draft';
 
 const C = {
@@ -41,13 +42,11 @@ interface ImportForm {
   gender: Gender;
   fitnessLevel: FitnessLevel;
   goal: FitnessGoal;
-  daysPerWeek: string;
-  workoutDuration: string;
-  cardioMinutes: string;
   durationMonths: 1 | 3 | 6 | 12;
 }
 
 export function NewPlanScreen({ navigation }: Props) {
+  const insets = useSafeAreaInsets();
   const [mode, setMode] = useState<Mode>('choose');
   const [planText, setPlanText] = useState('');
   const [images, setImages] = useState<PickedImage[]>([]);
@@ -62,34 +61,35 @@ export function NewPlanScreen({ navigation }: Props) {
     gender: 'male',
     fitnessLevel: 'intermediate',
     goal: 'general_fitness',
-    daysPerWeek: '3',
-    workoutDuration: '60',
-    cardioMinutes: '10',
     durationMonths: 3,
   });
 
   useEffect(() => {
     (async () => {
       try {
-        const stored = await AsyncStorage.getItem(PLAN_KEY);
-        if (stored) {
-          const plan = JSON.parse(stored);
-          const p = plan?.userProfile;
-          if (p) {
-            setForm((prev) => ({
-              ...prev,
-              name: p.name ?? prev.name,
-              age: p.age != null ? String(p.age) : prev.age,
-              weight: p.weight != null ? String(p.weight) : prev.weight,
-              height: p.height != null ? String(p.height) : prev.height,
-              gender: p.gender ?? prev.gender,
-              fitnessLevel: p.fitnessLevel ?? prev.fitnessLevel,
-              goal: p.goal ?? prev.goal,
-              daysPerWeek: p.daysPerWeek != null ? String(p.daysPerWeek) : prev.daysPerWeek,
-              workoutDuration: p.workoutDuration != null ? String(p.workoutDuration) : prev.workoutDuration,
-              cardioMinutes: p.cardioMinutes != null ? String(p.cardioMinutes) : prev.cardioMinutes,
-            }));
-          }
+        // Try active plan first, then saved profile as fallback
+        let p: UserProfile | null = null;
+        const planStored = await AsyncStorage.getItem(PLAN_KEY);
+        if (planStored) {
+          const plan = JSON.parse(planStored);
+          p = plan?.userProfile ?? null;
+        }
+        if (!p) {
+          const profileStored = await AsyncStorage.getItem(PROFILE_KEY);
+          if (profileStored) p = JSON.parse(profileStored);
+        }
+        if (p) {
+          const profile = p;
+          setForm((prev) => ({
+            ...prev,
+            name: profile.name ?? prev.name,
+            age: profile.age != null ? String(profile.age) : prev.age,
+            weight: profile.weight != null ? String(profile.weight) : prev.weight,
+            height: profile.height != null ? String(profile.height) : prev.height,
+            gender: profile.gender ?? prev.gender,
+            fitnessLevel: profile.fitnessLevel ?? prev.fitnessLevel,
+            goal: profile.goal ?? prev.goal,
+          }));
         }
       } catch {} // Profile pre-fill is best-effort; ignore failures silently
     })();
@@ -149,19 +149,14 @@ export function NewPlanScreen({ navigation }: Props) {
     const age = parseInt(form.age, 10);
     const weight = parseFloat(form.weight);
     const height = parseFloat(form.height);
-    const daysPerWeek = parseInt(form.daysPerWeek, 10);
-    const workoutDuration = parseInt(form.workoutDuration, 10);
-    const cardioMinutes = parseInt(form.cardioMinutes, 10);
 
     if (!form.name.trim()) {
       Alert.alert('Atenção', 'Informe o nome.');
       return;
     }
     if (
-      [age, weight, height, daysPerWeek, workoutDuration, cardioMinutes].some((n) => Number.isNaN(n)) ||
-      age < 12 || age > 100 || weight <= 0 || height <= 0 ||
-      daysPerWeek < 1 || daysPerWeek > 7 || workoutDuration < 10 || cardioMinutes < 0 ||
-      cardioMinutes > workoutDuration
+      [age, weight, height].some((n) => Number.isNaN(n)) ||
+      age < 12 || age > 100 || weight <= 0 || height <= 0
     ) {
       Alert.alert('Atenção', 'Revise os dados do perfil antes de continuar.');
       return;
@@ -175,9 +170,9 @@ export function NewPlanScreen({ navigation }: Props) {
       gender: form.gender,
       fitnessLevel: form.fitnessLevel,
       goal: form.goal,
-      daysPerWeek,
-      workoutDuration,
-      cardioMinutes,
+      daysPerWeek: 3, // will be inferred from imported plan structure
+      workoutDuration: 60,
+      cardioMinutes: 0,
     };
 
     setLoading(true);
@@ -348,7 +343,7 @@ export function NewPlanScreen({ navigation }: Props) {
         </ScrollView>
         <Modal visible={showImportForm} transparent animationType="slide">
           <View style={s.modalOverlay}>
-            <View style={s.modalSheet}>
+            <View style={[s.modalSheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
               <Text style={s.modalTitle}>Dados para importar plano</Text>
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 <Text style={s.fieldLabel}>Nome</Text>
@@ -400,16 +395,6 @@ export function NewPlanScreen({ navigation }: Props) {
                     </TouchableOpacity>
                   ))}
                 </View>
-                <View style={s.row}>
-                  <Text style={[s.fieldLabel, s.half]}>Dias por semana</Text>
-                  <Text style={[s.fieldLabel, s.half]}>Duração por treino (min)</Text>
-                </View>
-                <View style={s.row}>
-                  <TextInput style={[s.input, s.half]} value={form.daysPerWeek} onChangeText={(v) => setForm((f) => ({ ...f, daysPerWeek: v }))} placeholder="Dias/sem" keyboardType="numeric" placeholderTextColor={C.text3} editable={!loading} />
-                  <TextInput style={[s.input, s.half]} value={form.workoutDuration} onChangeText={(v) => setForm((f) => ({ ...f, workoutDuration: v }))} placeholder="Duração (min)" keyboardType="numeric" placeholderTextColor={C.text3} editable={!loading} />
-                </View>
-                <Text style={s.fieldLabel}>Cardio por treino (min)</Text>
-                <TextInput style={s.input} value={form.cardioMinutes} onChangeText={(v) => setForm((f) => ({ ...f, cardioMinutes: v }))} placeholder="Cardio (min)" keyboardType="numeric" placeholderTextColor={C.text3} editable={!loading} />
                 <Text style={s.monthsLabel}>Por quantos meses é este plano?</Text>
                 <View style={s.optionRow}>
                   {[1, 3, 6, 12].map((m) => (
@@ -493,7 +478,7 @@ export function NewPlanScreen({ navigation }: Props) {
       </ScrollView>
       <Modal visible={showImportForm} transparent animationType="slide">
         <View style={s.modalOverlay}>
-          <View style={s.modalSheet}>
+          <View style={[s.modalSheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
             <Text style={s.modalTitle}>Dados para importar plano</Text>
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               <Text style={s.fieldLabel}>Nome</Text>
@@ -545,16 +530,6 @@ export function NewPlanScreen({ navigation }: Props) {
                   </TouchableOpacity>
                 ))}
               </View>
-              <View style={s.row}>
-                <Text style={[s.fieldLabel, s.half]}>Dias por semana</Text>
-                <Text style={[s.fieldLabel, s.half]}>Duração por treino (min)</Text>
-              </View>
-              <View style={s.row}>
-                <TextInput style={[s.input, s.half]} value={form.daysPerWeek} onChangeText={(v) => setForm((f) => ({ ...f, daysPerWeek: v }))} placeholder="Dias/sem" keyboardType="numeric" placeholderTextColor={C.text3} editable={!loading} />
-                <TextInput style={[s.input, s.half]} value={form.workoutDuration} onChangeText={(v) => setForm((f) => ({ ...f, workoutDuration: v }))} placeholder="Duração (min)" keyboardType="numeric" placeholderTextColor={C.text3} editable={!loading} />
-              </View>
-              <Text style={s.fieldLabel}>Cardio por treino (min)</Text>
-              <TextInput style={s.input} value={form.cardioMinutes} onChangeText={(v) => setForm((f) => ({ ...f, cardioMinutes: v }))} placeholder="Cardio (min)" keyboardType="numeric" placeholderTextColor={C.text3} editable={!loading} />
               <Text style={s.monthsLabel}>Por quantos meses é este plano?</Text>
               <View style={s.optionRow}>
                 {[1, 3, 6, 12].map((m) => (

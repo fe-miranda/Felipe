@@ -3,7 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
   ActivityIndicator, Alert, Modal, TextInput,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, AnnualPlan, WorkoutTemplate, Exercise } from '../types';
 import { usePlan } from '../hooks/usePlan';
@@ -31,6 +31,7 @@ export function PlanReviewScreen({ navigation }: Props) {
     loadDraft, generateMonth, confirmDraft,
     saveDraft, progress,
   } = usePlan();
+  const insets = useSafeAreaInsets();
 
   const [draft, setDraft] = useState<AnnualPlan | null>(null);
   const [loadingDraft, setLoadingDraft] = useState(true);
@@ -304,7 +305,7 @@ export function PlanReviewScreen({ navigation }: Props) {
       {/* Template edit modal */}
       <Modal visible={showTemplateEdit} transparent animationType="slide">
         <View style={s.modalBackdrop}>
-          <View style={s.modalSheet}>
+          <View style={[s.modalSheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
             <Text style={s.modalTitle}>
               Editar {editingTemplate?.label}
             </Text>
@@ -332,7 +333,7 @@ export function PlanReviewScreen({ navigation }: Props) {
               <TouchableOpacity style={s.cancelBtn} onPress={() => setShowTemplateEdit(false)}>
                 <Text style={s.cancelBtnText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={s.saveBtn} onPress={saveTemplateEdit}>
+              <TouchableOpacity style={s.saveBtnRow} onPress={saveTemplateEdit}>
                 <Text style={s.saveBtnText}>Salvar</Text>
               </TouchableOpacity>
             </View>
@@ -429,8 +430,10 @@ const s = StyleSheet.create({
   modalActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
   cancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: C.elevated, alignItems: 'center', borderWidth: 1, borderColor: C.border },
   cancelBtnText: { color: C.text2, fontWeight: '700' },
-  saveBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: C.primary, alignItems: 'center' },
+  saveBtn: { paddingVertical: 12, borderRadius: 12, backgroundColor: C.primary, alignItems: 'center' },
   saveBtnText: { color: '#fff', fontWeight: '800' },
+  // saveBtnRow: use inside a flexDirection:'row' parent (flex:1 shares width with siblings)
+  saveBtnRow: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: C.primary, alignItems: 'center' },
 
   exRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
   exName: { color: C.text1, fontWeight: '700', fontSize: 14 },
