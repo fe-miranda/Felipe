@@ -49,7 +49,7 @@ async function playRestEndSound(): Promise<void> {
   try {
     await Audio.setAudioModeAsync({
       playsInSilentModeIOS: true,
-      staysActiveInBackground: false,
+      staysActiveInBackground: true,
       shouldDuckAndroid: false,
     });
     ({ sound } = await Audio.Sound.createAsync(
@@ -77,7 +77,7 @@ export async function playCountdownBeep(): Promise<void> {
   try {
     await Audio.setAudioModeAsync({
       playsInSilentModeIOS: true,
-      staysActiveInBackground: false,
+      staysActiveInBackground: true,
       shouldDuckAndroid: false,
     });
     ({ sound } = await Audio.Sound.createAsync(

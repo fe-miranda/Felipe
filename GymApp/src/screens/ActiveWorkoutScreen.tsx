@@ -211,7 +211,16 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
         const startedAt = workoutStartAtRef.current ?? Date.now();
         setElapsed(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
         if (restEndsAtRef.current) {
-          setRestRemaining(Math.max(0, Math.ceil((restEndsAtRef.current - Date.now()) / 1000)));
+          const remaining = Math.max(0, Math.ceil((restEndsAtRef.current - Date.now()) / 1000));
+          setRestRemaining(remaining);
+          // Rest ended while app was in background — the scheduled notification already
+          // fired the alarm, so just silently complete the rest state without playing sound again.
+          if (remaining <= 0 && !restCompletionFiredRef.current) {
+            restCompletionFiredRef.current = true;
+            restEndsAtRef.current = null;
+            setRestActive(false);
+            cancelRestNotification();
+          }
         }
         return;
       }
