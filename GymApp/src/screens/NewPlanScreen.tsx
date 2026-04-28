@@ -79,15 +79,16 @@ export function NewPlanScreen({ navigation }: Props) {
           if (profileStored) p = JSON.parse(profileStored);
         }
         if (p) {
+          const profile = p;
           setForm((prev) => ({
             ...prev,
-            name: p!.name ?? prev.name,
-            age: p!.age != null ? String(p!.age) : prev.age,
-            weight: p!.weight != null ? String(p!.weight) : prev.weight,
-            height: p!.height != null ? String(p!.height) : prev.height,
-            gender: p!.gender ?? prev.gender,
-            fitnessLevel: p!.fitnessLevel ?? prev.fitnessLevel,
-            goal: p!.goal ?? prev.goal,
+            name: profile.name ?? prev.name,
+            age: profile.age != null ? String(profile.age) : prev.age,
+            weight: profile.weight != null ? String(profile.weight) : prev.weight,
+            height: profile.height != null ? String(profile.height) : prev.height,
+            gender: profile.gender ?? prev.gender,
+            fitnessLevel: profile.fitnessLevel ?? prev.fitnessLevel,
+            goal: profile.goal ?? prev.goal,
           }));
         }
       } catch {} // Profile pre-fill is best-effort; ignore failures silently

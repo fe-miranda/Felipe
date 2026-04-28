@@ -333,7 +333,7 @@ export function PlanReviewScreen({ navigation }: Props) {
               <TouchableOpacity style={s.cancelBtn} onPress={() => setShowTemplateEdit(false)}>
                 <Text style={s.cancelBtnText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[s.saveBtn, { flex: 1 }]} onPress={saveTemplateEdit}>
+              <TouchableOpacity style={s.saveBtnRow} onPress={saveTemplateEdit}>
                 <Text style={s.saveBtnText}>Salvar</Text>
               </TouchableOpacity>
             </View>
@@ -432,6 +432,8 @@ const s = StyleSheet.create({
   cancelBtnText: { color: C.text2, fontWeight: '700' },
   saveBtn: { paddingVertical: 12, borderRadius: 12, backgroundColor: C.primary, alignItems: 'center' },
   saveBtnText: { color: '#fff', fontWeight: '800' },
+  // saveBtnRow: use inside a flexDirection:'row' parent (flex:1 shares width with siblings)
+  saveBtnRow: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: C.primary, alignItems: 'center' },
 
   exRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
   exName: { color: C.text1, fontWeight: '700', fontSize: 14 },

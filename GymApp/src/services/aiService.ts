@@ -732,7 +732,7 @@ function _buildImportedPlan(data: any, options?: ImportPlanOptions): AnnualPlan 
   // Build templates from the first week's workout days so that PlanReviewScreen
   // can show and edit them. Each unique day position maps to a template letter (A, B, C…).
   const firstWeekDays = months[0]?.weeks[0]?.days ?? [];
-  const inferredDaysPerWeek = firstWeekDays.length > 0 ? firstWeekDays.length : (options?.userProfile?.daysPerWeek ?? DEFAULT_IMPORT_PROFILE.daysPerWeek);
+  const effectiveDaysPerWeek = firstWeekDays.length > 0 ? firstWeekDays.length : (options?.userProfile?.daysPerWeek ?? DEFAULT_IMPORT_PROFILE.daysPerWeek);
   const templates: WorkoutTemplate[] = firstWeekDays.map((day, i) => ({
     id: IMPORT_TEMPLATE_LETTERS[i] ?? String(i),
     label: `Treino ${IMPORT_TEMPLATE_LETTERS[i] ?? i}`,
