@@ -71,7 +71,7 @@ const PLAN_DURATIONS: { value: PlanDuration; label: string; sub: string }[] = [
 const STEPS = ['Perfil', 'Objetivo', 'Treino', 'Gerar'];
 
 export function OnboardingScreen({ navigation }: Props) {
-  const { generate, loadStoredPlan } = usePlan();
+  const { generate, loadStoredPlan, loadProfile } = usePlan();
 
   const [name, setName] = useState('');
   const [age, setAge] = useState('');
@@ -93,8 +93,23 @@ export function OnboardingScreen({ navigation }: Props) {
       if (found) { navigation.replace('Main'); return; }
       const key = await AsyncStorage.getItem('@gymapp_custom_apikey');
       if (key) setRuntimeApiKey(key);
+      const profile = await loadProfile();
+      if (profile) {
+        if (profile.name) setName(profile.name);
+        if (profile.age) setAge(String(profile.age));
+        if (profile.weight) setWeight(String(profile.weight));
+        if (profile.height) setHeight(String(profile.height));
+        if (profile.gender) setGender(profile.gender);
+        if (profile.goal) setGoal(profile.goal);
+        if (profile.fitnessLevel) setLevel(profile.fitnessLevel);
+        if (profile.daysPerWeek) setDaysPerWeek(profile.daysPerWeek);
+        if (profile.workoutDuration) setWorkoutDuration(profile.workoutDuration);
+        if (profile.cardioMinutes !== undefined) setCardioMinutes(profile.cardioMinutes);
+        if (profile.injuries) setInjuries(profile.injuries);
+        if (profile.planDuration) setPlanDuration(profile.planDuration);
+      }
     })();
-  }, [loadStoredPlan, navigation]);
+  }, [loadStoredPlan, loadProfile, navigation]);
 
   const handleGenerate = async () => {
     if (!name.trim() || !age || !weight || !height) {

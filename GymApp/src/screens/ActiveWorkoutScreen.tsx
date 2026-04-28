@@ -120,6 +120,9 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   // Without this, the initial render's state (buildLogs) would be persisted and
   // overwrite the user's in-progress session before the restore reads it.
   const sessionLoadedRef = useRef(false);
+  // Guard: prevents persistSession from re-writing the session after the workout
+  // has been finished (and the session was intentionally cleared).
+  const workoutFinishedRef = useRef(false);
 
   // Keep a stable ref so the notification callback always calls the latest startRest
   const startRestRef = useRef<() => void>(() => {});
@@ -132,6 +135,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
 
   const persistSession = useCallback(async () => {
     if (!sessionLoadedRef.current) return;
+    if (workoutFinishedRef.current) return;
     try {
       await AsyncStorage.setItem(
         ACTIVE_WORKOUT_SESSION_KEY,
@@ -378,6 +382,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   }, [newExerciseName, newExerciseSets, newExerciseReps, newExerciseRest, newExBlockType, newExName2, newExName3, newExName4]);
 
   const finishWorkout = useCallback(async () => {
+    workoutFinishedRef.current = true;
     await clearPersistedSession();
     const log: CompletedWorkout = {
       id: String(Date.now()),

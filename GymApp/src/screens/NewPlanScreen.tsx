@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet,
   TextInput, Alert, ActivityIndicator, Image, Platform, Modal,
@@ -66,6 +66,33 @@ export function NewPlanScreen({ navigation }: Props) {
     cardioMinutes: '10',
     durationMonths: 3,
   });
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const stored = await AsyncStorage.getItem(PLAN_KEY);
+        if (stored) {
+          const plan = JSON.parse(stored);
+          const p = plan?.userProfile;
+          if (p) {
+            setForm((prev) => ({
+              ...prev,
+              name: p.name ?? prev.name,
+              age: p.age != null ? String(p.age) : prev.age,
+              weight: p.weight != null ? String(p.weight) : prev.weight,
+              height: p.height != null ? String(p.height) : prev.height,
+              gender: p.gender ?? prev.gender,
+              fitnessLevel: p.fitnessLevel ?? prev.fitnessLevel,
+              goal: p.goal ?? prev.goal,
+              daysPerWeek: p.daysPerWeek != null ? String(p.daysPerWeek) : prev.daysPerWeek,
+              workoutDuration: p.workoutDuration != null ? String(p.workoutDuration) : prev.workoutDuration,
+              cardioMinutes: p.cardioMinutes != null ? String(p.cardioMinutes) : prev.cardioMinutes,
+            }));
+          }
+        }
+      } catch {}
+    })();
+  }, []);
 
   // ── image picker ──────────────────────────────────────────────────────────
 

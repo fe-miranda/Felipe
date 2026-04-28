@@ -370,10 +370,11 @@ export function HomeScreen({ navigation }: Props) {
   const generatedCount = monthlyBlocks.filter((b) => (b.weeks ?? []).length > 0).length;
   const progress = totalMonths > 0 ? generatedCount / totalMonths : 0;
 
-  // Calculate current month index based on plan.createdAt
+  // Calculate current month index based on plan.createdAt (using 30-day periods)
   const planStartDate = new Date(plan.createdAt);
   const now = new Date();
-  const monthsElapsed = (now.getFullYear() - planStartDate.getFullYear()) * 12 + (now.getMonth() - planStartDate.getMonth());
+  const daysElapsed = Math.floor((now.getTime() - planStartDate.getTime()) / (24 * 60 * 60 * 1000));
+  const monthsElapsed = Math.floor(daysElapsed / 30);
   // Clamp to [0, totalMonths-1]; when totalMonths is 0, clamp to 0 to avoid negative index
   const currentMonthIndex = totalMonths > 0 ? Math.min(Math.max(0, monthsElapsed), totalMonths - 1) : 0;
   // Real calendar month for index 0 is plan's start month
