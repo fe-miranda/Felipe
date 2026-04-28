@@ -274,66 +274,112 @@ export function WorkoutDetailScreen({ navigation, route }: Props) {
 
         <Text style={s.sectionTitle}>Exercícios</Text>
 
-        {currentExercises.map((ex, idx) => (
-          <View key={idx} style={s.exCard}>
-            <View style={s.exHeader}>
-              <View style={[s.exNumBadge, { backgroundColor: phaseColor }]}>
-                <Text style={s.exNumText}>{idx + 1}</Text>
-              </View>
-              <Text style={s.exName}>{ex.name}</Text>
-              <TouchableOpacity style={s.editExBtn} onPress={() => openEditExercise(idx)}>
-                <Text style={s.editExBtnText}>✎</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[s.editExBtn, { marginLeft: 4 }]}
-                onPress={() => {
-                  setHistoryExerciseName(ex.name);
-                  setShowHistoryModal(true);
-                }}
-              >
-                <Text style={s.editExBtnText}>📊</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[s.editExBtn, { marginLeft: 4, borderColor: '#EF444440' }]}
-                onPress={() => {
-                  Alert.alert('Excluir exercício', 'Deseja remover este exercício?', [
-                    { text: 'Cancelar', style: 'cancel' },
-                    {
-                      text: 'Remover',
-                      style: 'destructive',
-                      onPress: () => setEditableExercises((prev) => prev.filter((_, i) => i !== idx)),
-                    },
-                  ]);
-                }}
-              >
-                <Text style={[s.editExBtnText, { color: '#EF4444' }]}>🗑</Text>
-              </TouchableOpacity>
-            </View>
+        {(() => {
+          // Group consecutive exercises with the same blockType (biset/triset) into shared cards
+          const groups: Array<{ indices: number[]; blockType?: string }> = [];
+          let i = 0;
+          while (i < currentExercises.length) {
+            const bt = currentExercises[i].blockType?.toLowerCase();
+            if (bt === 'biset' || bt === 'triset') {
+              const group: number[] = [i];
+              i++;
+              while (i < currentExercises.length && currentExercises[i].blockType?.toLowerCase() === bt) {
+                group.push(i);
+                i++;
+              }
+              groups.push({ indices: group, blockType: bt });
+            } else {
+              groups.push({ indices: [i] });
+              i++;
+            }
+          }
 
-            <View style={[s.statsBar, { backgroundColor: C.elevated }]}>
-              <View style={s.barStat}>
-                <Text style={[s.barValue, { color: phaseColor }]}>{ex.sets}</Text>
-                <Text style={s.barLabel}>Séries</Text>
-              </View>
-              <View style={s.barDiv} />
-              <View style={s.barStat}>
-                <Text style={[s.barValue, { color: phaseColor }]}>{ex.reps}</Text>
-                <Text style={s.barLabel}>Reps</Text>
-              </View>
-              <View style={s.barDiv} />
-              <View style={s.barStat}>
-                <Text style={[s.barValue, { color: phaseColor }]}>{ex.rest}</Text>
-                <Text style={s.barLabel}>Descanso</Text>
-              </View>
-            </View>
+          return groups.map((group, gIdx) => {
+            const isBlock = group.indices.length > 1 && group.blockType;
+            const blockLabel = group.blockType ? group.blockType.charAt(0).toUpperCase() + group.blockType.slice(1) : undefined;
 
-            {ex.notes && (
-              <View style={s.exNote}>
-                <Text style={s.exNoteText}>💡 {ex.notes}</Text>
+            return (
+              <View
+                key={gIdx}
+                style={[
+                  s.exCard,
+                  isBlock && { borderColor: `${phaseColor}60`, borderWidth: 1.5 },
+                ]}
+              >
+                {isBlock && (
+                  <View style={[s.blockBadge, { backgroundColor: `${phaseColor}20` }]}>
+                    <Text style={[s.blockBadgeText, { color: phaseColor }]}>🔗 {blockLabel}</Text>
+                  </View>
+                )}
+
+                {group.indices.map((idx, posInGroup) => {
+                  const ex = currentExercises[idx];
+                  return (
+                    <View key={idx}>
+                      {isBlock && posInGroup > 0 && <View style={s.blockDivider} />}
+                      <View style={s.exHeader}>
+                        <View style={[s.exNumBadge, { backgroundColor: phaseColor }]}>
+                          <Text style={s.exNumText}>{idx + 1}</Text>
+                        </View>
+                        <Text style={s.exName}>{ex.name}</Text>
+                        <TouchableOpacity style={s.editExBtn} onPress={() => openEditExercise(idx)}>
+                          <Text style={s.editExBtnText}>✎</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[s.editExBtn, { marginLeft: 4 }]}
+                          onPress={() => {
+                            setHistoryExerciseName(ex.name);
+                            setShowHistoryModal(true);
+                          }}
+                        >
+                          <Text style={s.editExBtnText}>📊</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[s.editExBtn, { marginLeft: 4, borderColor: '#EF444440' }]}
+                          onPress={() => {
+                            Alert.alert('Excluir exercício', 'Deseja remover este exercício?', [
+                              { text: 'Cancelar', style: 'cancel' },
+                              {
+                                text: 'Remover',
+                                style: 'destructive',
+                                onPress: () => setEditableExercises((prev) => prev.filter((_, i) => i !== idx)),
+                              },
+                            ]);
+                          }}
+                        >
+                          <Text style={[s.editExBtnText, { color: '#EF4444' }]}>🗑</Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      <View style={[s.statsBar, { backgroundColor: C.elevated }]}>
+                        <View style={s.barStat}>
+                          <Text style={[s.barValue, { color: phaseColor }]}>{ex.sets}</Text>
+                          <Text style={s.barLabel}>Séries</Text>
+                        </View>
+                        <View style={s.barDiv} />
+                        <View style={s.barStat}>
+                          <Text style={[s.barValue, { color: phaseColor }]}>{ex.reps}</Text>
+                          <Text style={s.barLabel}>Reps</Text>
+                        </View>
+                        <View style={s.barDiv} />
+                        <View style={s.barStat}>
+                          <Text style={[s.barValue, { color: phaseColor }]}>{ex.rest}</Text>
+                          <Text style={s.barLabel}>Descanso</Text>
+                        </View>
+                      </View>
+
+                      {ex.notes && (
+                        <View style={s.exNote}>
+                          <Text style={s.exNoteText}>💡 {ex.notes}</Text>
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
               </View>
-            )}
-          </View>
-        ))}
+            );
+          });
+        })()}
 
         <TouchableOpacity style={[s.addBtn, { borderColor: `${phaseColor}50` }]} activeOpacity={0.85} onPress={() => setShowAddModal(true)}>
           <Text style={[s.addBtnText, { color: phaseColor }]}>＋ Adicionar exercício</Text>
@@ -469,6 +515,9 @@ const s = StyleSheet.create({
   sectionTitle: { color: C.text1, fontSize: 16, fontWeight: '700', marginBottom: 12 },
 
   exCard: { backgroundColor: C.surface, borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: C.border },
+  blockBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, marginBottom: 10 },
+  blockBadgeText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
+  blockDivider: { height: 1, backgroundColor: C.border, marginVertical: 12 },
   exHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
   exNumBadge: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   exNumText: { color: '#fff', fontWeight: '800', fontSize: 14 },
