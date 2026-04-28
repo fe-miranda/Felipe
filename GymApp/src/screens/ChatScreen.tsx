@@ -59,6 +59,9 @@ export function ChatScreen({ navigation }: Props) {
     ]).then(([stored, history]) => {
       if (stored) setPlan(JSON.parse(stored));
       setWorkoutHistory(history);
+    }).catch(() => {
+      // storage failure — stay on empty state
+    }).finally(() => {
       setPlanLoading(false);
     });
   }, []);
@@ -116,7 +119,7 @@ export function ChatScreen({ navigation }: Props) {
         <Text style={s.emptyIcon}>⚠️</Text>
         <Text style={s.emptyText}>Nenhum plano encontrado.</Text>
         <Text style={s.emptyHint}>Crie seu plano personalizado para usar o Coach IA.</Text>
-        <TouchableOpacity style={s.ctaBtn} onPress={() => navigation.replace('Onboarding' as any)}>
+        <TouchableOpacity style={s.ctaBtn} onPress={() => navigation.navigate('Onboarding' as any)}>
           <Text style={s.ctaBtnText}>Criar meu plano</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => navigation.goBack()}>

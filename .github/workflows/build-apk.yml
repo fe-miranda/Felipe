@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+      - 'copilot/**'
+      - 'claude/**'
     paths:
       - 'GymApp/**'
       - '.github/workflows/build-apk.yml'

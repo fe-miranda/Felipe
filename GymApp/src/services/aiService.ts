@@ -428,7 +428,7 @@ function buildChatSystemPrompt(plan: AnnualPlan, workoutHistory: CompletedWorkou
 
   const planWorkouts = workoutHistory.filter(w => w.monthIndex !== undefined).length;
   const totalPlanSessions = plan.monthlyBlocks.reduce((t, b) =>
-    t + b.weeks.reduce((wt, w) => wt + w.days.length, 0), 0);
+    t + (b.weeks ?? []).reduce((wt, w) => wt + (w.days ?? []).length, 0), 0);
   const adherenceStr = totalPlanSessions > 0
     ? `${planWorkouts}/${totalPlanSessions} sessões do plano concluídas`
     : `${total} treinos registrados`;
