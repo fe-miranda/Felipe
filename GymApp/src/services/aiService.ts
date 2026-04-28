@@ -1,4 +1,5 @@
-import { UserProfile, AnnualPlan, MonthlyBlock, WeeklyPlan, WorkoutDay, PlanDuration, CompletedWorkout } from '../types';
+import { UserProfile, AnnualPlan, MonthlyBlock, WeeklyPlan, WorkoutDay, WorkoutTemplate, PlanDuration, CompletedWorkout } from '../types';
+import { toLocalDateString } from '../utils/planResolve';
 
 const GROQ_MODEL = 'llama-3.3-70b-versatile';
 const GROQ_VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
@@ -681,6 +682,19 @@ function detectBlockType(text: string): string | undefined {
   return undefined;
 }
 
+const IMPORT_TEMPLATE_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const IMPORT_DAY_OF_WEEK_ORDER = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+
+function importComputeInstanceDate(planStart: Date, monthIndex: number, weekIndex: number, dayOfWeek: string): string {
+  const dayOffset = monthIndex * 30 + weekIndex * 7;
+  const monday = new Date(planStart);
+  monday.setDate(monday.getDate() + dayOffset);
+  const dowIdx = IMPORT_DAY_OF_WEEK_ORDER.indexOf(dayOfWeek);
+  const d = new Date(monday);
+  if (dowIdx >= 0) d.setDate(d.getDate() + dowIdx);
+  return toLocalDateString(d);
+}
+
 function _buildImportedPlan(data: any, options?: ImportPlanOptions): AnnualPlan {
   const selectedMonths = options?.durationMonths ?? 1;
   const monthsInput = normalizeImportedMonths(data.months ?? data.monthlyBlocks ?? [], selectedMonths);
@@ -709,7 +723,33 @@ function _buildImportedPlan(data: any, options?: ImportPlanOptions): AnnualPlan 
       })),
     })),
   }));
-  const months = withRollingMonthLabels(monthsRaw);
+  const months = withRollingMonthLabels(monthsRaw).slice(0, selectedMonths);
+
+  // Build templates from the first week's workout days so that PlanReviewScreen
+  // can show and edit them. Each unique day position maps to a template letter (A, B, C…).
+  const firstWeekDays = months[0]?.weeks[0]?.days ?? [];
+  const templates: WorkoutTemplate[] = firstWeekDays.map((day, i) => ({
+    id: IMPORT_TEMPLATE_LETTERS[i] ?? String(i),
+    label: `Treino ${IMPORT_TEMPLATE_LETTERS[i] ?? i}`,
+    focus: day.focus,
+    exercises: day.exercises.map((ex) => ({ ...ex })),
+    notes: day.notes,
+  }));
+
+  // Assign templateId and instanceDate to every day across all months/weeks.
+  const planStart = new Date();
+  const monthsWithMeta = months.map((block, mi) => ({
+    ...block,
+    weeks: block.weeks.map((week, wi) => ({
+      ...week,
+      days: week.days.map((day, di) => ({
+        ...day,
+        templateId: IMPORT_TEMPLATE_LETTERS[di] ?? String(di),
+        instanceDate: importComputeInstanceDate(planStart, mi, wi, day.dayOfWeek),
+      })),
+    })),
+  }));
+
   const profile: UserProfile = {
     ...(options?.userProfile ?? DEFAULT_IMPORT_PROFILE),
     planDuration: planDurationFromMonths(selectedMonths),
@@ -717,10 +757,11 @@ function _buildImportedPlan(data: any, options?: ImportPlanOptions): AnnualPlan 
 
   return {
     userId: profile.name,
-    createdAt: new Date().toISOString(),
+    createdAt: planStart.toISOString(),
     totalMonths: selectedMonths,
     overallGoal: data.overallGoal ?? 'Plano importado',
-    monthlyBlocks: months.slice(0, selectedMonths),
+    monthlyBlocks: monthsWithMeta,
+    templates,
     nutritionTips: data.nutritionTips ?? [],
     recoveryTips: data.recoveryTips ?? [],
     userProfile: profile,
