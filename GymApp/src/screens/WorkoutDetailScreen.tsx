@@ -195,14 +195,14 @@ export function WorkoutDetailScreen({ navigation, route }: Props) {
           text: 'Todas as semanas',
           onPress: async () => {
             try { await updateExercisesInPlan(monthIndex, weekIndex, dayIndex, newExercises, true); }
-            catch { Alert.alert('Erro', 'Não foi possível salvar as alterações.'); }
+            catch (error) { console.error(error); Alert.alert('Erro', 'Não foi possível salvar as alterações.'); }
           },
         },
         {
           text: 'Somente esta semana',
           onPress: async () => {
             try { await updateExercisesInPlan(monthIndex, weekIndex, dayIndex, newExercises, false); }
-            catch { Alert.alert('Erro', 'Não foi possível salvar as alterações.'); }
+            catch (error) { console.error(error); Alert.alert('Erro', 'Não foi possível salvar as alterações.'); }
           },
         },
         { text: 'Não salvar', style: 'cancel' },

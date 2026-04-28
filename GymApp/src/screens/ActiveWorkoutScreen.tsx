@@ -414,7 +414,9 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
           }).start();
           setShowCelebration(true);
         }
-      } catch {}
+      } catch (error) {
+        console.error('Failed to update sessions counter:', error);
+      }
     }
   }, [exercises, workout, context, clearPersistedSession, celebrationScale]);
 

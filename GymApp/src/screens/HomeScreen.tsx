@@ -18,6 +18,7 @@ const CARD_WIDTH = (width - 48 - 16) / 3;
 const CUSTOM_KEY_STORAGE = '@gymapp_custom_apikey';
 const ACTIVE_WORKOUT_SESSION_KEY = '@gymapp_active_workout_session';
 const SESSIONS_COUNTER_KEY = '@gymapp_sessions_counter';
+const MILLIS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
@@ -392,7 +393,7 @@ export function HomeScreen({ navigation }: Props) {
   let todayContext: { monthIndex: number; weekIndex: number; dayIndex: number } | undefined;
   const curMonth = monthlyBlocks[currentMonthIndex];
   if (curMonth?.weeks?.length) {
-    const weeksElapsed = Math.floor((now.getTime() - planStartDate.getTime()) / (7 * 24 * 60 * 60 * 1000)) % curMonth.weeks.length;
+    const weeksElapsed = Math.floor((now.getTime() - planStartDate.getTime()) / MILLIS_PER_WEEK) % curMonth.weeks.length;
     const weekIdx = Math.min(Math.max(0, weeksElapsed), curMonth.weeks.length - 1);
     const curWeek = curMonth.weeks[weekIdx];
     if (curWeek?.days) {
@@ -701,7 +702,7 @@ export function HomeScreen({ navigation }: Props) {
                   templateDays.map((day, dayIdx) => {
                     const seqNum = dayOffset + dayIdx + 1;
                     const weekIdxForCurrent = isCurrent
-                      ? Math.min(Math.max(0, Math.floor((now.getTime() - planStartDate.getTime()) / (7 * 24 * 60 * 60 * 1000)) % month.weeks.length), month.weeks.length - 1)
+                      ? Math.min(Math.max(0, Math.floor((now.getTime() - planStartDate.getTime()) / MILLIS_PER_WEEK) % month.weeks.length), month.weeks.length - 1)
                       : 0;
                     const workoutForDay = month.weeks[weekIdxForCurrent]?.days[dayIdx] ?? day;
                     return (
