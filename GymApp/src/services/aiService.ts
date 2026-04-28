@@ -485,7 +485,7 @@ export async function chatAboutPlan(
     { role: 'user', content: message },
   ];
 
-  const reply = await groqPost(messages, 700);
+  const reply = await groqPost(messages, 512);
   return reply || 'Não consegui gerar uma resposta. Tente novamente.';
 }
 
