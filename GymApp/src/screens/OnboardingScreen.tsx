@@ -96,15 +96,15 @@ export function OnboardingScreen({ navigation }: Props) {
       const profile = await loadProfile();
       if (profile) {
         if (profile.name) setName(profile.name);
-        if (profile.age) setAge(String(profile.age));
-        if (profile.weight) setWeight(String(profile.weight));
-        if (profile.height) setHeight(String(profile.height));
+        if (profile.age != null) setAge(String(profile.age));
+        if (profile.weight != null) setWeight(String(profile.weight));
+        if (profile.height != null) setHeight(String(profile.height));
         if (profile.gender) setGender(profile.gender);
         if (profile.goal) setGoal(profile.goal);
         if (profile.fitnessLevel) setLevel(profile.fitnessLevel);
-        if (profile.daysPerWeek) setDaysPerWeek(profile.daysPerWeek);
-        if (profile.workoutDuration) setWorkoutDuration(profile.workoutDuration);
-        if (profile.cardioMinutes !== undefined) setCardioMinutes(profile.cardioMinutes);
+        if (profile.daysPerWeek != null) setDaysPerWeek(profile.daysPerWeek);
+        if (profile.workoutDuration != null) setWorkoutDuration(profile.workoutDuration);
+        if (profile.cardioMinutes != null) setCardioMinutes(profile.cardioMinutes);
         if (profile.injuries) setInjuries(profile.injuries);
         if (profile.planDuration) setPlanDuration(profile.planDuration);
       }

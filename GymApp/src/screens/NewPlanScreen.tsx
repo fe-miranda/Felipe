@@ -90,7 +90,7 @@ export function NewPlanScreen({ navigation }: Props) {
             }));
           }
         }
-      } catch {}
+      } catch {} // Profile pre-fill is best-effort; ignore failures silently
     })();
   }, []);
 
