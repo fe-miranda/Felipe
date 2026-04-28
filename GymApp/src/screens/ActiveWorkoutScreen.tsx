@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
-  StyleSheet, Modal, Alert, KeyboardAvoidingView, Platform, AppState,
+  StyleSheet, Modal, Alert, KeyboardAvoidingView, Platform, AppState, Animated,
 } from 'react-native';
 import ViewShot, { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
@@ -37,6 +37,7 @@ const C = {
 };
 
 const ACTIVE_WORKOUT_SESSION_KEY = '@gymapp_active_workout_session';
+const SESSIONS_COUNTER_KEY = '@gymapp_sessions_counter';
 const PERSIST_INTERVAL_SECONDS = 5;
 const MIN_REST_SECONDS = 10;
 const MAX_REST_SECONDS = 600;
@@ -102,6 +103,11 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [historyExerciseName, setHistoryExerciseName] = useState('');
   const [workoutHistory, setWorkoutHistory] = useState<CompletedWorkout[]>([]);
+
+  // ── Sessions celebration ──
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [sessionsRemaining, setSessionsRemaining] = useState<number | null>(null);
+  const celebrationScale = useRef(new Animated.Value(0)).current;
 
   const elapsedRef = useRef(0);
   elapsedRef.current = elapsed;
@@ -389,7 +395,28 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
       const lines = prs.map((pr) => `🏆 ${pr.exerciseName}: ${pr.current.maxLoad.toFixed(0)}kg · ${pr.current.maxReps} reps`).join('\n');
       Alert.alert('Novo Recorde Pessoal!', lines);
     }
-  }, [exercises, workout, context, clearPersistedSession]);
+
+    // Sessions counter — only for plan workouts
+    if (context !== undefined) {
+      try {
+        const raw = await AsyncStorage.getItem(SESSIONS_COUNTER_KEY);
+        const current = raw !== null ? parseInt(raw, 10) : null;
+        if (current !== null && !isNaN(current)) {
+          const next = Math.max(0, current - 1);
+          await AsyncStorage.setItem(SESSIONS_COUNTER_KEY, String(next));
+          setSessionsRemaining(next);
+          celebrationScale.setValue(0);
+          Animated.spring(celebrationScale, {
+            toValue: 1,
+            friction: 5,
+            tension: 80,
+            useNativeDriver: true,
+          }).start();
+          setShowCelebration(true);
+        }
+      } catch {}
+    }
+  }, [exercises, workout, context, clearPersistedSession, celebrationScale]);
 
   const confirmFinish = useCallback(() => {
     const done = exercises.reduce((a, e) => a + e.sets.filter(s => s.done).length, 0);
@@ -746,6 +773,27 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
         exerciseName={historyExerciseName}
         history={workoutHistory}
       />
+
+      {/* Sessions Celebration Modal */}
+      <Modal visible={showCelebration} transparent animationType="fade">
+        <View style={s.celebrationOverlay}>
+          <Animated.View style={[s.celebrationCard, { transform: [{ scale: celebrationScale }] }]}>
+            <Text style={s.celebrationEmoji}>🎯</Text>
+            <Text style={s.celebrationTitle}>Treino Concluído!</Text>
+            {sessionsRemaining !== null && sessionsRemaining > 0 ? (
+              <Text style={s.celebrationSub}>Sessões restantes: {sessionsRemaining}</Text>
+            ) : sessionsRemaining === 0 ? (
+              <Text style={s.celebrationSub}>🏆 Você completou todas as sessões!</Text>
+            ) : null}
+            <TouchableOpacity
+              style={s.celebrationBtn}
+              onPress={() => setShowCelebration(false)}
+            >
+              <Text style={s.celebrationBtnText}>Continuar</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -856,4 +904,17 @@ const s = StyleSheet.create({
   summaryScroll: { flex: 1 },
   summaryScrollContent: { padding: 20, gap: 16 },
   shareSectionLabel: { color: C.text3, fontSize: 12, fontWeight: '700', textAlign: 'center', marginTop: 8 },
+
+  // Celebration modal
+  celebrationOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', alignItems: 'center' },
+  celebrationCard: {
+    backgroundColor: C.surface, borderRadius: 24, padding: 32,
+    alignItems: 'center', width: '80%', borderWidth: 1, borderColor: C.primary,
+    shadowColor: C.primary, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 20, elevation: 12,
+  },
+  celebrationEmoji: { fontSize: 64, marginBottom: 12 },
+  celebrationTitle: { color: C.text1, fontSize: 22, fontWeight: '900', marginBottom: 8 },
+  celebrationSub: { color: C.primaryLight, fontSize: 16, fontWeight: '700', marginBottom: 20, textAlign: 'center' },
+  celebrationBtn: { backgroundColor: C.primary, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 32 },
+  celebrationBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
 });

@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AnnualPlan, UserProfile } from '../types';
+import { AnnualPlan, UserProfile, Exercise } from '../types';
 import { generateAnnualPlan, generateMonthDetail } from '../services/aiService';
 
 const PLAN_KEY = '@gymapp_plan';
@@ -93,6 +93,48 @@ export function usePlan() {
     setPlan(null);
   }, []);
 
+  const updateExercisesInPlan = useCallback(
+    async (
+      monthIndex: number,
+      weekIndex: number,
+      dayIndex: number,
+      newExercises: Exercise[],
+      applyToAllSameFocus: boolean,
+    ): Promise<void> => {
+      const stored = await AsyncStorage.getItem(PLAN_KEY);
+      if (!stored) throw new Error('Plano não encontrado.');
+
+      const currentPlan: AnnualPlan = JSON.parse(stored);
+      const targetDay = currentPlan.monthlyBlocks[monthIndex]?.weeks[weekIndex]?.days[dayIndex];
+      if (!targetDay) throw new Error('Dia não encontrado.');
+
+      const targetFocus = targetDay.focus;
+
+      const updatedPlan: AnnualPlan = {
+        ...currentPlan,
+        monthlyBlocks: currentPlan.monthlyBlocks.map((block, mi) => ({
+          ...block,
+          weeks: block.weeks.map((week, wi) => ({
+            ...week,
+            days: week.days.map((day, di) => {
+              if (mi === monthIndex && wi === weekIndex && di === dayIndex) {
+                return { ...day, exercises: newExercises };
+              }
+              if (applyToAllSameFocus && day.focus === targetFocus) {
+                return { ...day, exercises: newExercises };
+              }
+              return day;
+            }),
+          })),
+        })),
+      };
+
+      await AsyncStorage.setItem(PLAN_KEY, JSON.stringify(updatedPlan));
+      setPlan(updatedPlan);
+    },
+    [],
+  );
+
   return {
     plan,
     loading,
@@ -104,5 +146,6 @@ export function usePlan() {
     loadProfile,
     saveProfile,
     clearPlan,
+    updateExercisesInPlan,
   };
 }

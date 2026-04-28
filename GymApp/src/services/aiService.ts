@@ -583,7 +583,8 @@ const IMPORT_PLAN_PROMPT_SUFFIX =
   `3. Do NOT remove any exercise, day, or session that appears in the source.\n` +
   `4. Do NOT apply progressive overload, periodization, or any modification to the source data.\n` +
   `5. Only fill in structural fields that are required by the JSON schema but absent from the source (e.g. dayOfWeek, duration) — use the most reasonable neutral default.\n` +
-  `6. Group days into weeks (4 weeks per month) repeating the same workout structure across all weeks unless the source explicitly differs per week.`;
+  `6. Group days into weeks (4 weeks per month) repeating the same workout structure across all weeks unless the source explicitly differs per week.\n` +
+  `7. Detect technique keywords in each exercise name or notes and set "blockType" accordingly: "biset" → "biset", "triset" → "triset", "pirâmide"/"pyramid" → "pyramid", "dropset" → "dropset". If no keyword is found, omit the "blockType" field.`;
 
 export interface ImportPlanOptions {
   userProfile: UserProfile;
@@ -669,6 +670,15 @@ export async function importPlanFromImages(
   return importPlanFromText(combined, options);
 }
 
+function detectBlockType(text: string): string | undefined {
+  const lower = text.toLowerCase();
+  if (/bi[- ]?set/.test(lower)) return 'biset';
+  if (/tri[- ]?set/.test(lower)) return 'triset';
+  if (/pir[âa]mide|pyramid/.test(lower)) return 'pyramid';
+  if (/drop[- ]?set/.test(lower)) return 'dropset';
+  return undefined;
+}
+
 function _buildImportedPlan(data: any, options?: ImportPlanOptions): AnnualPlan {
   const selectedMonths = options?.durationMonths ?? 1;
   const monthsInput = normalizeImportedMonths(data.months ?? data.monthlyBlocks ?? [], selectedMonths);
@@ -686,7 +696,13 @@ function _buildImportedPlan(data: any, options?: ImportPlanOptions): AnnualPlan 
         dayOfWeek: d.dayOfWeek ?? 'Segunda',
         focus: d.focus ?? '',
         duration: d.duration ?? 60,
-        exercises: Array.isArray(d.exercises) ? d.exercises : [],
+        exercises: Array.isArray(d.exercises) ? d.exercises.map((ex: any) => {
+          const detected = detectBlockType(`${ex.name ?? ''} ${ex.notes ?? ''}`);
+          return {
+            ...ex,
+            blockType: ex.blockType ?? detected,
+          };
+        }) : [],
         notes: d.notes,
       })),
     })),

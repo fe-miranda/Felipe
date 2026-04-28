@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet,
-  Alert, Dimensions, Modal, ActivityIndicator,
+  Alert, Dimensions, Modal, ActivityIndicator, Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -17,6 +17,7 @@ const CARD_WIDTH = (width - 48 - 16) / 3;
 
 const CUSTOM_KEY_STORAGE = '@gymapp_custom_apikey';
 const ACTIVE_WORKOUT_SESSION_KEY = '@gymapp_active_workout_session';
+const SESSIONS_COUNTER_KEY = '@gymapp_sessions_counter';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
@@ -179,6 +180,11 @@ export function HomeScreen({ navigation }: Props) {
   const [custWorkout, setCustWorkout] = useState<WorkoutDay | null>(null);
   const [resumeWorkout, setResumeWorkout] = useState<WorkoutDay | null>(null);
   const [resumeContext, setResumeContext] = useState<{ monthIndex: number; weekIndex: number; dayIndex: number } | undefined>(undefined);
+  const [expandedMonthIndex, setExpandedMonthIndex] = useState<number | null>(null);
+  const [sessionsCounterDisplay, setSessionsCounterDisplay] = useState<number | null>(null);
+
+  // Animated pulse for remaining sessions badge
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   const reloadHistory = useCallback(async () => {
     const hist = await loadHistory();
@@ -190,7 +196,22 @@ export function HomeScreen({ navigation }: Props) {
     loadStoredPlan();
     AsyncStorage.getItem(CUSTOM_KEY_STORAGE).then((k) => { if (k) setRuntimeApiKey(k); });
     reloadHistory();
+    AsyncStorage.getItem(SESSIONS_COUNTER_KEY).then((v) => {
+      if (v !== null) setSessionsCounterDisplay(parseInt(v, 10));
+    });
   }, []);
+
+  // Pulse animation for sessions badge
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.12, duration: 800, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulseAnim]);
 
   // Re-check the active session and reload history every time the screen gains
   // focus so the "resume session" card appears / disappears correctly when the
@@ -337,7 +358,33 @@ export function HomeScreen({ navigation }: Props) {
   const totalPlanSessions = monthlyBlocks.reduce((total, block) =>
     total + block.weeks.reduce((wTotal, week) => wTotal + week.days.length, 0), 0);
   const remainingSessions = Math.max(0, totalPlanSessions - completedPlanSessions);
-  const remainingLabel = totalPlanSessions === 0 ? '—' : String(remainingSessions);
+
+  // Sequential plan day counters (using week[0] as representative per month)
+  const totalPlanDays = monthlyBlocks.reduce((sum, block) =>
+    sum + (block.weeks.length > 0 ? block.weeks[0].days.length : 0), 0);
+  const currentPlanDay = Math.min(completedPlanSessions + 1, totalPlanDays);
+
+  // Build per-month day offset for sequential numbering
+  const monthDayOffsets: number[] = [];
+  let offset = 0;
+  for (const block of monthlyBlocks) {
+    monthDayOffsets.push(offset);
+    offset += block.weeks.length > 0 ? block.weeks[0].days.length : 0;
+  }
+
+  // Sync sessions counter to AsyncStorage if not yet set
+  useEffect(() => {
+    if (totalPlanSessions === 0) return;
+    AsyncStorage.getItem(SESSIONS_COUNTER_KEY).then((v) => {
+      if (v === null) {
+        AsyncStorage.setItem(SESSIONS_COUNTER_KEY, String(remainingSessions));
+        setSessionsCounterDisplay(remainingSessions);
+      } else {
+        setSessionsCounterDisplay(parseInt(v, 10));
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [totalPlanSessions]);
 
   // Find today's workout from plan
   const todayDOW = DAY_MAP[now.getDay()];
@@ -365,7 +412,9 @@ export function HomeScreen({ navigation }: Props) {
       <View style={s.topBar}>
         <View>
           <Text style={s.greeting}>{greeting()}, {p.name} 👋</Text>
-          <Text style={s.greetingSub}>Seu plano de {totalMonths} {totalMonths === 1 ? 'mês' : 'meses'} está ativo</Text>
+          <Text style={s.greetingSub}>
+            {totalPlanDays > 0 ? `Dia ${currentPlanDay} de ${totalPlanDays} do Plano` : `Plano de ${totalMonths} ${totalMonths === 1 ? 'mês' : 'meses'} ativo`}
+          </Text>
         </View>
       </View>
 
@@ -428,17 +477,24 @@ export function HomeScreen({ navigation }: Props) {
 
       {/* ── Stats row ── */}
       <View style={s.statsRow}>
-        {[
-          { icon: '📅', value: `${p.daysPerWeek}×`, label: 'por semana' },
-          { icon: '✅', value: String(completedPlanSessions), label: 'realizados' },
-          { icon: '📌', value: remainingLabel, label: 'restantes' },
-        ].map((stat, i) => (
-          <View key={i} style={s.statCard}>
-            <Text style={s.statIcon}>{stat.icon}</Text>
-            <Text style={s.statValue}>{stat.value}</Text>
-            <Text style={s.statLabel}>{stat.label}</Text>
-          </View>
-        ))}
+        <View style={s.statCard}>
+          <Text style={s.statIcon}>📅</Text>
+          <Text style={s.statValue}>{p.daysPerWeek}×</Text>
+          <Text style={s.statLabel}>por semana</Text>
+        </View>
+        <View style={s.statCard}>
+          <Text style={s.statIcon}>✅</Text>
+          <Text style={s.statValue}>{completedPlanSessions}</Text>
+          <Text style={s.statLabel}>realizados</Text>
+        </View>
+        {/* Animated pulse badge for remaining sessions */}
+        <Animated.View style={[s.statCard, s.statCardPulse, { transform: [{ scale: pulseAnim }] }]}>
+          <Text style={s.statIcon}>🎯</Text>
+          <Text style={[s.statValue, { color: '#EF4444' }]}>
+            {sessionsCounterDisplay !== null ? sessionsCounterDisplay : (totalPlanSessions === 0 ? '—' : String(remainingSessions))}
+          </Text>
+          <Text style={s.statLabel}>restantes</Text>
+        </Animated.View>
       </View>
 
       {/* ── Chat CTA ── */}
@@ -592,52 +648,99 @@ export function HomeScreen({ navigation }: Props) {
         <Text style={s.fatigueArrow}>›</Text>
       </TouchableOpacity>
 
-      {/* ── Month grid ── */}
-      <Text style={[s.sectionTitle, { marginTop: 8 }]}>📅 Plano de {totalMonths} {totalMonths === 1 ? 'Mês' : 'Meses'}</Text>
-      <View style={s.monthGrid}>
-        {monthlyBlocks.map((month, idx) => {
-          const ph = PHASE(idx);
-          const hasWeeks = month.weeks.length > 0;
-          const isCurrent = idx === currentMonthIndex;
-          // Show the real calendar month name based on when the plan started
-          const calMonthAbbr = MONTH_ABBR[(startMonth + idx) % 12];
-          return (
+      {/* ── Month accordion ── */}
+      <Text style={[s.sectionTitle, { marginTop: 8 }]}>📅 Plano de Treinos — {totalMonths} {totalMonths === 1 ? 'Mês' : 'Meses'}</Text>
+      {monthlyBlocks.map((month, idx) => {
+        const ph = PHASE(idx);
+        const hasWeeks = month.weeks.length > 0;
+        const isCurrent = idx === currentMonthIndex;
+        const isExpanded = expandedMonthIndex === idx;
+        const calMonthAbbr = MONTH_ABBR[(startMonth + idx) % 12];
+        const templateDays = hasWeeks ? month.weeks[0].days : [];
+        const dayOffset = monthDayOffsets[idx] ?? 0;
+
+        return (
+          <View key={idx} style={[s.accordionMonth, isCurrent && { borderColor: C.primary }]}>
+            {/* Month header row */}
             <TouchableOpacity
-              key={idx}
-              style={[s.monthCell, isCurrent && { borderColor: C.primary, borderWidth: 2 }]}
-              onPress={() => navigation.navigate('MonthDetail', { monthIndex: idx })}
+              style={s.accordionHeader}
+              onPress={() => setExpandedMonthIndex(isExpanded ? null : idx)}
               activeOpacity={0.75}
             >
-              {/* Phase accent bar */}
-              <View style={[s.phaseBar, { backgroundColor: ph.color }]} />
-
-              <Text style={[s.monthNum, { color: ph.color }]}>{calMonthAbbr}</Text>
-              <Text style={s.monthFocus} numberOfLines={1}>{month.focus}</Text>
-
-              <View style={[s.monthStatus, hasWeeks ? { backgroundColor: C.successBg } : { backgroundColor: C.elevated }]}>
-                <Text style={[s.monthStatusText, hasWeeks ? { color: C.success } : { color: C.text3 }]}>
-                  {hasWeeks ? '✓' : isCurrent ? '▶' : '○'}
+              <View style={[s.accordionPhaseBar, { backgroundColor: ph.color }]} />
+              <View style={[s.accordionMonthBadge, { backgroundColor: `${ph.color}20` }]}>
+                <Text style={[s.accordionMonthLabel, { color: ph.color }]}>{calMonthAbbr}</Text>
+              </View>
+              <View style={s.accordionHeaderCenter}>
+                <Text style={s.accordionMonthFocus} numberOfLines={1}>{month.focus}</Text>
+                <Text style={s.accordionMonthMeta}>
+                  {hasWeeks ? `${templateDays.length} dias · ${month.weeks.length} semanas` : 'Ainda não gerado'}
                 </Text>
               </View>
+              <View style={s.accordionHeaderRight}>
+                {isCurrent && (
+                  <View style={s.accordionCurrentBadge}>
+                    <Text style={s.accordionCurrentText}>Atual</Text>
+                  </View>
+                )}
+                <Text style={[s.accordionChevron, { color: ph.color }]}>{isExpanded ? '▲' : '▼'}</Text>
+              </View>
             </TouchableOpacity>
-          );
-        })}
-      </View>
 
-      {/* ── Phase legend ── */}
-      <View style={s.legendRow}>
-        {[
-          { color: '#10B981', label: 'Base (1-3)' },
-          { color: '#3B82F6', label: 'Evolução (4-6)' },
-          { color: '#F59E0B', label: 'Intensidade (7-9)' },
-          { color: '#EF4444', label: 'Pico (10-12)' },
-        ].map((l, i) => (
-          <View key={i} style={s.legendItem}>
-            <View style={[s.legendDot, { backgroundColor: l.color }]} />
-            <Text style={s.legendText}>{l.label}</Text>
+            {/* Expanded: list workout days */}
+            {isExpanded && (
+              <View style={s.accordionBody}>
+                {!hasWeeks ? (
+                  <TouchableOpacity
+                    style={s.accordionGenerateBtn}
+                    onPress={() => navigation.navigate('MonthDetail', { monthIndex: idx })}
+                  >
+                    <Text style={[s.accordionGenerateBtnText, { color: ph.color }]}>+ Gerar treinos deste mês</Text>
+                  </TouchableOpacity>
+                ) : (
+                  templateDays.map((day, dayIdx) => {
+                    const seqNum = dayOffset + dayIdx + 1;
+                    const weekIdxForCurrent = isCurrent
+                      ? Math.min(Math.max(0, Math.floor((now.getTime() - planStartDate.getTime()) / (7 * 24 * 60 * 60 * 1000)) % month.weeks.length), month.weeks.length - 1)
+                      : 0;
+                    const workoutForDay = month.weeks[weekIdxForCurrent]?.days[dayIdx] ?? day;
+                    return (
+                      <TouchableOpacity
+                        key={dayIdx}
+                        style={s.accordionDayRow}
+                        onPress={() => navigation.navigate('WorkoutDetail', { monthIndex: idx, weekIndex: weekIdxForCurrent, dayIndex: dayIdx })}
+                        activeOpacity={0.78}
+                      >
+                        <View style={[s.accordionDayNum, { backgroundColor: `${ph.color}20` }]}>
+                          <Text style={[s.accordionDayNumText, { color: ph.color }]}>{seqNum}</Text>
+                        </View>
+                        <View style={s.accordionDayInfo}>
+                          <Text style={s.accordionDayName} numberOfLines={1}>{day.dayOfWeek}</Text>
+                          <Text style={s.accordionDayFocus} numberOfLines={1}>{day.focus} · {day.exercises.length} exerc.</Text>
+                        </View>
+                        <TouchableOpacity
+                          style={[s.accordionActionBtn, { backgroundColor: `${ph.color}18`, borderColor: `${ph.color}50` }]}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          onPress={() => navigateToWorkout(workoutForDay, { monthIndex: idx, weekIndex: weekIdxForCurrent, dayIndex: dayIdx })}
+                        >
+                          <Text style={[s.accordionActionBtnText, { color: ph.color }]}>▶</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[s.accordionActionBtn, { marginLeft: 6, backgroundColor: C.elevated, borderColor: C.border }]}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          onPress={() => navigation.navigate('WorkoutDetail', { monthIndex: idx, weekIndex: weekIdxForCurrent, dayIndex: dayIdx })}
+                        >
+                          <Text style={s.accordionEditBtnText}>✎</Text>
+                        </TouchableOpacity>
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
+              </View>
+            )}
           </View>
-        ))}
-      </View>
+        );
+      })}
 
       {/* ── Nutrition tips ── */}
       {nutritionTips.length > 0 && (
@@ -854,6 +957,7 @@ const s = StyleSheet.create({
   // Stats
   statsRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
   statCard: { flex: 1, backgroundColor: C.surface, borderRadius: 14, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: C.border },
+  statCardPulse: { borderColor: 'rgba(239,68,68,0.4)', shadowColor: '#EF4444', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.35, shadowRadius: 8, elevation: 4 },
   statIcon: { fontSize: 20, marginBottom: 4 },
   statValue: { color: C.primary, fontSize: 22, fontWeight: '900' },
   statLabel: { color: C.text3, fontSize: 11, marginTop: 2 },
@@ -895,7 +999,7 @@ const s = StyleSheet.create({
   // Section
   sectionTitle: { color: C.text1, fontSize: 16, fontWeight: '800', marginBottom: 12 },
 
-  // Month grid
+  // Month grid (kept for backwards compat if referenced elsewhere)
   monthGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
   monthCell: {
     width: CARD_WIDTH,
@@ -915,11 +1019,37 @@ const s = StyleSheet.create({
   monthStatus: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center', marginTop: 6 },
   monthStatusText: { fontSize: 11, fontWeight: '700' },
 
-  // Legend
-  legendRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  legendDot: { width: 8, height: 8, borderRadius: 4 },
-  legendText: { color: C.text3, fontSize: 11 },
+  // Accordion
+  accordionMonth: {
+    backgroundColor: C.surface, borderRadius: 14,
+    marginBottom: 8, borderWidth: 1, borderColor: C.border, overflow: 'hidden',
+  },
+  accordionHeader: { flexDirection: 'row', alignItems: 'center', padding: 14, gap: 10 },
+  accordionPhaseBar: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, borderTopLeftRadius: 14, borderBottomLeftRadius: 14 },
+  accordionMonthBadge: { width: 42, height: 42, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  accordionMonthLabel: { fontSize: 13, fontWeight: '900' },
+  accordionHeaderCenter: { flex: 1 },
+  accordionMonthFocus: { color: C.text1, fontSize: 14, fontWeight: '800' },
+  accordionMonthMeta: { color: C.text3, fontSize: 11, marginTop: 2 },
+  accordionHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  accordionCurrentBadge: { backgroundColor: 'rgba(124,58,237,0.15)', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: 'rgba(124,58,237,0.4)' },
+  accordionCurrentText: { color: C.primaryLight, fontSize: 10, fontWeight: '800' },
+  accordionChevron: { fontSize: 12, fontWeight: '700' },
+  accordionBody: { borderTopWidth: 1, borderTopColor: C.border, paddingVertical: 6 },
+  accordionDayRow: {
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14,
+    paddingVertical: 10, gap: 10, borderBottomWidth: 1, borderBottomColor: C.border,
+  },
+  accordionDayNum: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  accordionDayNumText: { fontSize: 13, fontWeight: '900' },
+  accordionDayInfo: { flex: 1 },
+  accordionDayName: { color: C.text1, fontSize: 14, fontWeight: '700' },
+  accordionDayFocus: { color: C.text3, fontSize: 11, marginTop: 1 },
+  accordionActionBtn: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, borderWidth: 1 },
+  accordionActionBtnText: { fontSize: 13, fontWeight: '800' },
+  accordionEditBtnText: { color: C.primaryLight, fontSize: 13, fontWeight: '800' },
+  accordionGenerateBtn: { padding: 14, alignItems: 'center' },
+  accordionGenerateBtnText: { fontSize: 13, fontWeight: '700' },
 
   // Tips
   tipsCard: { backgroundColor: C.surface, borderRadius: 14, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: C.border, gap: 10 },

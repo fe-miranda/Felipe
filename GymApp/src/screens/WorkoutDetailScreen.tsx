@@ -31,7 +31,7 @@ const PHASE_COLOR = (mi: number) => {
 
 export function WorkoutDetailScreen({ navigation, route }: Props) {
   const { monthIndex, weekIndex, dayIndex } = route.params;
-  const { plan, loadStoredPlan } = usePlan();
+  const { plan, loadStoredPlan, updateExercisesInPlan } = usePlan();
   const insets = useSafeAreaInsets();
   const [editableExercises, setEditableExercises] = useState<Exercise[]>([]);
 
@@ -169,22 +169,45 @@ export function WorkoutDetailScreen({ navigation, route }: Props) {
     setShowEditModal(true);
   };
 
-  const saveEditedExercise = () => {
+  const saveEditedExercise = async () => {
     if (editIndex === null) return;
     const parsedSets = parseInt(editSets, 10);
     if (!editName.trim() || Number.isNaN(parsedSets) || parsedSets < 1 || !editReps.trim() || !editRest.trim()) {
       Alert.alert('Atenção', 'Preencha nome, séries, reps e descanso corretamente.');
       return;
     }
-    setEditableExercises((prev) => prev.map((item, idx) => idx === editIndex ? ({
+    const newExercises = editableExercises.map((item, idx) => idx === editIndex ? ({
       ...item,
       name: editName.trim(),
       sets: parsedSets,
       reps: editReps.trim(),
       rest: editRest.trim(),
       notes: editNotes.trim() || undefined,
-    }) : item));
+    }) : item);
+    setEditableExercises(newExercises);
     setShowEditModal(false);
+
+    Alert.alert(
+      'Salvar alteração',
+      'Deseja aplicar esta edição a todas as semanas com o mesmo foco muscular?',
+      [
+        {
+          text: 'Todas as semanas',
+          onPress: async () => {
+            try { await updateExercisesInPlan(monthIndex, weekIndex, dayIndex, newExercises, true); }
+            catch { Alert.alert('Erro', 'Não foi possível salvar as alterações.'); }
+          },
+        },
+        {
+          text: 'Somente esta semana',
+          onPress: async () => {
+            try { await updateExercisesInPlan(monthIndex, weekIndex, dayIndex, newExercises, false); }
+            catch { Alert.alert('Erro', 'Não foi possível salvar as alterações.'); }
+          },
+        },
+        { text: 'Não salvar', style: 'cancel' },
+      ],
+    );
   };
 
   const addExercise = () => {
