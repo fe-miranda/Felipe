@@ -16,6 +16,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, UserProfile, FitnessGoal, FitnessLevel, Gender, PlanDuration } from '../types';
 import { usePlan } from '../hooks/usePlan';
 import { setRuntimeApiKey } from '../services/aiService';
+import { LoadingOverlay } from '../components/LoadingOverlay';
 
 type Props = { navigation: NativeStackNavigationProp<RootStackParamList, 'Onboarding'> };
 
@@ -71,7 +72,7 @@ const PLAN_DURATIONS: { value: PlanDuration; label: string; sub: string }[] = [
 const STEPS = ['Perfil', 'Objetivo', 'Treino', 'Gerar'];
 
 export function OnboardingScreen({ navigation }: Props) {
-  const { generate, loadStoredPlan, loadProfile } = usePlan();
+  const { generate, loadStoredPlan, loadProfile, progress } = usePlan();
 
   const [name, setName] = useState('');
   const [age, setAge] = useState('');
@@ -140,7 +141,8 @@ export function OnboardingScreen({ navigation }: Props) {
     setGenerating(true);
     try {
       await generate(profile);
-      navigation.replace('Main');
+      // Draft saved — navigate to review screen
+      navigation.replace('PlanReview');
     } catch (err: any) {
       const msg: string = err.message || 'Erro ao gerar o plano. Tente novamente.';
       if (msg.includes('API Key') || msg.includes('401') || msg.includes('403')) {
@@ -162,6 +164,11 @@ export function OnboardingScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={s.safeArea} edges={['top', 'bottom']}>
+    <LoadingOverlay
+      visible={generating}
+      title="Gerando seu plano…"
+      message={progress || 'Isso pode levar alguns segundos.'}
+    />
     <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 

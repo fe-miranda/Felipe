@@ -11,6 +11,7 @@ import { RootStackParamList, QuickWorkout, WorkoutDay, CompletedWorkout } from '
 import { usePlan } from '../hooks/usePlan';
 import { setRuntimeApiKey, getDailySuggestion, generateCustomWorkout, DailySuggestion } from '../services/aiService';
 import { loadHistory } from '../services/workoutHistoryService';
+import { resolveTemplatesById, resolveDayExercises } from '../utils/planResolve';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = (width - 48 - 16) / 3;
@@ -291,7 +292,7 @@ export function HomeScreen({ navigation }: Props) {
   };
 
   const handleClearPlan = () => {
-    Alert.alert('Novo Plano', 'Seu plano atual será apagado. Continuar?', [
+    Alert.alert('Novo Plano', 'Seu plano atual será apagado. Seu histórico de treinos será mantido.', [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Apagar e recomeçar', style: 'destructive',
         onPress: async () => { await clearPlan(); navigation.replace('NewPlan'); } },
@@ -402,7 +403,7 @@ export function HomeScreen({ navigation }: Props) {
     offset += weeks.length > 0 ? (weeks[0].days ?? []).length : 0;
   }
 
-  // Find today's workout from plan
+  // Find today's workout from plan (resolve exercises using templates)
   const todayDOW = DAY_MAP[now.getDay()];
   let todayWorkout: WorkoutDay | null = null;
   let todayContext: { monthIndex: number; weekIndex: number; dayIndex: number } | undefined;
@@ -414,7 +415,10 @@ export function HomeScreen({ navigation }: Props) {
     if (curWeek?.days) {
       const dayIdx = curWeek.days.findIndex(d => d.dayOfWeek === todayDOW);
       if (dayIdx >= 0) {
-        todayWorkout = curWeek.days[dayIdx];
+        const rawDay = curWeek.days[dayIdx];
+        const templatesById = resolveTemplatesById(plan);
+        const resolvedExercises = resolveDayExercises(rawDay, templatesById);
+        todayWorkout = { ...rawDay, exercises: resolvedExercises };
         todayContext = { monthIndex: currentMonthIndex, weekIndex: weekIdx, dayIndex: dayIdx };
       }
     }

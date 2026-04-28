@@ -26,12 +26,28 @@ export interface UserProfile {
   planDuration?: PlanDuration;
 }
 
+export interface WorkoutTemplate {
+  /** Short identifier, e.g. "A", "B", "C" */
+  id: string;
+  /** Display label, e.g. "Treino A" */
+  label: string;
+  focus: string;
+  exercises: Exercise[];
+  notes?: string;
+}
+
 export interface WorkoutDay {
   dayOfWeek: string;
   focus: string;
   duration: number; // minutes
   exercises: Exercise[];
   notes?: string;
+  /** Points to a WorkoutTemplate id (e.g. "A", "B", "C") */
+  templateId?: string;
+  /** Per-occurrence exercise override — takes priority over template */
+  overrideExercises?: Exercise[];
+  /** Absolute calendar date for this occurrence — YYYY-MM-DD (local) */
+  instanceDate?: string;
 }
 
 export interface Exercise {
@@ -69,6 +85,8 @@ export interface AnnualPlan {
   monthlyBlocks: MonthlyBlock[];
   nutritionTips: string[];
   recoveryTips: string[];
+  /** Workout templates (A/B/C…) shared across the plan */
+  templates?: WorkoutTemplate[];
 }
 
 // ─── Workout tracking ────────────────────────────────────────────────────────
@@ -162,6 +180,8 @@ export type RootStackParamList = {
   Welcome: undefined;
   Onboarding: undefined;
   NewPlan: undefined;
+  /** Plan review screen shown after generation — user confirms before activating */
+  PlanReview: undefined;
   /** Main app shell — renders the bottom tab navigator. */
   Main: undefined;
   MonthDetail: { monthIndex: number };

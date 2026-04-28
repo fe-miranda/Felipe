@@ -5,6 +5,7 @@ import { RootStackParamList } from '../types';
 import { WelcomeScreen } from '../screens/WelcomeScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { NewPlanScreen } from '../screens/NewPlanScreen';
+import { PlanReviewScreen } from '../screens/PlanReviewScreen';
 import { MonthDetailScreen } from '../screens/MonthDetailScreen';
 import { WeekDetailScreen } from '../screens/WeekDetailScreen';
 import { WorkoutDetailScreen } from '../screens/WorkoutDetailScreen';
@@ -45,6 +46,11 @@ export function AppNavigator({ initialRouteName = 'Welcome' }: Props) {
         <Stack.Screen
           name="NewPlan"
           component={NewPlanScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="PlanReview"
+          component={PlanReviewScreen}
           options={{ headerShown: false }}
         />
         {/* Main app shell – renders the bottom tab navigator */}

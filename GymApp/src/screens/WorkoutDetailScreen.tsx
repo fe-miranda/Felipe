@@ -8,6 +8,7 @@ import { Exercise, RootStackParamList, CompletedWorkout, WorkoutDay } from '../t
 import { usePlan } from '../hooks/usePlan';
 import { loadHistory } from '../services/workoutHistoryService';
 import { ExerciseHistoryModal } from '../components/ExerciseHistoryModal';
+import { resolveTemplatesById, resolveDayExercises, isOnOrAfterToday } from '../utils/planResolve';
 
 const ACTIVE_WORKOUT_SESSION_KEY = '@gymapp_active_workout_session';
 
@@ -29,9 +30,27 @@ const PHASE_COLOR = (mi: number) => {
   return '#EF4444';
 };
 
+/** Normalise a blockType value from the AI or legacy data to a lowercase canonical form. */
+function normalizeBlockType(bt?: string): string | undefined {
+  if (!bt) return undefined;
+  const lower = bt.toLowerCase();
+  // Map Portuguese variant to canonical English key used in logic
+  if (lower === 'pirâmide') return 'pyramid';
+  return lower;
+}
+
+/** Display label and icon for a normalised blockType. */
+const BLOCK_TYPE_DISPLAY: Record<string, { label: string; icon: string }> = {
+  pyramid:  { label: 'Pirâmide', icon: '📈' },
+  dropset:  { label: 'Dropset',  icon: '📉' },
+  biset:    { label: 'Biset',    icon: '🔗' },
+  triset:   { label: 'Triset',   icon: '🔗' },
+  superset: { label: 'Superset', icon: '🔗' },
+};
+
 export function WorkoutDetailScreen({ navigation, route }: Props) {
   const { monthIndex, weekIndex, dayIndex } = route.params;
-  const { plan, loadStoredPlan, updateExercisesInPlan } = usePlan();
+  const { plan, loadStoredPlan, updateExercisesInPlan, updateTemplateExercisesFromToday, setDayOverrideExercises } = usePlan();
   const insets = useSafeAreaInsets();
   const [editableExercises, setEditableExercises] = useState<Exercise[]>([]);
 
@@ -113,7 +132,8 @@ export function WorkoutDetailScreen({ navigation, route }: Props) {
     if (!plan) return;
     const day = plan.monthlyBlocks?.[monthIndex]?.weeks?.[weekIndex]?.days?.[dayIndex];
     if (!day) return;
-    setEditableExercises(day.exercises.map((ex) => ({ ...ex })));
+    const templatesById = resolveTemplatesById(plan);
+    setEditableExercises(resolveDayExercises(day, templatesById).map((ex) => ({ ...ex })));
   }, [plan, monthIndex, weekIndex, dayIndex]);
 
   if (planLoading) {
@@ -150,7 +170,9 @@ export function WorkoutDetailScreen({ navigation, route }: Props) {
     );
   }
   const phaseColor = PHASE_COLOR(monthIndex);
-  const currentExercises = editableExercises.length ? editableExercises : day.exercises;
+  const templatesById = resolveTemplatesById(plan);
+  const resolvedBase = resolveDayExercises(day, templatesById);
+  const currentExercises = editableExercises.length ? editableExercises : resolvedBase;
 
   const totalSets = currentExercises.reduce((a, e) => a + e.sets, 0);
   const workoutToStart = {
@@ -187,27 +209,56 @@ export function WorkoutDetailScreen({ navigation, route }: Props) {
     setEditableExercises(newExercises);
     setShowEditModal(false);
 
-    Alert.alert(
-      'Salvar alteração',
-      'Deseja aplicar esta edição a todas as semanas com o mesmo foco muscular?',
-      [
-        {
-          text: 'Todas as semanas',
-          onPress: async () => {
-            try { await updateExercisesInPlan(monthIndex, weekIndex, dayIndex, newExercises, true); }
-            catch (error) { console.error(error); Alert.alert('Erro', 'Não foi possível salvar as alterações.'); }
+    const hasTemplate = !!(day.templateId && plan.templates?.some((t) => t.id === day.templateId));
+    const isFuture = day.instanceDate ? isOnOrAfterToday(day.instanceDate) : false;
+
+    if (hasTemplate && isFuture) {
+      Alert.alert(
+        'Salvar alteração',
+        'Como deseja aplicar esta edição?',
+        [
+          {
+            text: 'Aplicar ao Treino Base (de hoje em diante)',
+            onPress: async () => {
+              try {
+                await updateTemplateExercisesFromToday(day.templateId!, newExercises);
+              } catch (error) { console.error(error); Alert.alert('Erro', 'Não foi possível salvar as alterações.'); }
+            },
           },
-        },
-        {
-          text: 'Somente esta semana',
-          onPress: async () => {
-            try { await updateExercisesInPlan(monthIndex, weekIndex, dayIndex, newExercises, false); }
-            catch (error) { console.error(error); Alert.alert('Erro', 'Não foi possível salvar as alterações.'); }
+          {
+            text: 'Somente este dia',
+            onPress: async () => {
+              try {
+                await setDayOverrideExercises(monthIndex, weekIndex, dayIndex, newExercises);
+              } catch (error) { console.error(error); Alert.alert('Erro', 'Não foi possível salvar as alterações.'); }
+            },
           },
-        },
-        { text: 'Não salvar', style: 'cancel' },
-      ],
-    );
+          { text: 'Cancelar', style: 'cancel' },
+        ],
+      );
+    } else {
+      Alert.alert(
+        'Salvar alteração',
+        'Deseja aplicar esta edição a todas as semanas com o mesmo foco muscular?',
+        [
+          {
+            text: 'Todas as semanas',
+            onPress: async () => {
+              try { await updateExercisesInPlan(monthIndex, weekIndex, dayIndex, newExercises, true); }
+              catch (error) { console.error(error); Alert.alert('Erro', 'Não foi possível salvar as alterações.'); }
+            },
+          },
+          {
+            text: 'Somente esta semana',
+            onPress: async () => {
+              try { await updateExercisesInPlan(monthIndex, weekIndex, dayIndex, newExercises, false); }
+              catch (error) { console.error(error); Alert.alert('Erro', 'Não foi possível salvar as alterações.'); }
+            },
+          },
+          { text: 'Não salvar', style: 'cancel' },
+        ],
+      );
+    }
   };
 
   const addExercise = () => {
@@ -216,7 +267,9 @@ export function WorkoutDetailScreen({ navigation, route }: Props) {
       Alert.alert('Atenção', 'Preencha nome, séries, reps e descanso corretamente.');
       return;
     }
-    const extraCount = newBlockType === 'Biset' ? 1 : newBlockType === 'Triset' ? 2 : newBlockType === 'Superset' ? 3 : 0;
+    // Pirâmide and Dropset are single-exercise block types
+    const isSingleBlock = newBlockType === 'Pirâmide' || newBlockType === 'Dropset';
+    const extraCount = isSingleBlock ? 0 : newBlockType === 'Biset' ? 1 : newBlockType === 'Triset' ? 2 : newBlockType === 'Superset' ? 3 : 0;
     const names = [newName.trim(), newName2.trim(), newName3.trim(), newName4.trim()].slice(0, extraCount + 1);
     if (extraCount > 0 && names.some((n, i) => i > 0 && !n)) {
       Alert.alert('Atenção', 'Preencha os nomes de todos os exercícios do bloco.');
@@ -272,43 +325,57 @@ export function WorkoutDetailScreen({ navigation, route }: Props) {
           </View>
         )}
 
+        {/* Template badge */}
+        {day.templateId && (
+          <View style={[s.tplInfoBar, { borderColor: `${phaseColor}30` }]}>
+            <Text style={[s.tplInfoText, { color: phaseColor }]}>
+              🔗 Treino {day.templateId} — edite para aplicar a todas as ocorrências
+            </Text>
+          </View>
+        )}
+
         <Text style={s.sectionTitle}>Exercícios</Text>
 
         {(() => {
-          // Group consecutive exercises with the same blockType (biset/triset) into shared cards
+          // Group consecutive exercises with the same blockType (biset/triset/superset) into shared cards
           const groups: Array<{ indices: number[]; blockType?: string }> = [];
           let i = 0;
           while (i < currentExercises.length) {
-            const bt = currentExercises[i].blockType?.toLowerCase();
-            if (bt === 'biset' || bt === 'triset') {
+            const bt = normalizeBlockType(currentExercises[i].blockType);
+            if (bt === 'biset' || bt === 'triset' || bt === 'superset') {
               const group: number[] = [i];
               i++;
-              while (i < currentExercises.length && currentExercises[i].blockType?.toLowerCase() === bt) {
+              while (i < currentExercises.length && normalizeBlockType(currentExercises[i].blockType) === bt) {
                 group.push(i);
                 i++;
               }
               groups.push({ indices: group, blockType: bt });
             } else {
-              groups.push({ indices: [i] });
+              // pyramid/dropset and normal are single-exercise cards
+              groups.push({ indices: [i], blockType: bt });
               i++;
             }
           }
 
           return groups.map((group, gIdx) => {
-            const isBlock = group.indices.length > 1 && group.blockType;
-            const blockLabel = group.blockType ? group.blockType.charAt(0).toUpperCase() + group.blockType.slice(1) : undefined;
+            const isMultiBlock = group.indices.length > 1 && group.blockType;
+            const isSingleSpecial = group.indices.length === 1 && (group.blockType === 'pyramid' || group.blockType === 'dropset');
+            const showBadge = isMultiBlock || isSingleSpecial;
+            const blockDisplay = group.blockType ? BLOCK_TYPE_DISPLAY[group.blockType] : undefined;
+            const displayLabel = blockDisplay?.label ?? (group.blockType ?? '');
+            const blockIcon = blockDisplay?.icon ?? '🔗';
 
             return (
               <View
                 key={gIdx}
                 style={[
                   s.exCard,
-                  isBlock && { borderColor: `${phaseColor}60`, borderWidth: 1.5 },
+                  showBadge && { borderColor: `${phaseColor}60`, borderWidth: 1.5 },
                 ]}
               >
-                {isBlock && (
+                {showBadge && (
                   <View style={[s.blockBadge, { backgroundColor: `${phaseColor}20` }]}>
-                    <Text style={[s.blockBadgeText, { color: phaseColor }]}>🔗 {blockLabel}</Text>
+                  <Text style={[s.blockBadgeText, { color: phaseColor }]}>{blockIcon} {displayLabel}</Text>
                   </View>
                 )}
 
@@ -316,7 +383,7 @@ export function WorkoutDetailScreen({ navigation, route }: Props) {
                   const ex = currentExercises[idx];
                   return (
                     <View key={idx}>
-                      {isBlock && posInGroup > 0 && <View style={s.blockDivider} />}
+                      {isMultiBlock && posInGroup > 0 && <View style={s.blockDivider} />}
                       <View style={s.exHeader}>
                         <View style={[s.exNumBadge, { backgroundColor: phaseColor }]}>
                           <Text style={s.exNumText}>{idx + 1}</Text>
@@ -435,7 +502,7 @@ export function WorkoutDetailScreen({ navigation, route }: Props) {
             {/* Block type selector */}
             <Text style={{ color: C.text3, fontSize: 11, fontWeight: '700', marginBottom: 6 }}>TIPO DE BLOCO</Text>
             <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-              {['Normal', 'Biset', 'Triset', 'Superset'].map((bt) => (
+              {['Normal', 'Biset', 'Triset', 'Superset', 'Pirâmide', 'Dropset'].map((bt) => (
                 <TouchableOpacity
                   key={bt}
                   style={{
@@ -451,7 +518,7 @@ export function WorkoutDetailScreen({ navigation, route }: Props) {
             </View>
 
             <TextInput style={s.modalInput} value={newName} onChangeText={setNewName}
-              placeholder={newBlockType !== 'Normal' ? 'Nome exercício 1' : 'Nome'} placeholderTextColor={C.text3} />
+              placeholder={newBlockType !== 'Normal' && newBlockType !== 'Pirâmide' && newBlockType !== 'Dropset' ? 'Nome exercício 1' : 'Nome'} placeholderTextColor={C.text3} />
             {(newBlockType === 'Biset' || newBlockType === 'Triset' || newBlockType === 'Superset') && (
               <TextInput style={s.modalInput} value={newName2} onChangeText={setNewName2}
                 placeholder="Nome exercício 2" placeholderTextColor={C.text3} />
@@ -467,10 +534,11 @@ export function WorkoutDetailScreen({ navigation, route }: Props) {
 
             <View style={s.modalRow}>
               <TextInput style={[s.modalInput, s.modalHalf]} value={newSets} onChangeText={setNewSets} placeholder="Séries" placeholderTextColor={C.text3} keyboardType="numeric" />
-              <TextInput style={[s.modalInput, s.modalHalf]} value={newReps} onChangeText={setNewReps} placeholder="Reps" placeholderTextColor={C.text3} />
+              <TextInput style={[s.modalInput, s.modalHalf]} value={newReps} onChangeText={setNewReps}
+                placeholder={newBlockType === 'Pirâmide' ? 'Ex: 15/12/10/8' : newBlockType === 'Dropset' ? 'Ex: 12+drop' : 'Reps'} placeholderTextColor={C.text3} />
             </View>
             <TextInput style={s.modalInput} value={newRest} onChangeText={setNewRest} placeholder="Descanso (ex: 90s)" placeholderTextColor={C.text3} />
-            {newBlockType === 'Normal' && (
+            {(newBlockType === 'Normal' || newBlockType === 'Pirâmide' || newBlockType === 'Dropset') && (
               <TextInput style={s.modalInput} value={newNotes} onChangeText={setNewNotes} placeholder="Observações (opcional)" placeholderTextColor={C.text3} />
             )}
             <TouchableOpacity style={s.modalBtn} onPress={addExercise}>
@@ -511,6 +579,12 @@ const s = StyleSheet.create({
   notesCard: { backgroundColor: C.surface, borderRadius: 14, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: C.border },
   notesTitle: { color: C.text1, fontWeight: '700', fontSize: 14, marginBottom: 8 },
   notesText: { color: C.text2, lineHeight: 20 },
+
+  tplInfoBar: {
+    borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8,
+    marginBottom: 12, backgroundColor: C.elevated,
+  },
+  tplInfoText: { fontSize: 12, fontWeight: '700' },
 
   sectionTitle: { color: C.text1, fontSize: 16, fontWeight: '700', marginBottom: 12 },
 
