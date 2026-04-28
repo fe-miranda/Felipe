@@ -451,9 +451,6 @@ export function WorkoutHistoryScreen({ navigation }: Props) {
                       <View style={[s.pctBadge, { backgroundColor: pct >= 80 ? C.successBg : C.elevated, borderColor: pct >= 80 ? C.successBorder : C.border }]}>
                         <Text style={[s.pctText, { color: pct >= 80 ? C.success : C.text3 }]}>{pct}%</Text>
                       </View>
-                      <TouchableOpacity onPress={() => handleDelete(w.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                        <Text style={s.deleteBtn}>✕</Text>
-                      </TouchableOpacity>
                     </View>
                   </View>
 
@@ -495,6 +492,17 @@ export function WorkoutHistoryScreen({ navigation }: Props) {
                       ))}
                     </View>
                   )}
+
+                  {/* Delete row */}
+                  <TouchableOpacity
+                    style={s.deleteRow}
+                    onPress={() => handleDelete(w.id)}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={s.deleteRowIcon}>🗑</Text>
+                    <Text style={s.deleteRowText}>Remover</Text>
+                  </TouchableOpacity>
                 </View>
               );
             })
@@ -597,7 +605,12 @@ const s = StyleSheet.create({
   cardHeaderRight: { alignItems: 'flex-end', gap: 6 },
   pctBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, borderWidth: 1 },
   pctText: { fontSize: 12, fontWeight: '800' },
-  deleteBtn: { color: C.text3, fontSize: 14 },
+  deleteRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, marginTop: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: C.border,
+  },
+  deleteRowIcon: { fontSize: 15 },
+  deleteRowText: { color: C.danger, fontSize: 13, fontWeight: '700' },
 
   completionBar: { height: 4, backgroundColor: C.elevated, borderRadius: 2, overflow: 'hidden', marginBottom: 10 },
   completionFill: { height: 4, borderRadius: 2 },
