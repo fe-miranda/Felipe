@@ -5,6 +5,7 @@ import { generateAnnualPlan, generateMonthDetail } from '../services/aiService';
 
 const PLAN_KEY = '@gymapp_plan';
 const PROFILE_KEY = '@gymapp_profile';
+const SESSIONS_COUNTER_KEY = '@gymapp_sessions_counter';
 
 export function usePlan() {
   const [plan, setPlan] = useState<AnnualPlan | null>(null);
@@ -51,6 +52,7 @@ export function usePlan() {
           setProgress(status);
         });
 
+        await AsyncStorage.removeItem(SESSIONS_COUNTER_KEY);
         await AsyncStorage.setItem(PLAN_KEY, JSON.stringify(newPlan));
         setPlan(newPlan);
         return newPlan;
@@ -90,6 +92,7 @@ export function usePlan() {
 
   const clearPlan = useCallback(async () => {
     await AsyncStorage.removeItem(PLAN_KEY);
+    await AsyncStorage.removeItem(SESSIONS_COUNTER_KEY);
     setPlan(null);
   }, []);
 
