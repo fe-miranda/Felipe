@@ -448,15 +448,100 @@ export function HomeScreen({ navigation }: Props) {
         {todayWorkout && <Text style={s.todayBtnSub}>{todayWorkout.focus}</Text>}
       </TouchableOpacity>
 
-      {/* ── Acessar plano de treinos ── */}
-      <TouchableOpacity
-        style={s.planBtn}
-        activeOpacity={0.85}
-        onPress={() => navigation.navigate('MonthDetail', { monthIndex: currentMonthIndex })}
-      >
-        <Text style={s.planBtnText}>📅  Acessar Seu Plano de Treinos</Text>
-        <Text style={s.planBtnSub}>{MONTH_ABBR[(startMonth + currentMonthIndex) % 12]} · Mês {currentMonthIndex + 1} de {monthlyBlocks.length}</Text>
-      </TouchableOpacity>
+      {/* ── Plano de Treinos accordion ── */}
+      <Text style={[s.sectionTitle, { marginTop: 4, marginBottom: 10 }]}>📅 Plano de Treinos — {totalMonths} {totalMonths === 1 ? 'Mês' : 'Meses'}</Text>
+      {monthlyBlocks.map((month, idx) => {
+        const ph = PHASE(idx);
+        const monthWeeks = month.weeks ?? [];
+        const hasWeeks = monthWeeks.length > 0;
+        const isCurrent = idx === currentMonthIndex;
+        const isExpanded = expandedMonthIndex === idx;
+        const calMonthAbbr = MONTH_ABBR[(startMonth + idx) % 12];
+        const templateDays = hasWeeks ? (monthWeeks[0].days ?? []) : [];
+        const dayOffset = monthDayOffsets[idx] ?? 0;
+
+        return (
+          <View key={idx} style={[s.accordionMonth, isCurrent && { borderColor: C.primary }]}>
+            {/* Month header row */}
+            <TouchableOpacity
+              style={s.accordionHeader}
+              onPress={() => setExpandedMonthIndex(isExpanded ? null : idx)}
+              activeOpacity={0.75}
+            >
+              <View style={[s.accordionPhaseBar, { backgroundColor: ph.color }]} />
+              <View style={[s.accordionMonthBadge, { backgroundColor: `${ph.color}20` }]}>
+                <Text style={[s.accordionMonthLabel, { color: ph.color }]}>{calMonthAbbr}</Text>
+              </View>
+              <View style={s.accordionHeaderCenter}>
+                <Text style={s.accordionMonthFocus} numberOfLines={1}>{month.focus}</Text>
+                <Text style={s.accordionMonthMeta}>
+                  {hasWeeks ? `${templateDays.length} dias · ${monthWeeks.length} semanas` : 'Ainda não gerado'}
+                </Text>
+              </View>
+              <View style={s.accordionHeaderRight}>
+                {isCurrent && (
+                  <View style={s.accordionCurrentBadge}>
+                    <Text style={s.accordionCurrentText}>Atual</Text>
+                  </View>
+                )}
+                <Text style={[s.accordionChevron, { color: ph.color }]}>{isExpanded ? '▲' : '▼'}</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Expanded: list workout days */}
+            {isExpanded && (
+              <View style={s.accordionBody}>
+                {!hasWeeks ? (
+                  <TouchableOpacity
+                    style={s.accordionGenerateBtn}
+                    onPress={() => navigation.navigate('MonthDetail', { monthIndex: idx })}
+                  >
+                    <Text style={[s.accordionGenerateBtnText, { color: ph.color }]}>+ Gerar treinos deste mês</Text>
+                  </TouchableOpacity>
+                ) : (
+                  templateDays.map((day, dayIdx) => {
+                    const seqNum = dayOffset + dayIdx + 1;
+                    const weekIdxForCurrent = isCurrent
+                      ? Math.min(Math.max(0, Math.floor((now.getTime() - planStartDate.getTime()) / MILLIS_PER_WEEK) % monthWeeks.length), monthWeeks.length - 1)
+                      : 0;
+                    const workoutForDay = monthWeeks[weekIdxForCurrent]?.days?.[dayIdx] ?? day;
+                    return (
+                      <TouchableOpacity
+                        key={dayIdx}
+                        style={s.accordionDayRow}
+                        onPress={() => navigation.navigate('WorkoutDetail', { monthIndex: idx, weekIndex: weekIdxForCurrent, dayIndex: dayIdx })}
+                        activeOpacity={0.78}
+                      >
+                        <View style={[s.accordionDayNum, { backgroundColor: `${ph.color}20` }]}>
+                          <Text style={[s.accordionDayNumText, { color: ph.color }]}>{seqNum}</Text>
+                        </View>
+                        <View style={s.accordionDayInfo}>
+                          <Text style={s.accordionDayName} numberOfLines={1}>{day.dayOfWeek}</Text>
+                          <Text style={s.accordionDayFocus} numberOfLines={1}>{day.focus} · {day.exercises.length} exerc.</Text>
+                        </View>
+                        <TouchableOpacity
+                          style={[s.accordionActionBtn, { backgroundColor: `${ph.color}18`, borderColor: `${ph.color}50` }]}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          onPress={() => navigateToWorkout(workoutForDay, { monthIndex: idx, weekIndex: weekIdxForCurrent, dayIndex: dayIdx })}
+                        >
+                          <Text style={[s.accordionActionBtnText, { color: ph.color }]}>▶</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[s.accordionActionBtn, { marginLeft: 6, backgroundColor: C.elevated, borderColor: C.border }]}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          onPress={() => navigation.navigate('WorkoutDetail', { monthIndex: idx, weekIndex: weekIdxForCurrent, dayIndex: dayIdx })}
+                        >
+                          <Text style={s.accordionEditBtnText}>✎</Text>
+                        </TouchableOpacity>
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
+              </View>
+            )}
+          </View>
+        );
+      })}
 
       {/* ── Performance Analysis button ── */}
       <TouchableOpacity style={s.exportBtn} onPress={() => navigation.navigate('PerformanceAnalysis')}>
@@ -663,101 +748,6 @@ export function HomeScreen({ navigation }: Props) {
         <Text style={s.fatigueArrow}>›</Text>
       </TouchableOpacity>
 
-      {/* ── Month accordion ── */}
-      <Text style={[s.sectionTitle, { marginTop: 8 }]}>📅 Plano de Treinos — {totalMonths} {totalMonths === 1 ? 'Mês' : 'Meses'}</Text>
-      {monthlyBlocks.map((month, idx) => {
-        const ph = PHASE(idx);
-        const monthWeeks = month.weeks ?? [];
-        const hasWeeks = monthWeeks.length > 0;
-        const isCurrent = idx === currentMonthIndex;
-        const isExpanded = expandedMonthIndex === idx;
-        const calMonthAbbr = MONTH_ABBR[(startMonth + idx) % 12];
-        const templateDays = hasWeeks ? (monthWeeks[0].days ?? []) : [];
-        const dayOffset = monthDayOffsets[idx] ?? 0;
-
-        return (
-          <View key={idx} style={[s.accordionMonth, isCurrent && { borderColor: C.primary }]}>
-            {/* Month header row */}
-            <TouchableOpacity
-              style={s.accordionHeader}
-              onPress={() => setExpandedMonthIndex(isExpanded ? null : idx)}
-              activeOpacity={0.75}
-            >
-              <View style={[s.accordionPhaseBar, { backgroundColor: ph.color }]} />
-              <View style={[s.accordionMonthBadge, { backgroundColor: `${ph.color}20` }]}>
-                <Text style={[s.accordionMonthLabel, { color: ph.color }]}>{calMonthAbbr}</Text>
-              </View>
-              <View style={s.accordionHeaderCenter}>
-                <Text style={s.accordionMonthFocus} numberOfLines={1}>{month.focus}</Text>
-                <Text style={s.accordionMonthMeta}>
-                  {hasWeeks ? `${templateDays.length} dias · ${monthWeeks.length} semanas` : 'Ainda não gerado'}
-                </Text>
-              </View>
-              <View style={s.accordionHeaderRight}>
-                {isCurrent && (
-                  <View style={s.accordionCurrentBadge}>
-                    <Text style={s.accordionCurrentText}>Atual</Text>
-                  </View>
-                )}
-                <Text style={[s.accordionChevron, { color: ph.color }]}>{isExpanded ? '▲' : '▼'}</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Expanded: list workout days */}
-            {isExpanded && (
-              <View style={s.accordionBody}>
-                {!hasWeeks ? (
-                  <TouchableOpacity
-                    style={s.accordionGenerateBtn}
-                    onPress={() => navigation.navigate('MonthDetail', { monthIndex: idx })}
-                  >
-                    <Text style={[s.accordionGenerateBtnText, { color: ph.color }]}>+ Gerar treinos deste mês</Text>
-                  </TouchableOpacity>
-                ) : (
-                  templateDays.map((day, dayIdx) => {
-                    const seqNum = dayOffset + dayIdx + 1;
-                    const weekIdxForCurrent = isCurrent
-                      ? Math.min(Math.max(0, Math.floor((now.getTime() - planStartDate.getTime()) / MILLIS_PER_WEEK) % monthWeeks.length), monthWeeks.length - 1)
-                      : 0;
-                    const workoutForDay = monthWeeks[weekIdxForCurrent]?.days?.[dayIdx] ?? day;
-                    return (
-                      <TouchableOpacity
-                        key={dayIdx}
-                        style={s.accordionDayRow}
-                        onPress={() => navigation.navigate('WorkoutDetail', { monthIndex: idx, weekIndex: weekIdxForCurrent, dayIndex: dayIdx })}
-                        activeOpacity={0.78}
-                      >
-                        <View style={[s.accordionDayNum, { backgroundColor: `${ph.color}20` }]}>
-                          <Text style={[s.accordionDayNumText, { color: ph.color }]}>{seqNum}</Text>
-                        </View>
-                        <View style={s.accordionDayInfo}>
-                          <Text style={s.accordionDayName} numberOfLines={1}>{day.dayOfWeek}</Text>
-                          <Text style={s.accordionDayFocus} numberOfLines={1}>{day.focus} · {day.exercises.length} exerc.</Text>
-                        </View>
-                        <TouchableOpacity
-                          style={[s.accordionActionBtn, { backgroundColor: `${ph.color}18`, borderColor: `${ph.color}50` }]}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                          onPress={() => navigateToWorkout(workoutForDay, { monthIndex: idx, weekIndex: weekIdxForCurrent, dayIndex: dayIdx })}
-                        >
-                          <Text style={[s.accordionActionBtnText, { color: ph.color }]}>▶</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[s.accordionActionBtn, { marginLeft: 6, backgroundColor: C.elevated, borderColor: C.border }]}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                          onPress={() => navigation.navigate('WorkoutDetail', { monthIndex: idx, weekIndex: weekIdxForCurrent, dayIndex: dayIdx })}
-                        >
-                          <Text style={s.accordionEditBtnText}>✎</Text>
-                        </TouchableOpacity>
-                      </TouchableOpacity>
-                    );
-                  })
-                )}
-              </View>
-            )}
-          </View>
-        );
-      })}
-
       {/* ── Nutrition tips ── */}
       {nutritionTips.length > 0 && (
         <>
@@ -932,14 +922,6 @@ const s = StyleSheet.create({
   },
   todayBtnText: { color: '#fff', fontSize: 17, fontWeight: '800', letterSpacing: 0.3 },
   todayBtnSub: { color: 'rgba(255,255,255,0.75)', fontSize: 12, marginTop: 4 },
-
-  planBtn: {
-    backgroundColor: C.elevated, borderRadius: 16, paddingVertical: 14,
-    alignItems: 'center', marginBottom: 12,
-    borderWidth: 1, borderColor: 'rgba(124,58,237,0.45)',
-  },
-  planBtnText: { color: C.primaryLight, fontSize: 15, fontWeight: '700', letterSpacing: 0.2 },
-  planBtnSub: { color: C.text3, fontSize: 11, marginTop: 4 },
 
   // Hero card
   heroCard: {

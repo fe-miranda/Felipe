@@ -576,7 +576,7 @@ export async function generateCustomWorkout(params: CustomWorkoutParams): Promis
 
 const IMPORT_PLAN_PROMPT_SUFFIX =
   `\nConvert the workout plan above into this exact JSON structure (PT-BR labels), no markdown:\n` +
-  `{"overallGoal":"..","months":[{"month":1,"monthName":"Janeiro","focus":"..","description":"..","progressIndicators":[".."],"weeks":[{"week":1,"theme":"..","weeklyGoals":[".."],"days":[{"dayOfWeek":"Segunda","focus":"..","duration":60,"exercises":[{"name":"Supino Reto","sets":4,"reps":"10-12","rest":"90s"}]}]}]}],"nutritionTips":[".."],"recoveryTips":[".."]}\n` +
+  `{"overallGoal":"..","months":[{"month":1,"monthName":"Janeiro","focus":"..","description":"..","progressIndicators":[".."],"weeks":[{"week":1,"theme":"..","weeklyGoals":[".."],"days":[{"dayOfWeek":"Segunda","focus":"..","duration":60,"exercises":[{"name":"Supino Reto","sets":4,"reps":"10-12","rest":"90s","blockType":"biset"},{"name":"Remada Curvada","sets":4,"reps":"10-12","rest":"60s","blockType":"biset"}]}]}]}],"nutritionTips":[".."],"recoveryTips":[".."]}\n` +
   `STRICT RULES — you MUST follow all of them without exception:\n` +
   `1. Copy every exercise EXACTLY as written in the source — same name, same sets, same reps, same rest. Do NOT rename, substitute, merge, or reorder any exercise.\n` +
   `2. Do NOT add any exercise, set, rep, or rest value that is not explicitly present in the source.\n` +
@@ -584,7 +584,9 @@ const IMPORT_PLAN_PROMPT_SUFFIX =
   `4. Do NOT apply progressive overload, periodization, or any modification to the source data.\n` +
   `5. Only fill in structural fields that are required by the JSON schema but absent from the source (e.g. dayOfWeek, duration) — use the most reasonable neutral default.\n` +
   `6. Group days into weeks (4 weeks per month) repeating the same workout structure across all weeks unless the source explicitly differs per week.\n` +
-  `7. Detect technique keywords in each exercise name or notes and set "blockType" accordingly: "biset" → "biset", "triset" → "triset", "pirâmide"/"pyramid" → "pyramid", "dropset" → "dropset". If no keyword is found, omit the "blockType" field.`;
+  `7. BISET/TRISET HANDLING: When the source groups exercises as a biset or triset (e.g., "Biset: Exercício A + Exercício B", or exercises labeled with biset/triset), output each exercise as a SEPARATE entry in the exercises array, but set the "blockType" field on ALL exercises in the group to the same value: "biset" for bisets, "triset" for trisets. This is critical — every exercise in a biset must have blockType:"biset", every exercise in a triset must have blockType:"triset". Consecutive exercises sharing the same blockType will be displayed together in the UI.\n` +
+  `8. Detect other technique keywords and set "blockType" accordingly: "pirâmide"/"pyramid" → "pyramid", "dropset" → "dropset". If no keyword is found, omit the "blockType" field.\n` +
+  `9. Each exercise in a biset/triset must have its OWN "sets", "reps", and "rest" values as specified in the source. Never share or omit these values.`;
 
 export interface ImportPlanOptions {
   userProfile: UserProfile;

@@ -58,6 +58,7 @@ function buildLogs(workout: Props['route']['params']['workout']): ExerciseLog[] 
     targetSets: ex.sets,
     targetReps: ex.reps,
     rest: ex.rest,
+    blockType: ex.blockType,
     sets: Array.from({ length: ex.sets }, (): SetLog => ({ load: '', reps: '', done: false })),
   }));
 }
@@ -526,82 +527,129 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
 
       {/* ── Exercise list ── */}
       <ScrollView style={s.scroll} contentContainerStyle={[s.scrollContent, { paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled">
-        {exercises.map((ex, exIdx) => {
-          const allDone = ex.sets.every(s => s.done);
-          return (
-            <View key={exIdx} style={[s.exCard, allDone && s.exCardDone]}>
-              <View style={s.exHeader}>
-                <View style={[s.exBadge, allDone && s.exBadgeDone]}>
-                  <Text style={s.exBadgeText}>{allDone ? '✓' : exIdx + 1}</Text>
-                </View>
-                <View style={s.exMeta}>
-                  <Text style={s.exName}>{ex.name}</Text>
-                  <Text style={s.exTarget}>{ex.targetSets}×{ex.targetReps} · {ex.rest}</Text>
-                </View>
-                <TouchableOpacity style={s.subBtn} onPress={() => openAlternatives(exIdx)}>
-                  <Text style={s.subBtnText}>↺</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={s.addSetBtn} onPress={() => addExtraSet(exIdx)}>
-                  <Text style={s.addSetBtnText}>＋S</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={s.addSetBtn}
-                  onPress={() => { setHistoryExerciseName(ex.name); setShowHistoryModal(true); }}
-                >
-                  <Text style={{ color: C.primaryLight, fontSize: 14 }}>📊</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[s.addSetBtn, { opacity: exercises.length <= 1 ? 0.4 : 1 }]}
-                  disabled={exercises.length <= 1}
-                  onPress={() => {
-                    Alert.alert('Remover exercício', 'Deseja remover este exercício?', [
-                      { text: 'Cancelar', style: 'cancel' },
-                      {
-                        text: 'Remover', style: 'destructive',
-                        onPress: () => setExercises((prev) => prev.filter((_, i) => i !== exIdx)),
-                      },
-                    ]);
-                  }}
-                >
-                  <Text style={{ color: '#EF4444', fontSize: 14 }}>🗑</Text>
-                </TouchableOpacity>
-              </View>
+        {(() => {
+          // Group consecutive exercises with the same blockType (biset/triset) into shared cards
+          const groups: Array<{ indices: number[]; blockType?: string }> = [];
+          let gi = 0;
+          while (gi < exercises.length) {
+            const bt = exercises[gi].blockType?.toLowerCase();
+            if (bt === 'biset' || bt === 'triset') {
+              const rawBt = exercises[gi].blockType!;
+              const group: number[] = [gi];
+              gi++;
+              while (gi < exercises.length && exercises[gi].blockType === rawBt) {
+                group.push(gi);
+                gi++;
+              }
+              groups.push({ indices: group, blockType: rawBt });
+            } else {
+              groups.push({ indices: [gi] });
+              gi++;
+            }
+          }
 
-              <View style={s.setHeaderRow}>
-                <Text style={[s.setHeaderCell, { flex: 0.4 }]}>Série</Text>
-                <Text style={[s.setHeaderCell, { flex: 1 }]}>Carga (kg)</Text>
-                <Text style={[s.setHeaderCell, { flex: 1 }]}>Reps</Text>
-                <Text style={[s.setHeaderCell, { flex: 0.6 }]}>OK</Text>
-              </View>
+          return groups.map((group, gIdx) => {
+            const isBlock = group.indices.length > 1 && group.blockType;
+            const blockLabel = group.blockType ? group.blockType.charAt(0).toUpperCase() + group.blockType.slice(1) : undefined;
+            const allGroupDone = group.indices.every((exIdx) => exercises[exIdx].sets.every(s => s.done));
 
-              {ex.sets.map((set, setIdx) => (
-                <View key={setIdx} style={[s.setRow, set.done && s.setRowDone]}>
-                  <Text style={[s.setNum, { flex: 0.4 }]}>{setIdx + 1}</Text>
-                  <TextInput
-                    style={[s.setInput, { flex: 1 }]}
-                    value={set.load} onChangeText={v => updateSet(exIdx, setIdx, 'load', v)}
-                    placeholder="—" placeholderTextColor={C.text3}
-                    keyboardType="decimal-pad" editable={!set.done} selectTextOnFocus
-                  />
-                  <TextInput
-                    style={[s.setInput, { flex: 1 }]}
-                    value={set.reps} onChangeText={v => updateSet(exIdx, setIdx, 'reps', v)}
-                    placeholder={ex.targetReps} placeholderTextColor={C.text3}
-                    keyboardType="decimal-pad" editable={!set.done} selectTextOnFocus
-                  />
-                  <TouchableOpacity
-                    style={[s.doneCheck, { flex: 0.6 }, set.done && s.doneCheckActive]}
-                    onPress={() => toggleSetDone(exIdx, setIdx)}
-                  >
-                    <Text style={[s.doneCheckText, set.done && s.doneCheckTextActive]}>
-                      {set.done ? '✓' : '○'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </View>
-          );
-        })}
+            return (
+              <View
+                key={gIdx}
+                style={[
+                  s.exCard,
+                  allGroupDone && s.exCardDone,
+                  isBlock && { borderColor: `${C.primary}60`, borderWidth: 1.5 },
+                ]}
+              >
+                {isBlock && (
+                  <View style={s.blockBadge}>
+                    <Text style={s.blockBadgeText}>🔗 {blockLabel}</Text>
+                  </View>
+                )}
+
+                {group.indices.map((exIdx, posInGroup) => {
+                  const ex = exercises[exIdx];
+                  const allDone = ex.sets.every(s => s.done);
+                  return (
+                    <View key={exIdx}>
+                      {isBlock && posInGroup > 0 && <View style={s.blockDivider} />}
+                      <View style={s.exHeader}>
+                        <View style={[s.exBadge, allDone && s.exBadgeDone]}>
+                          <Text style={s.exBadgeText}>{allDone ? '✓' : exIdx + 1}</Text>
+                        </View>
+                        <View style={s.exMeta}>
+                          <Text style={s.exName}>{ex.name}</Text>
+                          <Text style={s.exTarget}>{ex.targetSets}×{ex.targetReps} · {ex.rest}</Text>
+                        </View>
+                        <TouchableOpacity style={s.subBtn} onPress={() => openAlternatives(exIdx)}>
+                          <Text style={s.subBtnText}>↺</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={s.addSetBtn} onPress={() => addExtraSet(exIdx)}>
+                          <Text style={s.addSetBtnText}>＋S</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={s.addSetBtn}
+                          onPress={() => { setHistoryExerciseName(ex.name); setShowHistoryModal(true); }}
+                        >
+                          <Text style={{ color: C.primaryLight, fontSize: 14 }}>📊</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[s.addSetBtn, { opacity: exercises.length <= 1 ? 0.4 : 1 }]}
+                          disabled={exercises.length <= 1}
+                          onPress={() => {
+                            Alert.alert('Remover exercício', 'Deseja remover este exercício?', [
+                              { text: 'Cancelar', style: 'cancel' },
+                              {
+                                text: 'Remover', style: 'destructive',
+                                onPress: () => setExercises((prev) => prev.filter((_, i) => i !== exIdx)),
+                              },
+                            ]);
+                          }}
+                        >
+                          <Text style={{ color: '#EF4444', fontSize: 14 }}>🗑</Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      <View style={s.setHeaderRow}>
+                        <Text style={[s.setHeaderCell, { flex: 0.4 }]}>Série</Text>
+                        <Text style={[s.setHeaderCell, { flex: 1 }]}>Carga (kg)</Text>
+                        <Text style={[s.setHeaderCell, { flex: 1 }]}>Reps</Text>
+                        <Text style={[s.setHeaderCell, { flex: 0.6 }]}>OK</Text>
+                      </View>
+
+                      {ex.sets.map((set, setIdx) => (
+                        <View key={setIdx} style={[s.setRow, set.done && s.setRowDone]}>
+                          <Text style={[s.setNum, { flex: 0.4 }]}>{setIdx + 1}</Text>
+                          <TextInput
+                            style={[s.setInput, { flex: 1 }]}
+                            value={set.load} onChangeText={v => updateSet(exIdx, setIdx, 'load', v)}
+                            placeholder="—" placeholderTextColor={C.text3}
+                            keyboardType="decimal-pad" editable={!set.done} selectTextOnFocus
+                          />
+                          <TextInput
+                            style={[s.setInput, { flex: 1 }]}
+                            value={set.reps} onChangeText={v => updateSet(exIdx, setIdx, 'reps', v)}
+                            placeholder={ex.targetReps} placeholderTextColor={C.text3}
+                            keyboardType="decimal-pad" editable={!set.done} selectTextOnFocus
+                          />
+                          <TouchableOpacity
+                            style={[s.doneCheck, { flex: 0.6 }, set.done && s.doneCheckActive]}
+                            onPress={() => toggleSetDone(exIdx, setIdx)}
+                          >
+                            <Text style={[s.doneCheckText, set.done && s.doneCheckTextActive]}>
+                              {set.done ? '✓' : '○'}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </View>
+                  );
+                })}
+              </View>
+            );
+          });
+        })()}
 
         <TouchableOpacity style={s.finishBig} onPress={confirmFinish} activeOpacity={0.85}>
           <Text style={s.finishBigText}>🏁  Finalizar e Salvar Treino</Text>
@@ -842,6 +890,9 @@ const s = StyleSheet.create({
 
   exCard: { backgroundColor: C.surface, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: C.border },
   exCardDone: { borderColor: `${C.success}50`, backgroundColor: 'rgba(16,185,129,0.04)' },
+  blockBadge: { alignSelf: 'flex-start', backgroundColor: C.primaryGlow, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 10 },
+  blockBadgeText: { color: C.primaryLight, fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
+  blockDivider: { height: 1, backgroundColor: C.border, marginVertical: 10 },
   exHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 10 },
   exBadge: { width: 32, height: 32, borderRadius: 10, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center' },
   exBadgeDone: { backgroundColor: C.success },
