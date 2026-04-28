@@ -2,21 +2,23 @@
  * HeartRateService — BLE heart-rate abstraction for Samsung Watch (and others).
  *
  * Architecture:
- *   IHeartRateProvider  → interface that any provider must implement
- *   SimulatedProvider   → fallback used in Expo Go / when BLE is unavailable
- *   BleProvider (stub)  → placeholder showing where react-native-ble-plx would plug in
- *   HeartRateService    → singleton orchestrator exposed to the rest of the app
+ *   IHeartRateProvider     → interface that any provider must implement
+ *   SimulatedProvider      → fallback used in Expo Go / when BLE is unavailable
+ *   BleHeartRateProvider   → real BLE implementation (Galaxy Watch 3 / standard GATT HR profile)
+ *   HeartRateService       → singleton orchestrator; auto-selects BLE, falls back to simulated
  *
- * For production Samsung BLE support you would:
- *   1. `expo install react-native-ble-plx`  (requires custom dev client / bare workflow)
- *   2. Add BLE permissions to app.json plugins
- *   3. Implement BleProvider using BleManager from react-native-ble-plx
- *      scanning for HR Service UUID 0x180D, characteristic 0x2A37.
+ * Galaxy Watch 3 exposes the standard Bluetooth GATT Heart Rate Service (0x180D).
+ * Galaxy Fit 3 may only expose HR via Samsung Health; if standard BLE HR is not
+ * advertised the service will fall back to the simulated provider automatically.
  *
- * This file works in Expo Go / managed workflow via the SimulatedProvider.
+ * Requirements for real BLE (both devices):
+ *   • Custom dev build — NOT available in Expo Go:  npx expo run:android  /  eas build
+ *   • BLE permissions already declared in app.json
+ *   • User must grant Bluetooth + Location permissions at runtime
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { BleManager as BleManagerType } from 'react-native-ble-plx';
 import { HeartRateSample, HeartRateState, HeartRateStatus } from '../types';
 
 // ─── Storage ─────────────────────────────────────────────────────────────────
@@ -120,21 +122,164 @@ export class SimulatedHeartRateProvider implements IHeartRateProvider {
   }
 }
 
-// ─── BLE provider stub ─────────────────────────────────────────────────────
+// ─── BLE provider ──────────────────────────────────────────────────────────
 //
-// To enable real BLE:
-//   1. Run: npx expo install react-native-ble-plx
-//   2. Add to app.json plugins: ["react-native-ble-plx"]
-//   3. Implement this class using BleManager:
+// Connects to any BLE device advertising the standard Heart Rate GATT service.
+// Works with Galaxy Watch 3 (and any device that exposes the standard HR profile).
 //
-//   import { BleManager, Device } from 'react-native-ble-plx';
-//   const HR_SERVICE_UUID   = '0000180d-0000-1000-8000-00805f9b34fb';
-//   const HR_CHAR_UUID      = '00002a37-0000-1000-8000-00805f9b34fb';
-//
-//   connect(): scan for devices advertising HR_SERVICE_UUID,
-//              connect to first found (or remembered device),
-//              subscribe to HR_CHAR_UUID notifications,
-//              parse the Heart Rate Measurement characteristic (spec §3.113).
+// Requires a custom dev build — not available in Expo Go.
+// Run: npx expo run:android  (or eas build)
+
+const HR_SERVICE_UUID = '0000180d-0000-1000-8000-00805f9b34fb';
+const HR_CHAR_UUID    = '00002a37-0000-1000-8000-00805f9b34fb';
+
+let _BleManager: typeof import('react-native-ble-plx').BleManager | null = null;
+let _BleState: typeof import('react-native-ble-plx').State | null = null;
+
+try {
+  // Dynamic require so the module is optional: the app still runs in Expo Go
+  // (via SimulatedProvider) and only activates BLE in a real dev/prod build.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const ble = require('react-native-ble-plx');
+  _BleManager = ble.BleManager;
+  _BleState   = ble.State;
+} catch {
+  // react-native-ble-plx not available (Expo Go)
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Decode a base64 string to a byte array without relying on the global Buffer. */
+function _base64ToBytes(base64: string): Uint8Array {
+  // atob is available in React Native (Hermes) and modern environments.
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+export class BleHeartRateProvider implements IHeartRateProvider {
+  readonly providerName = 'BLE';
+
+  private _manager: BleManagerType | null = null;
+  private _connectedDeviceId: string | null = null;
+  private _subscription: { remove(): void } | null = null;
+  private _connecting = false;
+  private _onStatus: ((status: HeartRateStatus, deviceName: string | null, err: string | null) => void) | null = null;
+  private _onSample: ((s: HeartRateSample) => void) | null = null;
+
+  async isAvailable(): Promise<boolean> {
+    if (!_BleManager || !_BleState) return false;
+    try {
+      const mgr = new _BleManager();
+      const state = await mgr.state();
+      mgr.destroy();
+      return state === _BleState.PoweredOn;
+    } catch {
+      return false;
+    }
+  }
+
+  async connect(
+    onStatusChange: (status: HeartRateStatus, deviceName: string | null, error: string | null) => void,
+    onSample: (sample: HeartRateSample) => void,
+  ): Promise<void> {
+    if (!_BleManager) {
+      onStatusChange('unavailable', null, 'BLE não disponível neste dispositivo.');
+      return;
+    }
+
+    this._onStatus = onStatusChange;
+    this._onSample = onSample;
+    this._connecting = false;
+    this._manager = new _BleManager();
+
+    onStatusChange('scanning', null, null);
+
+    this._manager.startDeviceScan(
+      [HR_SERVICE_UUID],
+      { allowDuplicates: false },
+      async (error, device) => {
+        if (error) {
+          onStatusChange('error', null, error.message);
+          return;
+        }
+        // Ignore duplicate callbacks after we've already started connecting
+        if (!device || !this._manager || this._connecting) return;
+        this._connecting = true;
+
+        // Stop scan and connect to the first device found
+        this._manager.stopDeviceScan();
+        onStatusChange('connecting', device.name ?? device.id, null);
+
+        try {
+          const connected = await this._manager.connectToDevice(device.id);
+          this._connectedDeviceId = connected.id;
+          await connected.discoverAllServicesAndCharacteristics();
+          onStatusChange('connected', connected.name ?? connected.id, null);
+
+          // Subscribe to heart rate measurement notifications
+          this._subscription = connected.monitorCharacteristicForService(
+            HR_SERVICE_UUID,
+            HR_CHAR_UUID,
+            (charError, characteristic) => {
+              if (charError) {
+                onStatusChange('error', connected.name ?? connected.id, charError.message);
+                return;
+              }
+              if (!characteristic?.value) return;
+
+              try {
+                // Decode base64 → bytes (HR Measurement characteristic, BT spec §3.113)
+                const bytes = _base64ToBytes(characteristic.value);
+                const flags = bytes[0];
+                // bit 0 of flags: 0 = 8-bit HR value, 1 = 16-bit HR value
+                const bpm = (flags & 0x01) === 0
+                  ? bytes[1]
+                  : bytes[1] | (bytes[2] << 8);
+
+                const sample: HeartRateSample = {
+                  bpm,
+                  timestamp: new Date().toISOString(),
+                };
+                this._onSample?.(sample);
+              } catch {
+                // Malformed characteristic — ignore
+              }
+            },
+          );
+        } catch (connectError: unknown) {
+          this._connecting = false;
+          const msg = connectError instanceof Error ? connectError.message : 'Falha ao conectar';
+          onStatusChange('error', null, msg);
+        }
+      },
+    );
+  }
+
+  async disconnect(): Promise<void> {
+    this._subscription?.remove();
+    this._subscription = null;
+    this._manager?.stopDeviceScan();
+    // Gracefully cancel any active device connection before destroying the manager
+    if (this._manager && this._connectedDeviceId) {
+      try {
+        await this._manager.cancelDeviceConnection(this._connectedDeviceId);
+      } catch {
+        // Ignore errors during cleanup
+      }
+    }
+    this._connectedDeviceId = null;
+    this._connecting = false;
+    this._manager?.destroy();
+    this._manager = null;
+    this._onStatus?.('disconnected', null, null);
+    this._onStatus = null;
+    this._onSample = null;
+  }
+}
 
 // ─── Service singleton ────────────────────────────────────────────────────────
 
@@ -171,10 +316,12 @@ class HeartRateServiceClass {
       return;
     }
 
-    const available = await this._provider.isAvailable();
-    if (!available) {
-      this._setState({ status: 'unavailable', error: 'BLE não disponível neste dispositivo.', bpm: null, deviceName: null });
-      return;
+    // Try BLE first; fall back to simulated if Bluetooth is off or unavailable.
+    const bleProvider = new BleHeartRateProvider();
+    if (await bleProvider.isAvailable()) {
+      this._provider = bleProvider;
+    } else {
+      this._provider = new SimulatedHeartRateProvider();
     }
 
     // Reload previous samples

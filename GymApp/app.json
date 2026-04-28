@@ -16,10 +16,11 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.gymapp.ai",
       "infoPlist": {
-        "UIBackgroundModes": ["remote-notification"],
+        "UIBackgroundModes": ["remote-notification", "audio"],
         "NSPhotoLibraryUsageDescription": "O GymAI precisa de acesso à galeria para importar fotos do seu plano de treino.",
         "NSCameraUsageDescription": "O GymAI precisa da câmera para fotografar seu plano de treino.",
-        "NSMicrophoneUsageDescription": "O GymAI precisa do microfone para gravação de áudio."
+        "NSMicrophoneUsageDescription": "O GymAI precisa do microfone para gravação de áudio.",
+        "NSBluetoothAlwaysUsageDescription": "O GymAI usa Bluetooth para sincronizar dados de batimentos do seu smartwatch."
       }
     },
     "android": {
@@ -36,13 +37,26 @@
         "android.permission.READ_MEDIA_IMAGES",
         "android.permission.READ_MEDIA_VIDEO",
         "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.BLUETOOTH_SCAN",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.ACCESS_FINE_LOCATION"
       ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": false,
+          "modes": [],
+          "bluetoothAlwaysPermission": "O GymAI usa Bluetooth para sincronizar dados de batimentos do seu smartwatch."
+        }
+      ],
       [
         "expo-notifications",
         {
