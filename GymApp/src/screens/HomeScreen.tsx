@@ -340,11 +340,10 @@ export function HomeScreen({ navigation }: Props) {
     );
   }
 
-  const safeMonthlyBlocks = plan.monthlyBlocks ?? [];
   const { userProfile: p, overallGoal } = plan;
+  const monthlyBlocks: typeof plan.monthlyBlocks = plan.monthlyBlocks ?? [];
   const nutritionTips: string[] = plan.nutritionTips ?? [];
   const recoveryTips: string[] = plan.recoveryTips ?? [];
-  const monthlyBlocks = safeMonthlyBlocks;
   const goal = GOAL_META[p.goal] ?? { icon: '🎯', label: p.goal };
   const totalMonths = plan.totalMonths ?? monthlyBlocks.length ?? 12;
   const generatedCount = monthlyBlocks.filter((b) => (b.weeks ?? []).length > 0).length;
@@ -354,7 +353,8 @@ export function HomeScreen({ navigation }: Props) {
   const planStartDate = new Date(plan.createdAt);
   const now = new Date();
   const monthsElapsed = (now.getFullYear() - planStartDate.getFullYear()) * 12 + (now.getMonth() - planStartDate.getMonth());
-  const currentMonthIndex = Math.min(Math.max(0, monthsElapsed), Math.max(0, totalMonths - 1));
+  // Clamp to [0, totalMonths-1]; when totalMonths is 0, clamp to 0 to avoid negative index
+  const currentMonthIndex = totalMonths > 0 ? Math.min(Math.max(0, monthsElapsed), totalMonths - 1) : 0;
   // Real calendar month for index 0 is plan's start month
   const startMonth = planStartDate.getMonth(); // 0-11
 
