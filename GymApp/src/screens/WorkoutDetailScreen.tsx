@@ -281,14 +281,13 @@ export function WorkoutDetailScreen({ navigation, route }: Props) {
           while (i < currentExercises.length) {
             const bt = currentExercises[i].blockType?.toLowerCase();
             if (bt === 'biset' || bt === 'triset') {
-              const rawBt = currentExercises[i].blockType!;
               const group: number[] = [i];
               i++;
-              while (i < currentExercises.length && currentExercises[i].blockType === rawBt) {
+              while (i < currentExercises.length && currentExercises[i].blockType?.toLowerCase() === bt) {
                 group.push(i);
                 i++;
               }
-              groups.push({ indices: group, blockType: rawBt });
+              groups.push({ indices: group, blockType: bt });
             } else {
               groups.push({ indices: [i] });
               i++;

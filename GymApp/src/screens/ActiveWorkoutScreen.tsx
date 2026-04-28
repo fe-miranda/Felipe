@@ -534,14 +534,13 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
           while (gi < exercises.length) {
             const bt = exercises[gi].blockType?.toLowerCase();
             if (bt === 'biset' || bt === 'triset') {
-              const rawBt = exercises[gi].blockType!;
               const group: number[] = [gi];
               gi++;
-              while (gi < exercises.length && exercises[gi].blockType === rawBt) {
+              while (gi < exercises.length && exercises[gi].blockType?.toLowerCase() === bt) {
                 group.push(gi);
                 gi++;
               }
-              groups.push({ indices: group, blockType: rawBt });
+              groups.push({ indices: group, blockType: bt });
             } else {
               groups.push({ indices: [gi] });
               gi++;
