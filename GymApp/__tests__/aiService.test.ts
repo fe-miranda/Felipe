@@ -419,11 +419,11 @@ describe('chatAboutPlan', () => {
     expect(sys).toContain('João');
   });
 
-  it('uses max_tokens 512 for chat (compact)', async () => {
+  it('uses max_tokens 700 for chat (personalized responses)', async () => {
     (global.fetch as jest.Mock).mockResolvedValueOnce(groqResponse('ok'));
     await chatAboutPlan('Oi', mockAnnualPlan, []);
     const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
-    expect(body.max_tokens).toBe(512);
+    expect(body.max_tokens).toBe(700);
   });
 
   it('returns fallback text when response is empty', async () => {
