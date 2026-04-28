@@ -147,11 +147,26 @@ try {
   // react-native-ble-plx not available (Expo Go)
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Decode a base64 string to a byte array without relying on the global Buffer. */
+function _base64ToBytes(base64: string): Uint8Array {
+  // atob is available in React Native (Hermes) and modern environments.
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
 export class BleHeartRateProvider implements IHeartRateProvider {
   readonly providerName = 'BLE';
 
   private _manager: BleManagerType | null = null;
+  private _connectedDeviceId: string | null = null;
   private _subscription: { remove(): void } | null = null;
+  private _connecting = false;
   private _onStatus: ((status: HeartRateStatus, deviceName: string | null, err: string | null) => void) | null = null;
   private _onSample: ((s: HeartRateSample) => void) | null = null;
 
@@ -178,6 +193,7 @@ export class BleHeartRateProvider implements IHeartRateProvider {
 
     this._onStatus = onStatusChange;
     this._onSample = onSample;
+    this._connecting = false;
     this._manager = new _BleManager();
 
     onStatusChange('scanning', null, null);
@@ -190,14 +206,17 @@ export class BleHeartRateProvider implements IHeartRateProvider {
           onStatusChange('error', null, error.message);
           return;
         }
-        if (!device || !this._manager) return;
+        // Ignore duplicate callbacks after we've already started connecting
+        if (!device || !this._manager || this._connecting) return;
+        this._connecting = true;
 
-        // Stop scan and connect to first found device
+        // Stop scan and connect to the first device found
         this._manager.stopDeviceScan();
         onStatusChange('connecting', device.name ?? device.id, null);
 
         try {
           const connected = await this._manager.connectToDevice(device.id);
+          this._connectedDeviceId = connected.id;
           await connected.discoverAllServicesAndCharacteristics();
           onStatusChange('connected', connected.name ?? connected.id, null);
 
@@ -213,8 +232,8 @@ export class BleHeartRateProvider implements IHeartRateProvider {
               if (!characteristic?.value) return;
 
               try {
-                // Decode base64 → bytes
-                const bytes = Buffer.from(characteristic.value, 'base64');
+                // Decode base64 → bytes (HR Measurement characteristic, BT spec §3.113)
+                const bytes = _base64ToBytes(characteristic.value);
                 const flags = bytes[0];
                 // bit 0 of flags: 0 = 8-bit HR value, 1 = 16-bit HR value
                 const bpm = (flags & 0x01) === 0
@@ -232,6 +251,7 @@ export class BleHeartRateProvider implements IHeartRateProvider {
             },
           );
         } catch (connectError: unknown) {
+          this._connecting = false;
           const msg = connectError instanceof Error ? connectError.message : 'Falha ao conectar';
           onStatusChange('error', null, msg);
         }
@@ -243,6 +263,16 @@ export class BleHeartRateProvider implements IHeartRateProvider {
     this._subscription?.remove();
     this._subscription = null;
     this._manager?.stopDeviceScan();
+    // Gracefully cancel any active device connection before destroying the manager
+    if (this._manager && this._connectedDeviceId) {
+      try {
+        await this._manager.cancelDeviceConnection(this._connectedDeviceId);
+      } catch {
+        // Ignore errors during cleanup
+      }
+    }
+    this._connectedDeviceId = null;
+    this._connecting = false;
     this._manager?.destroy();
     this._manager = null;
     this._onStatus?.('disconnected', null, null);
@@ -256,7 +286,7 @@ export class BleHeartRateProvider implements IHeartRateProvider {
 type Listener = (state: HeartRateState) => void;
 
 class HeartRateServiceClass {
-  private _provider: IHeartRateProvider = new BleHeartRateProvider();
+  private _provider: IHeartRateProvider = new SimulatedHeartRateProvider();
   private _state: HeartRateState = {
     status: 'idle',
     bpm: null,
@@ -286,9 +316,11 @@ class HeartRateServiceClass {
       return;
     }
 
-    // Auto-select provider: try BLE first, fall back to simulated if unavailable.
-    const bleAvailable = await this._provider.isAvailable();
-    if (!bleAvailable) {
+    // Try BLE first; fall back to simulated if Bluetooth is off or unavailable.
+    const bleProvider = new BleHeartRateProvider();
+    if (await bleProvider.isAvailable()) {
+      this._provider = bleProvider;
+    } else {
       this._provider = new SimulatedHeartRateProvider();
     }
 

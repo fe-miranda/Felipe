@@ -20,8 +20,7 @@
         "NSPhotoLibraryUsageDescription": "O GymAI precisa de acesso à galeria para importar fotos do seu plano de treino.",
         "NSCameraUsageDescription": "O GymAI precisa da câmera para fotografar seu plano de treino.",
         "NSMicrophoneUsageDescription": "O GymAI precisa do microfone para gravação de áudio.",
-        "NSBluetoothAlwaysUsageDescription": "O GymAI usa Bluetooth para sincronizar dados de batimentos do seu smartwatch.",
-        "NSBluetoothPeripheralUsageDescription": "O GymAI usa Bluetooth para sincronizar dados de batimentos do seu smartwatch."
+        "NSBluetoothAlwaysUsageDescription": "O GymAI usa Bluetooth para sincronizar dados de batimentos do seu smartwatch."
       }
     },
     "android": {
