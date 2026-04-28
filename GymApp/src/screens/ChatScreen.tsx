@@ -72,7 +72,7 @@ export function ChatScreen({ navigation }: Props) {
     setMessages(updated);
     setLoading(true);
     try {
-      const reply = await chatAboutPlan(msg, plan, messages, workoutHistory);
+      const reply = await chatAboutPlan(msg, plan, messages);
       setMessages([...updated, { role: 'model', text: reply }]);
     } catch (err: any) {
       setMessages([...updated, { role: 'model', text: friendlyAiError(err) }]);
