@@ -64,6 +64,11 @@ export function usePlan() {
     [saveProfile]
   );
 
+  const savePlan = useCallback(async (updatedPlan: AnnualPlan) => {
+    await AsyncStorage.setItem(PLAN_KEY, JSON.stringify(updatedPlan));
+    setPlan(updatedPlan);
+  }, []);
+
   const clearPlan = useCallback(async () => {
     await AsyncStorage.removeItem(PLAN_KEY);
     setPlan(null);
@@ -78,6 +83,7 @@ export function usePlan() {
     loadStoredPlan,
     loadProfile,
     saveProfile,
+    savePlan,
     clearPlan,
   };
 }
