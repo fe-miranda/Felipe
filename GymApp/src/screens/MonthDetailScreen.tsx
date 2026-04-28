@@ -89,7 +89,7 @@ export function MonthDetailScreen({ navigation, route }: Props) {
       {/* ── Goals card ── */}
       <View style={s.card}>
         <Text style={s.cardTitle}>🎯 Metas do Mês</Text>
-        {month.progressIndicators.map((ind, i) => (
+        {(month.progressIndicators ?? []).map((ind, i) => (
           <View key={i} style={s.indRow}>
             <View style={[s.indDot, { backgroundColor: phase.color }]} />
             <Text style={s.indText}>{ind}</Text>

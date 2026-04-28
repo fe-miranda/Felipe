@@ -2,36 +2,40 @@ import * as Notifications from 'expo-notifications';
 import { Audio } from 'expo-av';
 import { Platform } from 'react-native';
 
-Notifications.setNotificationHandler({
-  handleNotification: async (notification) => {
-    const type = notification.request.content.data?.type;
-    if (type === 'workout-active') {
-      return {
-        shouldShowAlert: false,
-        shouldPlaySound: false,
-        shouldSetBadge: false,
-        shouldShowBanner: false,
-        shouldShowList: true,
-      };
-    }
-    if (type === 'rest-end') {
+try {
+  Notifications.setNotificationHandler({
+    handleNotification: async (notification) => {
+      const type = notification.request.content.data?.type;
+      if (type === 'workout-active') {
+        return {
+          shouldShowAlert: false,
+          shouldPlaySound: false,
+          shouldSetBadge: false,
+          shouldShowBanner: false,
+          shouldShowList: true,
+        };
+      }
+      if (type === 'rest-end') {
+        return {
+          shouldShowAlert: true,
+          shouldShowBanner: true,
+          shouldPlaySound: true,
+          shouldSetBadge: false,
+          shouldShowList: true,
+        };
+      }
       return {
         shouldShowAlert: true,
-        shouldShowBanner: true,
         shouldPlaySound: true,
         shouldSetBadge: false,
+        shouldShowBanner: true,
         shouldShowList: true,
       };
-    }
-    return {
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-      shouldShowBanner: true,
-      shouldShowList: true,
-    };
-  },
-});
+    },
+  });
+} catch {
+  // expo-notifications not available or not yet initialized — fail silently
+}
 
 const WORKOUT_NOTIF_ID = 'gymapp-workout-active';
 const REST_CATEGORY_ID = 'workout-active';

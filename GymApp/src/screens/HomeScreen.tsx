@@ -273,7 +273,7 @@ export function HomeScreen({ navigation }: Props) {
     Alert.alert('Novo Plano', 'Seu plano atual será apagado. Continuar?', [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Apagar e recomeçar', style: 'destructive',
-        onPress: async () => { await clearPlan(); navigation.replace('NewPlan'); } },
+        onPress: async () => { await clearPlan(); navigation.navigate('NewPlan'); } },
     ]);
   };
 
@@ -332,7 +332,7 @@ export function HomeScreen({ navigation }: Props) {
           <Text style={s.emptyEmoji}>🏋️</Text>
           <Text style={s.emptyTitle}>Nenhum plano encontrado</Text>
           <Text style={s.emptyDesc}>Crie seu plano anual personalizado com IA</Text>
-          <TouchableOpacity style={s.emptyBtn} onPress={() => navigation.replace('NewPlan')}>
+          <TouchableOpacity style={s.emptyBtn} onPress={() => navigation.navigate('NewPlan')}>
             <Text style={s.emptyBtnText}>Criar Plano Agora</Text>
           </TouchableOpacity>
         </View>
@@ -344,6 +344,15 @@ export function HomeScreen({ navigation }: Props) {
   const monthlyBlocks: typeof plan.monthlyBlocks = plan.monthlyBlocks ?? [];
   const nutritionTips: string[] = plan.nutritionTips ?? [];
   const recoveryTips: string[] = plan.recoveryTips ?? [];
+
+  // Guard: if userProfile is missing (corrupted / legacy plan) redirect to setup.
+  // Use .finally() intentionally so navigation fires whether or not clearPlan
+  // resolves, keeping the UX snappy even if storage removal is slow.
+  if (!p) {
+    clearPlan().finally(() => navigation.navigate('NewPlan'));
+    return null;
+  }
+
   const goal = GOAL_META[p.goal] ?? { icon: '🎯', label: p.goal };
   const totalMonths = plan.totalMonths ?? monthlyBlocks.length ?? 12;
   const generatedCount = monthlyBlocks.filter((b) => (b.weeks ?? []).length > 0).length;

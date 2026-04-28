@@ -14,7 +14,18 @@ export default function App() {
     (async () => {
       try {
         const storedPlan = await AsyncStorage.getItem('@gymapp_plan');
-        if (storedPlan) setInitialRouteName('Main');
+        if (storedPlan) {
+          // Validate that the plan has the required fields before directing
+          // to the Main tab — a missing userProfile would crash HomeScreen.
+          try {
+            const parsed = JSON.parse(storedPlan);
+            if (parsed?.userProfile && Array.isArray(parsed?.monthlyBlocks)) {
+              setInitialRouteName('Main');
+            }
+          } catch {
+            // Malformed JSON — treat as no plan, user will see Welcome
+          }
+        }
       } finally {
         setBootDone(true);
       }

@@ -83,7 +83,7 @@ describe('HomeScreen — empty state (no plan)', () => {
       fireEvent.press(btn);
     });
 
-    expect(mockReplace).toHaveBeenCalledWith('NewPlan');
+    expect(mockNavigate).toHaveBeenCalledWith('NewPlan');
   });
 
   it('calls loadStoredPlan on mount', async () => {

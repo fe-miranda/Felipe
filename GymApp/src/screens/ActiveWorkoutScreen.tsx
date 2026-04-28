@@ -3,9 +3,21 @@ import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
   StyleSheet, Modal, Alert, KeyboardAvoidingView, Platform, AppState, Animated,
 } from 'react-native';
-import ViewShot, { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+// react-native-view-shot requires native code — guard against Expo Go / builds
+// where the native module is not linked so the share feature degrades gracefully.
+let ViewShot: React.ComponentType<any> | null = null;
+let captureRef: ((ref: any, options?: any) => Promise<string>) | null = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const mod = require('react-native-view-shot');
+  ViewShot = mod.default ?? mod;
+  captureRef = mod.captureRef;
+} catch {
+  // Native module unavailable — share/screenshot features will be hidden
+}
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -434,7 +446,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   }, [exercises, finishWorkout]);
 
   const handleShare = useCallback(async () => {
-    if (!shareRef.current) return;
+    if (!captureRef || !shareRef.current) return;
     setSharing(true);
     try {
       const uri = await captureRef(shareRef, { format: 'png', quality: 0.95 });
@@ -447,7 +459,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
   }, []);
 
   const handleShareStory = useCallback(async () => {
-    if (!storyRef.current) return;
+    if (!captureRef || !storyRef.current) return;
     setSharing(true);
     try {
       const uri = await captureRef(storyRef, { format: 'png', quality: 0.95 });
@@ -655,7 +667,8 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
       {/* ── Share / Summary modal (full screen) ── */}
       <Modal visible={showShare} transparent={false} animationType="slide">
         <View style={s.summaryScreen}>
-          {/* Hidden capture refs (rendered off-screen) */}
+          {/* Hidden capture refs (rendered off-screen) — only when native module is available */}
+          {ViewShot && (
           <View style={s.hiddenCaptures}>
             <ViewShot ref={shareRef} options={{ format: 'png', quality: 0.95 }}>
               {savedWorkout && <WorkoutSummaryCard workout={savedWorkout} avgHeartRate={avgHr} />}
@@ -664,6 +677,7 @@ export function ActiveWorkoutScreen({ navigation, route }: Props) {
               {savedWorkout && <WorkoutStoryCard workout={savedWorkout} avgHeartRate={avgHr} />}
             </ViewShot>
           </View>
+          )}
 
           <ScrollView
             style={s.summaryScroll}
