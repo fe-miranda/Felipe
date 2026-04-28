@@ -247,6 +247,27 @@ export function HomeScreen({ navigation }: Props) {
       .finally(() => setLoadingSuggestion(false));
   }, [plan, recentWorkouts]);
 
+  // Sync sessions counter to AsyncStorage if not yet set.
+  // MUST be declared before any conditional early return to satisfy Rules of Hooks.
+  useEffect(() => {
+    if (!plan) return;
+    const blocks = plan.monthlyBlocks ?? [];
+    const total = blocks.reduce(
+      (t, block) => t + (block.weeks ?? []).reduce((wt, week) => wt + (week.days ?? []).length, 0), 0,
+    );
+    if (total === 0) return;
+    const completed = allHistory.filter(w => w.monthIndex !== undefined).length;
+    const remaining = Math.max(0, total - completed);
+    AsyncStorage.getItem(SESSIONS_COUNTER_KEY).then((v) => {
+      if (v === null) {
+        AsyncStorage.setItem(SESSIONS_COUNTER_KEY, String(remaining));
+        setSessionsCounterDisplay(remaining);
+      } else {
+        setSessionsCounterDisplay(parseInt(v, 10));
+      }
+    }).catch(() => {});
+  }, [plan, allHistory]);
+
   const handleGenerateCustom = async () => {
     if (custGroups.length === 0) {
       Alert.alert('Selecione pelo menos um grupo muscular');
@@ -379,20 +400,6 @@ export function HomeScreen({ navigation }: Props) {
     const weeks = block.weeks ?? [];
     offset += weeks.length > 0 ? (weeks[0].days ?? []).length : 0;
   }
-
-  // Sync sessions counter to AsyncStorage if not yet set
-  useEffect(() => {
-    if (totalPlanSessions === 0) return;
-    AsyncStorage.getItem(SESSIONS_COUNTER_KEY).then((v) => {
-      if (v === null) {
-        AsyncStorage.setItem(SESSIONS_COUNTER_KEY, String(remainingSessions));
-        setSessionsCounterDisplay(remainingSessions);
-      } else {
-        setSessionsCounterDisplay(parseInt(v, 10));
-      }
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [totalPlanSessions]);
 
   // Find today's workout from plan
   const todayDOW = DAY_MAP[now.getDay()];

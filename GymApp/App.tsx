@@ -4,6 +4,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { SplashScreen } from './src/screens/SplashScreen';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
 
 export default function App() {
   const [splashDone, setSplashDone] = useState(false);
@@ -15,6 +16,8 @@ export default function App() {
       try {
         const storedPlan = await AsyncStorage.getItem('@gymapp_plan');
         if (storedPlan) setInitialRouteName('Main');
+      } catch {
+        // storage error — boot as Welcome
       } finally {
         setBootDone(true);
       }
@@ -22,10 +25,12 @@ export default function App() {
   }, []);
 
   return (
-    <SafeAreaProvider>
-      <StatusBar style="light" />
-      {bootDone ? <AppNavigator initialRouteName={initialRouteName} /> : null}
-      {(!splashDone || !bootDone) && <SplashScreen onFinish={() => setSplashDone(true)} />}
-    </SafeAreaProvider>
+    <ErrorBoundary>
+      <SafeAreaProvider>
+        <StatusBar style="light" />
+        {bootDone ? <AppNavigator initialRouteName={initialRouteName} /> : null}
+        {(!splashDone || !bootDone) && <SplashScreen onFinish={() => setSplashDone(true)} />}
+      </SafeAreaProvider>
+    </ErrorBoundary>
   );
 }
