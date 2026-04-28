@@ -17,6 +17,8 @@ const mockProfile: UserProfile = {
   goal: 'lose_weight',
   fitnessLevel: 'beginner',
   daysPerWeek: 3,
+  workoutDuration: 60,
+  cardioMinutes: 10,
 };
 
 const mockPlan: AnnualPlan = {

@@ -2,21 +2,28 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types';
+import { WelcomeScreen } from '../screens/WelcomeScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
-import { HomeScreen } from '../screens/HomeScreen';
+import { NewPlanScreen } from '../screens/NewPlanScreen';
 import { MonthDetailScreen } from '../screens/MonthDetailScreen';
 import { WeekDetailScreen } from '../screens/WeekDetailScreen';
 import { WorkoutDetailScreen } from '../screens/WorkoutDetailScreen';
-import { ChatScreen } from '../screens/ChatScreen';
-import { SettingsScreen } from '../screens/SettingsScreen';
+import { ActiveWorkoutScreen } from '../screens/ActiveWorkoutScreen';
+import { MuscleFatigueScreen } from '../screens/MuscleFatigueScreen';
+import { PerformanceAnalysisScreen } from '../screens/PerformanceAnalysisScreen';
+import { MainTabNavigator } from './MainTabNavigator';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-export function AppNavigator() {
+type Props = {
+  initialRouteName?: keyof RootStackParamList;
+};
+
+export function AppNavigator({ initialRouteName = 'Welcome' }: Props) {
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName="Onboarding"
+        initialRouteName={initialRouteName}
         screenOptions={{
           headerStyle: { backgroundColor: '#1a1a24' },
           headerTintColor: '#fff',
@@ -26,14 +33,25 @@ export function AppNavigator() {
         }}
       >
         <Stack.Screen
+          name="Welcome"
+          component={WelcomeScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
           name="Onboarding"
           component={OnboardingScreen}
           options={{ headerShown: false }}
         />
         <Stack.Screen
-          name="Home"
-          component={HomeScreen}
-          options={{ title: 'Meu Plano', headerShown: false }}
+          name="NewPlan"
+          component={NewPlanScreen}
+          options={{ headerShown: false }}
+        />
+        {/* Main app shell – renders the bottom tab navigator */}
+        <Stack.Screen
+          name="Main"
+          component={MainTabNavigator}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="MonthDetail"
@@ -53,14 +71,19 @@ export function AppNavigator() {
           options={{ title: 'Treino do Dia' }}
         />
         <Stack.Screen
-          name="Chat"
-          component={ChatScreen}
-          options={{ title: 'Chat com IA' }}
+          name="ActiveWorkout"
+          component={ActiveWorkoutScreen}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
-          name="Settings"
-          component={SettingsScreen}
-          options={{ title: 'Configurações' }}
+          name="MuscleFatigue"
+          component={MuscleFatigueScreen}
+          options={{ title: 'Fadiga Muscular' }}
+        />
+        <Stack.Screen
+          name="PerformanceAnalysis"
+          component={PerformanceAnalysisScreen}
+          options={{ title: 'Análise de Desempenho' }}
         />
       </Stack.Navigator>
     </NavigationContainer>

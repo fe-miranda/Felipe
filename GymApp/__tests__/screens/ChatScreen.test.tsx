@@ -8,6 +8,9 @@ import type { AnnualPlan } from '../../src/types';
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 jest.mock('../../src/services/aiService');
+jest.mock('../../src/services/workoutHistoryService', () => ({
+  loadHistory: jest.fn().mockResolvedValue([]),
+}));
 
 const mockGoBack = jest.fn();
 const mockNavigation = { goBack: mockGoBack, navigate: jest.fn() };
@@ -24,6 +27,8 @@ const mockPlan: AnnualPlan = {
     goal: 'general_fitness',
     fitnessLevel: 'intermediate',
     daysPerWeek: 3,
+    workoutDuration: 60,
+    cardioMinutes: 10,
   },
   totalMonths: 12,
   overallGoal: 'Melhorar condicionamento geral',
@@ -182,7 +187,8 @@ describe('ChatScreen — messaging', () => {
       expect(aiService.chatAboutPlan).toHaveBeenCalledWith(
         'Pergunta teste',
         expect.objectContaining({ userId: 'Carla' }),
-        [] // empty history on first message
+        [], // empty chat history on first message
+        []  // empty workout history (mocked)
       );
     });
   });

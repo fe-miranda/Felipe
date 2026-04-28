@@ -1,3 +1,5 @@
+export type PlanDuration = 'weekly' | 'monthly' | 'quarterly' | 'biannual' | 'annual';
+
 export type FitnessGoal =
   | 'lose_weight'
   | 'gain_muscle'
@@ -18,7 +20,10 @@ export interface UserProfile {
   fitnessLevel: FitnessLevel;
   goal: FitnessGoal;
   daysPerWeek: number;
+  workoutDuration: number; // total minutes per session
+  cardioMinutes: number;   // cardio portion per session
   injuries?: string;
+  planDuration?: PlanDuration;
 }
 
 export interface WorkoutDay {
@@ -32,9 +37,11 @@ export interface WorkoutDay {
 export interface Exercise {
   name: string;
   sets: number;
-  reps: string; // e.g., "8-12" or "30 seconds"
-  rest: string; // e.g., "60s"
+  reps: string;
+  rest: string;
+  muscleGroups?: string[];
   notes?: string;
+  blockType?: string;
 }
 
 export interface WeeklyPlan {
@@ -64,14 +71,110 @@ export interface AnnualPlan {
   recoveryTips: string[];
 }
 
+// ─── Workout tracking ────────────────────────────────────────────────────────
+
+export interface SetLog {
+  load: string;  // kg as string (empty = bodyweight)
+  reps: string;
+  done: boolean;
+}
+
+export interface ExerciseLog {
+  name: string;
+  targetSets: number;
+  targetReps: string;
+  rest: string;
+  sets: SetLog[];
+  blockType?: string;
+}
+
+export interface CompletedWorkout {
+  id: string;
+  date: string;            // ISO string
+  dayOfWeek: string;
+  focus: string;
+  durationSeconds: number;
+  exercises: ExerciseLog[];
+  monthIndex?: number;
+  weekIndex?: number;
+  dayIndex?: number;
+}
+
+// ─── Quick workouts ──────────────────────────────────────────────────────────
+
+export interface QuickWorkout {
+  id: string;
+  name: string;
+  icon: string;
+  duration: number;
+  color: string;
+  description: string;
+  tag: string;
+  exercises: Exercise[];
+  muscleGroups: string[];
+}
+
+// ─── Heart rate ──────────────────────────────────────────────────────────────
+
+export type HeartRateStatus =
+  | 'idle'
+  | 'scanning'
+  | 'connecting'
+  | 'connected'
+  | 'disconnected'
+  | 'error'
+  | 'unavailable';
+
+export interface HeartRateSample {
+  bpm: number;
+  timestamp: string; // ISO string
+}
+
+export interface HeartRateState {
+  status: HeartRateStatus;
+  bpm: number | null;
+  deviceName: string | null;
+  error: string | null;
+  samples: HeartRateSample[];
+}
+
+// ─── Carousel customization ──────────────────────────────────────────────────
+
+export interface CarouselSelectionState {
+  [workoutId: string]: Set<number>; // set of enabled exercise indices
+}
+
+// ─── Tab navigator param list ────────────────────────────────────────────────
+
+export type MainTabParamList = {
+  Inicio: undefined;
+  WorkoutHistory: undefined;
+  Chat: undefined;
+  Settings: undefined;
+};
+
+// ─── Root stack param list ────────────────────────────────────────────────────
+// Chat, WorkoutHistory and Settings live inside MainTabParamList (bottom tabs).
+// They are also listed here so TypeScript allows navigation.navigate() calls
+// from stack screens; React Navigation resolves them through the nested tab.
+
 export type RootStackParamList = {
+  Welcome: undefined;
   Onboarding: undefined;
-  Home: undefined;
-  GeneratePlan: undefined;
-  AnnualPlan: undefined;
+  NewPlan: undefined;
+  /** Main app shell — renders the bottom tab navigator. */
+  Main: undefined;
   MonthDetail: { monthIndex: number };
   WeekDetail: { monthIndex: number; weekIndex: number };
   WorkoutDetail: { monthIndex: number; weekIndex: number; dayIndex: number };
+  ActiveWorkout: {
+    workout: WorkoutDay;
+    context?: { monthIndex: number; weekIndex: number; dayIndex: number };
+  };
+  MuscleFatigue: undefined;
+  PerformanceAnalysis: undefined;
+  // Tab screens — resolved at runtime through the nested MainTabNavigator
+  WorkoutHistory: undefined;
   Chat: undefined;
   Settings: undefined;
 };

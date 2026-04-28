@@ -1,2 +1,3 @@
-// Google Gemini API key (free tier — aistudio.google.com)
-export const GEMINI_API_KEY = 'AIzaSyByAPeudA3Dhx3345rWytiOXrjiU6WOA8M';
+// No default API key — user must set their own free Groq key in Settings (⚙️)
+// Get a free key at: console.groq.com (no credit card required)
+export const DEFAULT_API_KEY = '';

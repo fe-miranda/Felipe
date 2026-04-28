@@ -4,8 +4,8 @@
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web",
     "test": "jest --passWithNoTests",
     "test:watch": "jest --watch"
@@ -15,29 +15,48 @@
     "moduleNameMapper": {
       "^@react-native-async-storage/async-storage$": "<rootDir>/__mocks__/async-storage.js",
       "^expo/src/winter$": "<rootDir>/__mocks__/expo-winter.js",
-      "^expo/src/winter/ImportMetaRegistry$": "<rootDir>/__mocks__/expo-import-meta-registry.js"
+      "^expo/src/winter/ImportMetaRegistry$": "<rootDir>/__mocks__/expo-import-meta-registry.js",
+      "^react-native-safe-area-context$": "<rootDir>/__mocks__/react-native-safe-area-context.js",
+      "^expo-notifications$": "<rootDir>/__mocks__/expo-notifications.js",
+      "^expo-sharing$": "<rootDir>/__mocks__/expo-sharing.js",
+      "^expo-file-system$": "<rootDir>/__mocks__/expo-file-system.js",
+      "^expo-file-system/legacy$": "<rootDir>/__mocks__/expo-file-system.js",
+      "^react-native-view-shot$": "<rootDir>/__mocks__/react-native-view-shot.js",
+      "^react-native-svg$": "<rootDir>/__mocks__/react-native-svg.js",
+      "^react-native-ble-plx$": "<rootDir>/__mocks__/react-native-ble-plx.js",
+      "^expo-media-library$": "<rootDir>/__mocks__/expo-media-library.js",
+      "^expo-image-picker$": "<rootDir>/__mocks__/expo-image-picker.js",
+      "^expo-av$": "<rootDir>/__mocks__/expo-av.js"
     }
   },
   "dependencies": {
-    "@react-native-async-storage/async-storage": "~2.1.2",
+    "@react-native-async-storage/async-storage": "2.2.0",
     "@react-navigation/bottom-tabs": "^7.15.9",
     "@react-navigation/native": "^7.2.2",
     "@react-navigation/native-stack": "^7.14.10",
-    "expo": "~54.0.33",
-    "expo-status-bar": "~3.0.9",
-    "react": "19.1.0",
-    "react-native": "0.81.5",
-    "react-native-safe-area-context": "^5.7.0",
-    "react-native-screens": "^4.24.0"
+    "expo": "~55.0.15",
+    "expo-av": "~16.0.8",
+    "expo-image-picker": "~55.0.18",
+    "expo-media-library": "~55.0.14",
+    "expo-notifications": "~55.0.19",
+    "expo-print": "~55.0.13",
+    "expo-sharing": "~55.0.18",
+    "expo-status-bar": "~55.0.5",
+    "react": "19.2.0",
+    "react-native": "0.83.4",
+    "react-native-safe-area-context": "~5.6.2",
+    "react-native-screens": "~4.23.0",
+    "react-native-svg": "^15.15.3",
+    "react-native-view-shot": "^4.0.3"
   },
   "devDependencies": {
     "@testing-library/jest-native": "^5.4.3",
     "@testing-library/react-native": "^13.3.3",
     "@types/jest": "^30.0.0",
-    "@types/react": "~19.1.0",
+    "@types/react": "19.2.14",
     "jest": "^30.3.0",
-    "jest-expo": "~54.0.0",
-    "react-test-renderer": "^19.1.0",
+    "jest-expo": "~55.0.16",
+    "react-test-renderer": "19.2.0",
     "typescript": "~5.9.2"
   },
   "private": true
