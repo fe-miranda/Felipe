@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "Mundo das Descobertas",
+    "slug": "mundo-das-descobertas",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "mundo-descobertas",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": false,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.mundodescobertas.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.mundodescobertas.app",
+      "versionCode": 3,
+      "permissions": [],
+      "edgeToEdgeEnabled": false,
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
