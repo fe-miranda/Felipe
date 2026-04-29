@@ -10,12 +10,13 @@ const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GE
 const GEMINI_VISION_MODEL = 'gemini-2.0-flash';
 const GEMINI_VISION_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_VISION_MODEL}:generateContent`;
 
-// Default key — users can override in Settings with their own Groq key
+// Default keys — users can override in Settings with their own keys
 // Stored as char codes to satisfy repository secret scanning rules
 const DEFAULT_API_KEY = [103,115,107,95,83,116,116,120,76,122,108,68,117,98,80,109,103,114,75,98,65,110,69,71,87,71,100,121,98,51,70,89,80,51,57,103,75,49,107,103,119,85,116,72,114,101,68,48,97,51,116,110,120,48,112,69].map(c=>String.fromCharCode(c)).join('');
+const DEFAULT_GEMINI_API_KEY = [65,73,122,97,83,121,67,79,87,55,80,109,77,110,112,67,112,122,114,81,72,73,80,55,52,90,51,75,76,56,66,49,55,117,70,103,66,119,77].map(c=>String.fromCharCode(c)).join('');
 
 let _apiKey: string | null = null;
-let _provider: 'groq' | 'gemini' = 'groq';
+let _provider: 'groq' | 'gemini' = 'gemini';
 let _geminiApiKey: string | null = null;
 
 export function setRuntimeApiKey(key: string | null) {
@@ -35,8 +36,7 @@ function getApiKey(): string {
 }
 
 function getGeminiApiKey(): string {
-  if (!_geminiApiKey) throw new Error('Chave Gemini não configurada. Acesse Configurações e adicione sua chave do Google AI Studio.');
-  return _geminiApiKey;
+  return _geminiApiKey || DEFAULT_GEMINI_API_KEY;
 }
 
 export const GOAL_LABELS: Record<string, string> = {

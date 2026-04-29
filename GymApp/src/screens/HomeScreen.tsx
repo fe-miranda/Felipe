@@ -9,7 +9,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { RootStackParamList, QuickWorkout, WorkoutDay, CompletedWorkout } from '../types';
 import { usePlan } from '../hooks/usePlan';
-import { setRuntimeApiKey, getDailySuggestion, generateCustomWorkout, DailySuggestion } from '../services/aiService';
+import { setRuntimeApiKey, setProvider, setGeminiApiKey, getDailySuggestion, generateCustomWorkout, DailySuggestion } from '../services/aiService';
 import { loadHistory } from '../services/workoutHistoryService';
 import { resolveTemplatesById, resolveDayExercises } from '../utils/planResolve';
 
@@ -198,6 +198,10 @@ export function HomeScreen({ navigation }: Props) {
   useEffect(() => {
     loadStoredPlan();
     AsyncStorage.getItem(CUSTOM_KEY_STORAGE).then((k) => { if (k) setRuntimeApiKey(k); });
+    AsyncStorage.getItem('@gymapp_provider').then((p) => {
+      if (p === 'groq' || p === 'gemini') setProvider(p);
+    });
+    AsyncStorage.getItem('@gymapp_gemini_apikey').then((k) => { if (k) setGeminiApiKey(k); });
     reloadHistory();
     AsyncStorage.getItem(SESSIONS_COUNTER_KEY).then((v) => {
       if (v !== null) setSessionsCounterDisplay(parseInt(v, 10));
