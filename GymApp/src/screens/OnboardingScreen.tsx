@@ -15,7 +15,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, UserProfile, FitnessGoal, FitnessLevel, Gender, PlanDuration } from '../types';
 import { usePlan } from '../hooks/usePlan';
-import { setRuntimeApiKey } from '../services/aiService';
+import { setRuntimeApiKey, setProvider, setGeminiApiKey } from '../services/aiService';
 import { LoadingOverlay } from '../components/LoadingOverlay';
 
 type Props = { navigation: NativeStackNavigationProp<RootStackParamList, 'Onboarding'> };
@@ -94,6 +94,10 @@ export function OnboardingScreen({ navigation }: Props) {
       if (found) { navigation.replace('Main'); return; }
       const key = await AsyncStorage.getItem('@gymapp_custom_apikey');
       if (key) setRuntimeApiKey(key);
+      const provider = await AsyncStorage.getItem('@gymapp_provider');
+      if (provider === 'groq' || provider === 'gemini') setProvider(provider);
+      const geminiKey = await AsyncStorage.getItem('@gymapp_gemini_apikey');
+      if (geminiKey) setGeminiApiKey(geminiKey);
       const profile = await loadProfile();
       if (profile) {
         if (profile.name) setName(profile.name);
