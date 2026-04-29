@@ -399,7 +399,7 @@ export function NewPlanScreen({ navigation }: Props) {
                 <View style={s.optionRow}>
                   {[1, 3, 6, 12].map((m) => (
                     <TouchableOpacity key={m} style={[s.pill, form.durationMonths === m && s.pillActive]} onPress={() => setForm((f) => ({ ...f, durationMonths: m as 1 | 3 | 6 | 12 }))}>
-                      <Text style={[s.pillText, form.durationMonths === m && s.pillTextActive]}>{m} mês{m > 1 ? 'es' : ''}</Text>
+                      <Text style={[s.pillText, form.durationMonths === m && s.pillTextActive]}>{m} {m > 1 ? 'meses' : 'mês'}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -534,7 +534,7 @@ export function NewPlanScreen({ navigation }: Props) {
               <View style={s.optionRow}>
                 {[1, 3, 6, 12].map((m) => (
                   <TouchableOpacity key={m} style={[s.pill, form.durationMonths === m && s.pillActive]} onPress={() => setForm((f) => ({ ...f, durationMonths: m as 1 | 3 | 6 | 12 }))}>
-                    <Text style={[s.pillText, form.durationMonths === m && s.pillTextActive]}>{m} mês{m > 1 ? 'es' : ''}</Text>
+                    <Text style={[s.pillText, form.durationMonths === m && s.pillTextActive]}>{m} {m > 1 ? 'meses' : 'mês'}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
