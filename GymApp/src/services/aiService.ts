@@ -339,8 +339,11 @@ async function smartPost(messages: AIMessage[], maxTokens: number, temperature =
     if (!isRateLimitError(primaryErr)) throw primaryErr;
     try {
       return await secondary(messages, maxTokens, temperature);
-    } catch {
-      throw new Error('Limite de uso atingido em todos os provedores. Aguarde alguns minutos ou configure suas chaves em Configurações.');
+    } catch (secondaryErr: any) {
+      if (isRateLimitError(secondaryErr)) {
+        throw new Error('Limite de uso atingido em todos os provedores. Aguarde alguns minutos ou configure suas chaves em Configurações.');
+      }
+      throw secondaryErr;
     }
   }
 }
@@ -367,8 +370,11 @@ async function smartVisionPost(
     if (!isRateLimitError(primaryErr)) throw primaryErr;
     try {
       return await secondaryVision(base64Images, textPrompt, maxTokens, temperature);
-    } catch {
-      throw new Error('Limite de uso atingido em todos os provedores. Aguarde alguns minutos ou configure suas chaves em Configurações.');
+    } catch (secondaryErr: any) {
+      if (isRateLimitError(secondaryErr)) {
+        throw new Error('Limite de uso atingido em todos os provedores. Aguarde alguns minutos ou configure suas chaves em Configurações.');
+      }
+      throw secondaryErr;
     }
   }
 }
