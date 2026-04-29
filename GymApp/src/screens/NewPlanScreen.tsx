@@ -198,6 +198,14 @@ export function NewPlanScreen({ navigation }: Props) {
       <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
         <ScrollView style={s.container} contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
           <View style={s.hero}>
+            <TouchableOpacity
+              style={s.settingsGear}
+              onPress={() => navigation.navigate('Settings')}
+              activeOpacity={0.75}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={s.settingsGearText}>⚙️</Text>
+            </TouchableOpacity>
             <Text style={s.heroEmoji}>🏋️</Text>
             <Text style={s.heroTitle}>Novo Plano de Treino</Text>
             <Text style={s.heroDesc}>Escolha como deseja criar seu plano</Text>
@@ -563,6 +571,13 @@ const s = StyleSheet.create({
     backgroundColor: C.surface, borderRadius: 20, padding: 24, marginBottom: 20,
     alignItems: 'center', borderWidth: 1, borderColor: 'rgba(124,58,237,0.3)',
   },
+  settingsGear: {
+    position: 'absolute', top: 12, right: 12,
+    width: 34, height: 34, borderRadius: 10,
+    backgroundColor: C.elevated, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: C.border,
+  },
+  settingsGearText: { fontSize: 18 },
   heroEmoji: { fontSize: 48, marginBottom: 10 },
   heroTitle: { color: C.text1, fontSize: 22, fontWeight: '800', marginBottom: 6 },
   heroDesc: { color: C.text2, fontSize: 14, textAlign: 'center' },
