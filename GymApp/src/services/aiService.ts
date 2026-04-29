@@ -824,16 +824,18 @@ export async function importPlanFromImages(
     return _buildImportedPlan(data, options);
   }
 
-  // Multiple images: extract text from each image first, then combine and convert
-  const extractPromises = normalizedImages.map((img) =>
-    geminiVisionPost(
+  // Multiple images: extract text from each image sequentially to avoid
+  // bursting concurrent API requests which can trigger rate limits.
+  const texts: string[] = [];
+  for (const img of normalizedImages) {
+    const text = await geminiVisionPost(
       [img],
       'You are a workout plan text extractor. Transcribe ALL workout text visible in this image exactly as written — copy every exercise name, set, rep, and rest value verbatim. Return ONLY the raw text, no JSON, no markdown.',
       1000,
       0.1,
-    ),
-  );
-  const texts = await Promise.all(extractPromises);
+    );
+    texts.push(text);
+  }
   const combined = texts.join('\n\n---\n\n');
   return importPlanFromText(combined, options);
 }
