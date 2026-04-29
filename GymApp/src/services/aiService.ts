@@ -5,18 +5,38 @@ const GROQ_MODEL = 'llama-3.3-70b-versatile';
 const GROQ_VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
+const GEMINI_MODEL = 'gemini-2.0-flash';
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+const GEMINI_VISION_MODEL = 'gemini-2.0-flash';
+const GEMINI_VISION_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_VISION_MODEL}:generateContent`;
+
 // Default key — users can override in Settings with their own Groq key
 // Stored as char codes to satisfy repository secret scanning rules
 const DEFAULT_API_KEY = [103,115,107,95,83,116,116,120,76,122,108,68,117,98,80,109,103,114,75,98,65,110,69,71,87,71,100,121,98,51,70,89,80,51,57,103,75,49,107,103,119,85,116,72,114,101,68,48,97,51,116,110,120,48,112,69].map(c=>String.fromCharCode(c)).join('');
 
 let _apiKey: string | null = null;
+let _provider: 'groq' | 'gemini' = 'groq';
+let _geminiApiKey: string | null = null;
 
 export function setRuntimeApiKey(key: string | null) {
   _apiKey = key?.trim() || null;
 }
 
+export function setProvider(provider: 'groq' | 'gemini') {
+  _provider = provider;
+}
+
+export function setGeminiApiKey(key: string | null) {
+  _geminiApiKey = key?.trim() || null;
+}
+
 function getApiKey(): string {
   return _apiKey || DEFAULT_API_KEY;
+}
+
+function getGeminiApiKey(): string {
+  if (!_geminiApiKey) throw new Error('Chave Gemini não configurada. Acesse Configurações e adicione sua chave do Google AI Studio.');
+  return _geminiApiKey;
 }
 
 export const GOAL_LABELS: Record<string, string> = {
@@ -100,16 +120,116 @@ export function expandToWeeks(template: {
 
 const TIMEOUT_MS = 45_000;
 
+/** Shared message shape used by both Groq (OpenAI-compatible) and Gemini helpers. */
+interface AIMessage {
+  role: string;
+  content: string;
+}
+
 function friendlyError(status: number): string | null {
   switch (status) {
-    case 401: case 403: return 'Chave de API inválida ou expirada. Configure sua chave Groq em Configurações.';
-    case 429: return 'Limite de uso atingido. Aguarde alguns minutos ou configure sua própria chave Groq.';
+    case 401: case 403: return 'Chave de API inválida ou expirada. Configure sua chave em Configurações.';
+    case 429: return 'Limite de uso atingido. Aguarde alguns minutos ou troque de provedor em Configurações.';
     case 500: case 502: case 503: return 'Servidor da IA indisponível. Tente novamente em instantes.';
     default: return null;
   }
 }
 
-async function groqPost(messages: object[], maxTokens: number, temperature = 0.7): Promise<string> {
+// ─── Gemini HTTP helpers ─────────────────────────────────────────────────────
+
+async function geminiPost(
+  messages: AIMessage[],
+  maxTokens: number,
+  temperature = 0.7,
+): Promise<string> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+  const systemMsg = messages.find((m) => m.role === 'system');
+  const conversationMsgs = messages.filter((m) => m.role !== 'system');
+
+  const contents = conversationMsgs.map((m) => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content }],
+  }));
+
+  const body: Record<string, unknown> = {
+    contents,
+    generationConfig: { maxOutputTokens: maxTokens, temperature },
+  };
+  if (systemMsg) {
+    body.system_instruction = { parts: [{ text: systemMsg.content }] };
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(GEMINI_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-goog-api-key': getGeminiApiKey() },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (err: any) {
+    clearTimeout(timer);
+    if (err.name === 'AbortError') throw new Error('Tempo esgotado. Verifique sua conexão e tente novamente.');
+    throw new Error('Sem conexão. Verifique sua internet e tente novamente.');
+  }
+  clearTimeout(timer);
+
+  if (!response.ok) {
+    const msg = friendlyError(response.status) ?? `Erro ${response.status}`;
+    throw new Error(msg);
+  }
+
+  const data = await response.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+}
+
+async function geminiVisionPost(
+  base64Images: { data: string; mimeType: string }[],
+  textPrompt: string,
+  maxTokens: number,
+  temperature = 0.4,
+): Promise<string> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+  const imageParts = base64Images.map((img) => ({
+    inline_data: { mime_type: img.mimeType, data: img.data },
+  }));
+
+  const body = {
+    contents: [{ role: 'user', parts: [...imageParts, { text: textPrompt }] }],
+    generationConfig: { maxOutputTokens: maxTokens, temperature },
+  };
+
+  let response: Response;
+  try {
+    response = await fetch(GEMINI_VISION_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-goog-api-key': getGeminiApiKey() },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (err: any) {
+    clearTimeout(timer);
+    if (err.name === 'AbortError') throw new Error('Tempo esgotado. Verifique sua conexão e tente novamente.');
+    throw new Error('Sem conexão. Verifique sua internet e tente novamente.');
+  }
+  clearTimeout(timer);
+
+  if (!response.ok) {
+    const msg = friendlyError(response.status) ?? `Erro ${response.status}`;
+    throw new Error(msg);
+  }
+
+  const data = await response.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+}
+
+async function groqPost(messages: AIMessage[], maxTokens: number, temperature = 0.7): Promise<string> {
+  if (_provider === 'gemini') return geminiPost(messages, maxTokens, temperature);
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
@@ -148,6 +268,8 @@ async function groqVisionPost(
   maxTokens: number,
   temperature = 0.4,
 ): Promise<string> {
+  if (_provider === 'gemini') return geminiVisionPost(base64Images, textPrompt, maxTokens, temperature);
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
