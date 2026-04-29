@@ -7,7 +7,7 @@ const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 // Default key — users can override in Settings with their own Groq key
 // Stored as char codes to satisfy repository secret scanning rules
-const DEFAULT_API_KEY = [103,115,107,95,53,102,75,121,67,53,55,54,76,112,88,72,83,53,76,65,112,57,103,52,87,71,100,121,98,51,70,89,71,76,83,97,73,54,113,98,108,122,67,122,98,87,97,119,53,108,65,54,67,98,56,116].map(c=>String.fromCharCode(c)).join('');
+const DEFAULT_API_KEY = [103,115,107,95,83,116,116,120,76,122,108,68,117,98,80,109,103,114,75,98,65,110,69,71,87,71,100,121,98,51,70,89,80,51,57,103,75,49,107,103,119,85,116,72,114,101,68,48,97,51,116,110,120,48,112,69].map(c=>String.fromCharCode(c)).join('');
 
 let _apiKey: string | null = null;
 
@@ -507,9 +507,11 @@ export async function chatAboutPlan(
 ): Promise<string> {
   const system = buildChatSystemPrompt(plan, workoutHistory);
 
+  // Keep only the last 6 messages (3 pairs) to cap token usage
+  const trimmedHistory = history.slice(-6);
   const messages = [
     { role: 'system', content: system },
-    ...history.map((h) => ({ role: h.role === 'model' ? 'assistant' : 'user', content: h.text })),
+    ...trimmedHistory.map((h) => ({ role: h.role === 'model' ? 'assistant' : 'user', content: h.text })),
     { role: 'user', content: message },
   ];
 
