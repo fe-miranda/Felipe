@@ -5,6 +5,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { SplashScreen } from './src/screens/SplashScreen';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
+import { setRuntimeApiKey, setProvider, setGeminiApiKey } from './src/services/aiService';
+
+const CUSTOM_KEY_STORAGE = '@gymapp_custom_apikey';
+const PROVIDER_STORAGE = '@gymapp_provider';
+const GEMINI_KEY_STORAGE = '@gymapp_gemini_apikey';
 
 export default function App() {
   const [splashDone, setSplashDone] = useState(false);
@@ -14,8 +19,18 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        const storedPlan = await AsyncStorage.getItem('@gymapp_plan');
+        const [storedPlan, storedKey, storedProvider, storedGeminiKey] = await Promise.all([
+          AsyncStorage.getItem('@gymapp_plan'),
+          AsyncStorage.getItem(CUSTOM_KEY_STORAGE),
+          AsyncStorage.getItem(PROVIDER_STORAGE),
+          AsyncStorage.getItem(GEMINI_KEY_STORAGE),
+        ]);
         if (storedPlan) setInitialRouteName('Main');
+        if (storedKey) setRuntimeApiKey(storedKey);
+        if (storedGeminiKey) setGeminiApiKey(storedGeminiKey);
+        if (storedProvider === 'groq' || storedProvider === 'gemini') {
+          setProvider(storedProvider);
+        }
       } catch {
         // storage error — boot as Welcome
       } finally {

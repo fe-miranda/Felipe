@@ -423,7 +423,7 @@ export async function getExerciseAlternatives(
   const prompt =
     `3 alternative exercises for "${exerciseName}" targeting ${focus}.${ex}\n` +
     `JSON only: {"a":["ex1","ex2","ex3"]}`;
-  const raw = await groqPost([{ role: 'user', content: prompt }], 150);
+  const raw = await geminiPost([{ role: 'user', content: prompt }], 150);
   try {
     const data = extractJson(raw);
     const alts = data.a ?? data.alternatives;
@@ -456,7 +456,7 @@ export async function generatePlanOverview(
 
   onProgress?.('Gerando seu plano personalizado...');
 
-  const raw = await groqPost([{ role: 'user', content: prompt }], maxTokens);
+  const raw = await geminiPost([{ role: 'user', content: prompt }], maxTokens);
   const data = extractJson(raw);
 
   const blocks = ((data.months ?? data.monthlyBlocks ?? []) as MonthlyBlock[]).map((b) => ({
@@ -504,7 +504,7 @@ export async function generateMonthDetail(
     `JSON only, PT-BR, exactly ${profile.daysPerWeek} days:\n` +
     `{"theme":"tema","goals":["meta"],"days":[{"dayOfWeek":"Segunda","focus":"Peito","duration":${profile.workoutDuration},"exercises":[{"name":"Supino Reto","sets":4,"reps":"8-10","rest":"90s"}]}]}`;
 
-  const raw = await groqPost([{ role: 'user', content: prompt }], 1800);
+  const raw = await geminiPost([{ role: 'user', content: prompt }], 1800);
   const data = extractJson(raw);
 
   if (!data.days || !Array.isArray(data.days)) {
@@ -637,7 +637,7 @@ export async function chatAboutPlan(
     { role: 'user', content: message },
   ];
 
-  const reply = await groqPost(messages, 700);
+  const reply = await geminiPost(messages, 700);
   return reply || 'Não consegui gerar uma resposta. Tente novamente.';
 }
 
@@ -666,7 +666,7 @@ export async function getDailySuggestion(
     `{"title":"Costas e Bíceps","reason":"Não treinou em 3 dias","icon":"💪",` +
     `"focus":"Costas","exercises":[{"name":"Puxada Frontal","sets":4,"reps":"10-12","rest":"90s"}]}`;
 
-  const raw = await groqPost([{ role: 'user', content: prompt }], 500);
+  const raw = await geminiPost([{ role: 'user', content: prompt }], 500);
   try {
     const data = extractJson(raw);
     return {
@@ -712,7 +712,7 @@ export async function generateCustomWorkout(params: CustomWorkoutParams): Promis
     `JSON only, PT-BR:\n` +
     `{"focus":"Peito + Tríceps","exercises":[{"name":"Supino Reto","sets":4,"reps":"10-12","rest":"90s","notes":"Principal"}]}`;
 
-  const raw = await groqPost([{ role: 'user', content: prompt }], 700);
+  const raw = await geminiPost([{ role: 'user', content: prompt }], 700);
   const data = extractJson(raw);
 
   return {
@@ -782,7 +782,7 @@ export async function importPlanFromText(
     `Workout plan to import:\n\n${planText}\n` +
     `Import constraints: this plan must have exactly ${durationMonths} month(s), starting from current calendar month.\n` +
     IMPORT_PLAN_PROMPT_SUFFIX;
-  const raw = await groqPost([{ role: 'user', content: prompt }], 3000, 0.1);
+  const raw = await geminiPost([{ role: 'user', content: prompt }], 3000, 0.1);
   const data = extractJson(raw);
   return _buildImportedPlan(data, options);
 }
@@ -819,14 +819,14 @@ export async function importPlanFromImages(
     IMPORT_PLAN_PROMPT_SUFFIX;
 
   if (normalizedImages.length === 1) {
-    const raw = await groqVisionPost(normalizedImages, visionPrompt, 4000, 0.1);
+    const raw = await geminiVisionPost(normalizedImages, visionPrompt, 4000, 0.1);
     const data = extractJson(raw);
     return _buildImportedPlan(data, options);
   }
 
   // Multiple images: extract text from each image first, then combine and convert
   const extractPromises = normalizedImages.map((img) =>
-    groqVisionPost(
+    geminiVisionPost(
       [img],
       'You are a workout plan text extractor. Transcribe ALL workout text visible in this image exactly as written — copy every exercise name, set, rep, and rest value verbatim. Return ONLY the raw text, no JSON, no markdown.',
       1000,

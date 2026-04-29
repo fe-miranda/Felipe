@@ -27,7 +27,7 @@ type ProviderType = 'groq' | 'gemini';
 export function SettingsScreen({ navigation }: Props) {
   const [keyInput, setKeyInput] = useState('');
   const [savedKey, setSavedKey] = useState<string | null>(null);
-  const [activeProvider, setActiveProvider] = useState<ProviderType>('groq');
+  const [activeProvider, setActiveProvider] = useState<ProviderType>('gemini');
   const [geminiKeyInput, setGeminiKeyInput] = useState('');
   const [savedGeminiKey, setSavedGeminiKey] = useState<string | null>(null);
   const insets = useSafeAreaInsets();
