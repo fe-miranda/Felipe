@@ -35,7 +35,8 @@ function getApiKey(): string {
 }
 
 function getGeminiApiKey(): string {
-  return _geminiApiKey ?? '';
+  if (!_geminiApiKey) throw new Error('Chave Gemini não configurada. Acesse Configurações e adicione sua chave do Google AI Studio.');
+  return _geminiApiKey;
 }
 
 export const GOAL_LABELS: Record<string, string> = {
@@ -119,6 +120,12 @@ export function expandToWeeks(template: {
 
 const TIMEOUT_MS = 45_000;
 
+/** Shared message shape used by both Groq (OpenAI-compatible) and Gemini helpers. */
+interface AIMessage {
+  role: string;
+  content: string;
+}
+
 function friendlyError(status: number): string | null {
   switch (status) {
     case 401: case 403: return 'Chave de API inválida ou expirada. Configure sua chave em Configurações.';
@@ -131,7 +138,7 @@ function friendlyError(status: number): string | null {
 // ─── Gemini HTTP helpers ─────────────────────────────────────────────────────
 
 async function geminiPost(
-  messages: { role: string; content: string }[],
+  messages: AIMessage[],
   maxTokens: number,
   temperature = 0.7,
 ): Promise<string> {
@@ -220,8 +227,8 @@ async function geminiVisionPost(
   return data.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
 }
 
-async function groqPost(messages: object[], maxTokens: number, temperature = 0.7): Promise<string> {
-  if (_provider === 'gemini') return geminiPost(messages as { role: string; content: string }[], maxTokens, temperature);
+async function groqPost(messages: AIMessage[], maxTokens: number, temperature = 0.7): Promise<string> {
+  if (_provider === 'gemini') return geminiPost(messages, maxTokens, temperature);
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
