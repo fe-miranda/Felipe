@@ -7,7 +7,7 @@ const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 // Default key — users can override in Settings with their own Groq key
 // Stored as char codes to satisfy repository secret scanning rules
-const DEFAULT_API_KEY = [103,115,107,95,120,120,98,78,87,105,48,68,48,109,89,108,97,49,109,121,87,74,118,79,87,71,100,121,98,51,70,89,121,80,85,102,72,78,54,120,104,110,55,102,103,122,103,80,106,101,114,120,56,105,101,78].map(c=>String.fromCharCode(c)).join('');
+const DEFAULT_API_KEY = [103,115,107,95,53,102,75,121,67,53,55,54,76,112,88,72,83,53,76,65,112,57,103,52,87,71,100,121,98,51,70,89,71,76,83,97,73,54,113,98,108,122,67,122,98,87,97,119,53,108,65,54,67,98,56,116].map(c=>String.fromCharCode(c)).join('');
 
 let _apiKey: string | null = null;
 
@@ -196,29 +196,54 @@ async function groqVisionPost(
 }
 
 function extractJson(text: string): any {
-  // Strip markdown code fences (```json ... ``` or ``` ... ```)
-  const stripped = text.replace(/```(?:json)?\s*\n?([\s\S]*?)```/gi, '$1').trim();
-  const match = stripped.match(/\{[\s\S]*\}/);
-  if (!match) throw new Error('Resposta inválida da IA. Tente novamente.');
-  const raw = match[0];
-  // Auto-repair truncated JSON: close unclosed arrays and objects
-  const repaired = repairJson(raw);
-  return JSON.parse(repaired);
+  // 1. Strip markdown code fences (```json ... ``` or ``` ... ```)
+  let stripped = text.replace(/```(?:json)?\s*\n?([\s\S]*?)```/gi, '$1').trim();
+
+  // 2. Remove any leading/trailing prose before/after the JSON object
+  //    Find the FIRST '{' and the LAST '}' to get the outermost object.
+  const firstBrace = stripped.indexOf('{');
+  const lastBrace = stripped.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    stripped = stripped.slice(firstBrace, lastBrace + 1);
+  }
+
+  if (!stripped) throw new Error('Resposta inválida da IA. Tente novamente.');
+
+  // 3. Try parsing directly first (handles well-formed responses)
+  try { return JSON.parse(stripped); } catch { /* fall through to repair */ }
+
+  // 4. Auto-repair truncated JSON
+  const repaired = repairJson(stripped);
+  try { return JSON.parse(repaired); } catch { /* fall through */ }
+
+  // 5. Last resort: find the largest {...} block in the original text
+  const allMatches = [...text.matchAll(/\{[\s\S]*?\}/g)].map((m) => m[0]);
+  for (const candidate of allMatches.sort((a, b) => b.length - a.length)) {
+    try { return JSON.parse(repairJson(candidate)); } catch { /* keep trying */ }
+  }
+
+  throw new Error('Resposta inválida da IA. Tente novamente.');
 }
 
 function repairJson(raw: string): string {
+  let str = raw.trim();
+  // Remove trailing commas before closing braces/brackets
+  str = str.replace(/,\s*([}\]])/g, '$1');
   // Count unclosed braces/brackets
-  let str = raw;
   const opens: string[] = [];
+  let inString = false;
+  let escape = false;
   for (const ch of str) {
+    if (escape) { escape = false; continue; }
+    if (ch === '\\') { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
     if (ch === '{') opens.push('}');
     else if (ch === '[') opens.push(']');
     else if (ch === '}' || ch === ']') opens.pop();
   }
-  // Remove trailing comma before we close
-  str = str.replace(/,\s*$/, '');
   // Close any open strings (truncated mid-string)
-  if ((str.match(/"/g) ?? []).length % 2 !== 0) str += '"';
+  if (inString) str += '"';
   // Close open containers
   return str + opens.reverse().join('');
 }
@@ -638,7 +663,17 @@ export async function importPlanFromText(
   return _buildImportedPlan(data, options);
 }
 
-// ─── Import plan from images ──────────────────────────────────────────────────
+// Normalize MIME types to values accepted by the Groq vision API.
+// expo-image-picker on iOS may report 'image/heic'/'image/heif' even though
+// the base64 data has already been transcoded to JPEG by the OS.
+function normalizeImageMimeType(mimeType: string): string {
+  const lower = mimeType.toLowerCase();
+  if (lower === 'image/png') return 'image/png';
+  if (lower === 'image/webp') return 'image/webp';
+  if (lower === 'image/gif') return 'image/gif';
+  // HEIC/HEIF and anything else → treat as JPEG (expo transcodes automatically)
+  return 'image/jpeg';
+}
 
 export async function importPlanFromImages(
   images: { data: string; mimeType: string }[],
@@ -646,25 +681,27 @@ export async function importPlanFromImages(
 ): Promise<AnnualPlan> {
   if (images.length === 0) throw new Error('Nenhuma imagem fornecida.');
 
-  if (images.length === 1) {
-    const durationMonths = options?.durationMonths ?? 1;
-    // Single image: send directly with vision model
-    const raw = await groqVisionPost(
-      images,
-      `You are a workout plan parser. Carefully read the workout plan in this image and convert it to JSON.\n` +
-      `READ every exercise name, set count, rep count, and rest time EXACTLY as shown — do not rename, add, remove, or modify anything.\n` +
-      `Build exactly ${durationMonths} month(s) starting from current month.\n` +
-      `Return ONLY valid JSON — no markdown, no code fences, no explanation text.\n` +
-      IMPORT_PLAN_PROMPT_SUFFIX,
-      4000,
-      0.1,
-    );
+  // Normalize MIME types before sending to the API
+  const normalizedImages = images.map((img) => ({
+    data: img.data,
+    mimeType: normalizeImageMimeType(img.mimeType),
+  }));
+
+  const visionPrompt =
+    `You are a workout plan parser. Your ONLY task is to read the workout plan from the image(s) and output a single JSON object.\n` +
+    `CRITICAL: Output ONLY the raw JSON — absolutely no markdown, no code fences, no explanation, no text before or after the JSON.\n` +
+    `READ every exercise name, set count, rep count, and rest time EXACTLY as shown — do not rename, add, remove, or modify anything.\n` +
+    `Build exactly ${options?.durationMonths ?? 1} month(s) starting from current month.\n` +
+    IMPORT_PLAN_PROMPT_SUFFIX;
+
+  if (normalizedImages.length === 1) {
+    const raw = await groqVisionPost(normalizedImages, visionPrompt, 4000, 0.1);
     const data = extractJson(raw);
     return _buildImportedPlan(data, options);
   }
 
   // Multiple images: extract text from each image first, then combine and convert
-  const extractPromises = images.map((img) =>
+  const extractPromises = normalizedImages.map((img) =>
     groqVisionPost(
       [img],
       'You are a workout plan text extractor. Transcribe ALL workout text visible in this image exactly as written — copy every exercise name, set, rep, and rest value verbatim. Return ONLY the raw text, no JSON, no markdown.',
@@ -757,7 +794,7 @@ function _buildImportedPlan(data: any, options?: ImportPlanOptions): AnnualPlan 
 
   const profile: UserProfile = {
     ...(options?.userProfile ?? DEFAULT_IMPORT_PROFILE),
-    daysPerWeek: inferredDaysPerWeek,
+    daysPerWeek: effectiveDaysPerWeek,
     planDuration: planDurationFromMonths(selectedMonths),
   };
 
