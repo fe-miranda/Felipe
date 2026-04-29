@@ -440,6 +440,9 @@ export function HomeScreen({ navigation }: Props) {
             {totalPlanDays > 0 ? `Dia ${currentPlanDay} de ${totalPlanDays} do Plano` : `Plano de ${totalMonths} ${totalMonths === 1 ? 'mês' : 'meses'} ativo`}
           </Text>
         </View>
+        <TouchableOpacity style={s.iconBtn} onPress={() => navigation.navigate('Settings')}>
+          <Text style={s.iconBtnText}>⚙️</Text>
+        </TouchableOpacity>
       </View>
 
       {/* ── Acessar seu treino ── */}
